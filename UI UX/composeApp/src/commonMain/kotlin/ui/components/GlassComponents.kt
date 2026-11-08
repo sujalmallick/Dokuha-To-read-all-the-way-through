@@ -38,7 +38,9 @@ fun GlassContainer(
     content: @Composable BoxScope.() -> Unit
 ) {
     val hazeModifier = if (hazeState != null) {
-        Modifier.hazeChild(state = hazeState)
+        Modifier.hazeChild(state = hazeState) {
+            this.backgroundColor = backgroundColor
+        }
     } else {
         Modifier
     }

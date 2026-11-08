@@ -1,81 +1,185 @@
-# Panel — UI / UX (Compose Multiplatform)
+<div align="center">
 
-Cross-platform manga, manhwa, and webnovel reader user interface built with **Kotlin Multiplatform (KMP)** and **Compose Multiplatform (CMP)** for Android and iOS.
+# 🌌 PANEL (読破 — Dokuha) — UI / UX Module
+### *Read Anywhere. To Read All The Way Through.*
 
-Target UI design: `design/option_2.png`
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.1.0-7F52FF.svg?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
+[![Compose Multiplatform](https://img.shields.io/badge/Compose_Multiplatform-1.7.1-4285F4.svg?logo=jetpackcompose&logoColor=white)](https://www.jetbrains.com/lp/compose-multiplatform/)
+[![Platform](https://img.shields.io/badge/Platform-Android_%7C_iOS-brightgreen.svg)]()
+[![Voyager](https://img.shields.io/badge/Navigation-Voyager-FF4081.svg)](https://voyager.adriel.cafe/)
+[![Haze](https://img.shields.io/badge/Glassmorphism-Haze_1.1.1-673AB7.svg)](https://github.com/chrisbanes/haze)
+[![Koin](https://img.shields.io/badge/DI-Koin_4.0-E91E63.svg)](https://insert-koin.io/)
+[![Roborazzi](https://img.shields.io/badge/Verified-Roborazzi_Screenshots-00C853.svg)](https://github.com/takahirom/roborazzi)
+
+<p align="center">
+  <b>A next-generation, cross-platform reader for Manga, Manhwa, and Webnovels.</b><br>
+  Built with Kotlin Multiplatform (KMP) and Compose Multiplatform (CMP) for silky 60+ FPS performance on Android & iOS.
+</p>
 
 ---
 
-## Tech Stack
+<p align="center">
+  <img src="design/option_2.png" alt="Panel Master Design Concept" width="100%">
+</p>
 
-- **Kotlin**: 2.1.0
-- **Compose Multiplatform**: 1.7.1 (Material 3 base + custom PanelTheme)
-- **Navigation**: Voyager 1.1.0-beta03
-- **Dependency Injection**: Koin 4.0.0
-- **Image Pipeline**: Coil 3 (3.0.4)
-- **Glassmorphism / Blur**: Haze 1.1.1
-- **Serialization**: `kotlinx.serialization` 1.7.3
+</div>
 
 ---
 
-## Package Architecture
+## ✨ Features & Visual Highlights
+
+### 1. 🌌 Frosted Glass & Midnight Aesthetic
+Deep obsidian navy backgrounds, luminous electric blue accents, and real-time backdrop blur powered by **Haze**. Every navigation bar, bottom sheet, and floating control feels tactile, modern, and fluid.
+
+### 2. 📖 All-in-One Reading Experience
+- **Continuous Webtoon Reader**: Seamless vertical scrolling strip with floating episode capsules and progress scrubbers.
+- **Manga Engine**: Support for right-to-left (RTL), left-to-right (LTR), and vertical page flips.
+- **Editorial Webnovel Reader**: Custom drop-cap typography, estimated read-time indicators, and 4 curated colorways (Dark Navy, Sepia, Cream, OLED Pitch Black).
+
+### 3. 🧩 Modular Source & Extension Ecosystem
+Browse sources across languages with localized tags, filter installed extensions, track updates in chronological sections, and manage queued downloads.
+
+### 4. 📊 Storage & Offline Management
+Interactive custom canvas donut chart visualizing disk space distribution across Manga, Manhwa, Novels, and other files with per-task pause/resume download controls.
+
+---
+
+## 📱 Screen Showcase (Native Roborazzi Captures)
+
+All screens rendered pixel-perfectly with 100% shared Compose Multiplatform code:
+
+<div align="center">
+
+### Onboarding & Library
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <img src="composeApp/screenshots/01_welcome.png" alt="01 Welcome Screen" width="100%" /><br />
+      <b>01. Welcome & Immersion</b><br />
+      <i>Starry night sky canvas & city silhouettes</i>
+    </td>
+    <td align="center" width="33%">
+      <img src="composeApp/screenshots/02_library.png" alt="02 Library Screen" width="100%" /><br />
+      <b>02. Dynamic Glass Library</b><br />
+      <i>Quick-resume glass card & manga grid</i>
+    </td>
+    <td align="center" width="33%">
+      <img src="composeApp/screenshots/03_title_details.png" alt="03 Title Details Screen" width="100%" /><br />
+      <b>03. Title Details Hub</b><br />
+      <i>Cinematic glow header & chapter feeds</i>
+    </td>
+  </tr>
+</table>
+
+### Multi-Format Reader Experience
+
+<table>
+  <tr>
+    <td align="center" width="33%">
+      <img src="composeApp/screenshots/04_webtoon_reader.png" alt="04 Webtoon Reader" width="100%" /><br />
+      <b>04. Webtoon Reader</b><br />
+      <i>Continuous vertical strip & floating HUD</i>
+    </td>
+    <td align="center" width="33%">
+      <img src="composeApp/screenshots/05_reader_settings.png" alt="05 Reader Settings" width="100%" /><br />
+      <b>05. Reader Settings Sheet</b><br />
+      <i>Mode selector tiles & ambient sliders</i>
+    </td>
+    <td align="center" width="33%">
+      <img src="composeApp/screenshots/06_webnovel_reader.png" alt="06 Webnovel Reader" width="100%" /><br />
+      <b>06. Editorial Webnovel Reader</b><br />
+      <i>Illuminated drop-caps & palette bar</i>
+    </td>
+  </tr>
+</table>
+
+### Discovery, Extensions & Management
+
+<table>
+  <tr>
+    <td align="center" width="25%">
+      <img src="composeApp/screenshots/07_browse.png" alt="07 Browse Screen" width="100%" /><br />
+      <b>07. Browse Hub</b><br />
+      <i>Source directory & trending carousel</i>
+    </td>
+    <td align="center" width="25%">
+      <img src="composeApp/screenshots/08_extensions.png" alt="08 Extensions Screen" width="100%" /><br />
+      <b>08. Extensions</b><br />
+      <i>Modular catalog & updates</i>
+    </td>
+    <td align="center" width="25%">
+      <img src="composeApp/screenshots/09_updates.png" alt="09 Updates Screen" width="100%" /><br />
+      <b>09. Daily Updates</b><br />
+      <i>Date-grouped chapter timeline</i>
+    </td>
+    <td align="center" width="25%">
+      <img src="composeApp/screenshots/10_downloads.png" alt="10 Downloads Screen" width="100%" /><br />
+      <b>10. Storage & Queue</b><br />
+      <i>Canvas donut chart & queue</i>
+    </td>
+  </tr>
+</table>
+
+</div>
+
+---
+
+## 🏗 Architecture & Code Structure
+
+Panel follows clean, decoupled architecture ready for cross-team backend handoff:
 
 ```
 composeApp/src/commonMain/kotlin/
 ├── core/
-│   ├── di/
-│   │   └── AppModule.kt             # Koin module definition
-│   └── source/
-│       └── Models.kt                # SourceManga, SourceChapter, SourcePage,
-│                                    # NovelContent, MangaStatus, ContentSource...
+│   ├── di/                 # Dependency injection modules (Koin)
+│   └── source/             # Domain source models (Manga, Chapter, Page, NovelContent)
 ├── data/
-│   └── mock/
-│       ├── MockModels.kt            # Mock models (Extensions, Downloads, Updates...)
-│       └── MockRepositories.kt      # PanelRepository interface & FakePanelRepository
-├── io/panel/reader/
-│   └── PanelApp.kt                  # Root application composable & Navigator
+│   └── mock/               # PanelRepository contract & mock implementation
+├── io/panel/reader/        # App entry point, Voyager TabNavigator
 └── ui/
-    ├── theme/
-    │   ├── Color.kt                 # Dark navy, electric blue accent, glass borders
-    │   ├── Shape.kt                 # CapsuleShape, CoverImageShape, BottomSheetShape
-    │   ├── Spacing.kt               # Spacing design tokens
-    │   ├── Theme.kt                 # PanelTheme composable
-    │   └── Type.kt                  # Typography scale
-    ├── components/
-    │   ├── BottomNavBar.kt          # Floating glass bottom bar (Library, Updates, Browse, More)
-    │   ├── Buttons.kt               # PanelPillButton, PanelCircleIconButton
-    │   ├── CommonComponents.kt      # MangaCoverCard, StatusBadge, RatingBadge, Sliders...
-    │   └── GlassComponents.kt       # GlassContainer, FrostedGlassCapsule (with Haze blur)
+    ├── theme/              # Design tokens (Colors, Typography, Spacing, Shapes)
+    ├── components/         # GlassContainer, FrostedCapsule, PillButtons, BottomNavBar
     └── screens/
-        ├── welcome/                 # Screen 1: Welcome Screen
-        ├── library/                 # Screen 2: Library Screen
-        ├── details/                 # Screen 3: Title Details Screen
-        ├── webtoonreader/           # Screen 4: Webtoon Reader Screen
-        │                            # Screen 5: Reader Settings Sheet
-        ├── novelreader/             # Screen 6: Webnovel Reader Screen
-        ├── browse/                  # Screen 7: Browse Screen
-        ├── extensions/              # Screen 8: Extensions Screen
-        ├── updates/                 # Screen 9: Updates Screen
-        └── downloads/               # Screen 10: Downloads Screen
+        ├── welcome/        # WelcomeScreen (Screen 1)
+        ├── library/        # LibraryScreen (Screen 2)
+        ├── details/        # TitleDetailsScreen (Screen 3)
+        ├── webtoonreader/  # WebtoonReaderScreen & ReaderSettingsSheet (Screens 4 & 5)
+        ├── novelreader/    # NovelReaderScreen (Screen 6)
+        ├── browse/         # BrowseScreen (Screen 7)
+        ├── extensions/     # ExtensionsScreen (Screen 8)
+        ├── updates/        # UpdatesScreen (Screen 9)
+        └── downloads/      # DownloadsScreen (Screen 10)
 ```
 
----
-
-## Handover to Backend
-
-All screens consume data through the **`PanelRepository`** interface defined in `data/mock/MockRepositories.kt`.
-To connect real backend engines (SQLDelight, Ktor, Dalvik/DEX extension loader, Cloudflare bypass), implement `PanelRepository` or provide domain use-cases that replace `FakePanelRepository` in `core/di/AppModule.kt`.
+### 🔌 Backend Handover Ready
+All screens consume data strictly through the **`PanelRepository`** interface (`data/mock/MockRepositories.kt`). Backend developers can swap in SQLDelight, Ktor networking, Dex extension loaders, or Cloudflare bypass engines without touching UI composables.
 
 ---
 
-## Building & Running
+## 🚀 Building & Testing
 
-### Common Compilation Check
+### Prerequisites
+- JDK 17+
+- Android Studio Ladybug+ / IntelliJ IDEA with Kotlin Multiplatform plugin
+
+### Verify UI Compilation
 ```bash
 ./gradlew :composeApp:compileCommonMainKotlinMetadata
 ```
 
-### Android Run
+### Assemble Android APK
 ```bash
 ./gradlew :composeApp:assembleDebug
 ```
+
+### Run Native Roborazzi Screenshot Verification
+```bash
+./gradlew :composeApp:recordRoborazziDebug
+```
+
+---
+
+<div align="center">
+  <sub>Crafted with passion for readers around the world.</sub>
+</div>

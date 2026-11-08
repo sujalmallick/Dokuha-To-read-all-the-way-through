@@ -65,7 +65,9 @@ fun PanelBottomNavBar(
 ) {
     val navShape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
     val hazeModifier = if (hazeState != null) {
-        Modifier.hazeChild(state = hazeState)
+        Modifier.hazeChild(state = hazeState) {
+            backgroundColor = PanelSurfaceGlassHigh
+        }
     } else {
         Modifier
     }
