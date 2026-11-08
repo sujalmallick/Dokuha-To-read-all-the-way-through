@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="design/logo.png" alt="PANEL Logo (Dokuha)" width="128" />
+
 # 🌌 PANEL (読破 — Dokuha) — UI / UX Module
 ### *Read Anywhere. To Read All The Way Through.*
 
@@ -117,6 +119,33 @@ All screens rendered pixel-perfectly with 100% shared Compose Multiplatform code
       <img src="composeApp/screenshots/10_downloads.png" alt="10 Downloads Screen" width="100%" /><br />
       <b>10. Storage & Queue</b><br />
       <i>Canvas donut chart & queue</i>
+    </td>
+  </tr>
+</table>
+
+### Profile & Settings Hub
+
+<table>
+  <tr>
+    <td align="center" width="25%">
+      <img src="composeApp/screenshots/11_profile.png" alt="11 Profile Screen" width="100%" /><br />
+      <b>11. Reader Profile</b><br />
+      <i>Avatar, activity bar chart & trackers</i>
+    </td>
+    <td align="center" width="25%">
+      <img src="composeApp/screenshots/12_more_hub.png" alt="12 More Hub Screen" width="100%" /><br />
+      <b>12. More Hub</b><br />
+      <i>Profile card & settings categories</i>
+    </td>
+    <td align="center" width="25%">
+      <img src="composeApp/screenshots/13_appearance_settings.png" alt="13 Appearance Settings" width="100%" /><br />
+      <b>13. Appearance</b><br />
+      <i>Theme, accent colors & accessibility</i>
+    </td>
+    <td align="center" width="25%">
+      <img src="composeApp/screenshots/14_reader_settings.png" alt="14 Reader Settings" width="100%" /><br />
+      <b>14. Reader Defaults</b><br />
+      <i>Reading mode & live novel preview</i>
     </td>
   </tr>
 </table>

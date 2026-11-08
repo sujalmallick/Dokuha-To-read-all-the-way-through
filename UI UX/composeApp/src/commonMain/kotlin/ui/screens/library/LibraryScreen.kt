@@ -51,12 +51,11 @@ import core.source.SourceChapter
 import core.source.SourceManga
 import data.mock.FakePanelRepository
 import data.mock.PanelRepository
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
+import ui.glass.glassSource
+import ui.glass.rememberPanelGlassState
 import ui.components.CategoryPillRow
-import ui.components.GlassContainer
 import ui.components.MangaCoverCard
 import ui.components.PanelBottomNavBar
 import ui.components.PanelCircleIconButton
@@ -114,7 +113,7 @@ fun LibraryScreenContent(
     onTabSelected: (PanelTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val hazeState = remember { HazeState() }
+    val glassState = rememberPanelGlassState()
     var selectedCategory by remember { mutableStateOf("All") }
     val categories = listOf("All", "Manga", "Manhwa", "Novels")
 
@@ -126,12 +125,12 @@ fun LibraryScreenContent(
             .fillMaxSize()
             .background(PanelBackground)
     ) {
-        // Main scrollable content
+        // Main scrollable content (glass sampling source)
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
             modifier = Modifier
                 .fillMaxSize()
-                .haze(hazeState),
+                .glassSource(glassState),
             contentPadding = PaddingValues(
                 start = 16.dp,
                 end = 16.dp,
@@ -162,6 +161,7 @@ fun LibraryScreenContent(
                             icon = Icons.Default.Search,
                             size = 40.dp,
                             iconSize = 20.dp,
+                            glassState = glassState,
                             onClick = { /* Search Action */ }
                         )
                     }
@@ -223,12 +223,14 @@ fun LibraryScreenContent(
             }
         }
 
-        // Floating Frosted Glass Bottom Navigation Bar
+        // Floating Liquid Glass Bottom Navigation Dock
         PanelBottomNavBar(
             selectedTab = PanelTab.LIBRARY,
             onTabSelected = onTabSelected,
-            hazeState = hazeState,
-            modifier = Modifier.align(Alignment.BottomCenter)
+            glassState = glassState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 20.dp, vertical = 16.dp)
         )
     }
 }
@@ -243,18 +245,18 @@ fun ContinueReadingCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    GlassContainer(
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color.White.copy(alpha = 0.07f))
+            .border(1.dp, GlassBorder, RoundedCornerShape(18.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(color = Color.White),
                 onClick = onClick
-            ),
-        shape = RoundedCornerShape(16.dp),
-        backgroundColor = PanelSurfaceGlassHigh,
-        borderColor = GlassBorderStrong
+            )
+            .padding(12.dp)
     ) {
         Row(
             modifier = Modifier

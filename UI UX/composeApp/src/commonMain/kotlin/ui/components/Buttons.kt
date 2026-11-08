@@ -13,34 +13,36 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.ui.tooling.preview.Preview
-import ui.theme.CapsuleShape
+import ui.glass.GlassVariant
+import ui.glass.PanelGlassState
+import ui.glass.glassDimming
+import ui.glass.glassPress
+import ui.glass.glassSurface
+import ui.glass.nonGlassPress
 import ui.theme.ElectricBlue
-import ui.theme.ElectricBlueDark
-import ui.theme.ElectricBlueLight
 import ui.theme.GlassBorder
 import ui.theme.GlassBorderStrong
 import ui.theme.PanelSurfaceGlassHigh
 import ui.theme.PanelTheme
 import ui.theme.TextPrimary
-import ui.theme.TextSecondary
 
 enum class ButtonVariant {
     PRIMARY,
@@ -48,37 +50,52 @@ enum class ButtonVariant {
     OUTLINE
 }
 
+val PanelButtonShape = RoundedCornerShape(16.dp)
+
+/**
+ * Modern rounded-rectangle action button.
+ * - Flat ElectricBlue fill on PRIMARY (no gradient slop, no glow washes)
+ * - Liquid glass lens on GLASS variant
+ * - Modern spring press feedback
+ */
 @Composable
 fun PanelPillButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     variant: ButtonVariant = ButtonVariant.PRIMARY,
+    glassState: PanelGlassState? = null,
     icon: ImageVector? = null,
     trailingIcon: ImageVector? = null,
     contentPadding: PaddingValues = PaddingValues(horizontal = 24.dp, vertical = 14.dp)
 ) {
-    val backgroundModifier = when (variant) {
-        ButtonVariant.PRIMARY -> Modifier.background(
-            brush = Brush.horizontalGradient(
-                colors = listOf(ElectricBlue, ElectricBlueLight)
-            )
-        )
+    val interactionSource = remember { MutableInteractionSource() }
+
+    val surfaceModifier = when (variant) {
+        ButtonVariant.PRIMARY -> Modifier
+            .nonGlassPress(interactionSource)
+            .clip(PanelButtonShape)
+            .background(ElectricBlue)
         ButtonVariant.GLASS -> Modifier
-            .background(PanelSurfaceGlassHigh)
-            .border(1.dp, GlassBorderStrong, CapsuleShape)
+            .glassPress(interactionSource)
+            .glassSurface(
+                state = glassState,
+                variant = GlassVariant.Regular,
+                shape = PanelButtonShape
+            )
         ButtonVariant.OUTLINE -> Modifier
+            .nonGlassPress(interactionSource)
+            .clip(PanelButtonShape)
             .background(Color.Transparent)
-            .border(1.dp, GlassBorder, CapsuleShape)
+            .border(1.dp, GlassBorder, PanelButtonShape)
     }
 
     Box(
         modifier = modifier
-            .clip(CapsuleShape)
-            .then(backgroundModifier)
+            .then(surfaceModifier)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = Color.White),
+                interactionSource = interactionSource,
+                indication = null,
                 onClick = onClick
             )
             .padding(contentPadding),
@@ -101,7 +118,7 @@ fun PanelPillButton(
                 text = text,
                 color = TextPrimary,
                 fontSize = 15.sp,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold
             )
             if (trailingIcon != null) {
                 Spacer(modifier = Modifier.width(8.dp))
@@ -116,26 +133,48 @@ fun PanelPillButton(
     }
 }
 
+/**
+ * Circular glass icon button with specular rim lighting and gentle swell press feedback.
+ */
 @Composable
 fun PanelCircleIconButton(
     icon: ImageVector,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    glassState: PanelGlassState? = null,
+    hasDimming: Boolean = true,
     size: Dp = 42.dp,
     iconSize: Dp = 20.dp,
     tint: Color = TextPrimary,
     backgroundColor: Color = PanelSurfaceGlassHigh,
     borderColor: Color = GlassBorderStrong
 ) {
-    Box(
-        modifier = modifier
-            .size(size)
+    val interactionSource = remember { MutableInteractionSource() }
+
+    val surfaceModifier = if (glassState != null) {
+        Modifier
+            .glassPress(interactionSource)
+            .glassDimming(enabled = hasDimming, alpha = 0.35f, shape = CircleShape)
+            .glassSurface(
+                state = glassState,
+                variant = GlassVariant.Clear,
+                shape = CircleShape
+            )
+    } else {
+        Modifier
+            .nonGlassPress(interactionSource)
             .clip(CircleShape)
             .background(backgroundColor)
             .border(1.dp, borderColor, CircleShape)
+    }
+
+    Box(
+        modifier = modifier
+            .size(size)
+            .then(surfaceModifier)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = Color.White),
+                interactionSource = interactionSource,
+                indication = null,
                 onClick = onClick
             ),
         contentAlignment = Alignment.Center
