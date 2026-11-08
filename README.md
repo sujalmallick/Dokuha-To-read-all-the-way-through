@@ -18,9 +18,7 @@
 
 ---
 
-<p align="center">
-  <img src="UI UX/design/option_2.png" alt="Panel Master Design Concept" width="100%">
-</p>
+
 
 </div>
 
