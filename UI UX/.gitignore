@@ -1,0 +1,22 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/*/build
+.kotlin
+.env*
+*.log
+
+# Keystores & sensitive keys
+*.jks
+*.keystore
+*.key
+*.pem
+keystore.properties
+google-services.json
+GoogleService-Info.plist
+
+# OS-specific
+Thumbs.db
