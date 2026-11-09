@@ -61,14 +61,16 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import core.source.SourcePage
 import data.mock.FakePanelRepository
 import data.mock.PanelRepository
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
-import ui.components.FrostedGlassCapsule
 import ui.components.PanelCircleIconButton
 import ui.components.PanelSlider
+import ui.glass.GlassVariant
+import ui.glass.glassDimming
+import ui.glass.glassSource
+import ui.glass.glassSurface
+import ui.glass.rememberPanelGlassState
 import ui.theme.CapsuleShape
 import ui.theme.ElectricBlue
 import ui.theme.PanelBackground
@@ -106,7 +108,7 @@ fun WebtoonReaderScreenContent(
     onOpenSettings: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val hazeState = remember { HazeState() }
+    val glassState = rememberPanelGlassState()
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
@@ -144,12 +146,12 @@ fun WebtoonReaderScreenContent(
             .fillMaxSize()
             .background(PanelBackground)
     ) {
-        // Continuous Vertical Webtoon Strip (0px seams)
+        // Continuous Vertical Webtoon Strip (0px seams) - Content layer sampled by glass
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .haze(hazeState)
+                .glassSource(glassState)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -167,7 +169,7 @@ fun WebtoonReaderScreenContent(
             }
         }
 
-        // Top Floating Control Bar
+        // Top Floating Control Bar - Sibling overlay using Clear Glass with 35% dimming over artwork
         AnimatedVisibility(
             visible = areControlsVisible,
             enter = fadeIn() + slideInVertically { -it },
@@ -187,13 +189,22 @@ fun WebtoonReaderScreenContent(
                     icon = Icons.AutoMirrored.Filled.ArrowBack,
                     size = 42.dp,
                     iconSize = 20.dp,
+                    glassState = glassState,
+                    hasDimming = true,
                     onClick = onBack
                 )
 
                 // Chapter Title Capsule
-                FrostedGlassCapsule(
-                    hazeState = hazeState,
-                    modifier = Modifier.padding(horizontal = 8.dp)
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .glassDimming(alpha = 0.35f, shape = CapsuleShape)
+                        .glassSurface(
+                            state = glassState,
+                            variant = GlassVariant.Clear,
+                            shape = CapsuleShape
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = chapterTitle,
@@ -210,6 +221,8 @@ fun WebtoonReaderScreenContent(
                         icon = Icons.Default.Tune,
                         size = 42.dp,
                         iconSize = 20.dp,
+                        glassState = glassState,
+                        hasDimming = true,
                         onClick = onOpenSettings
                     )
                     PanelCircleIconButton(
@@ -217,12 +230,16 @@ fun WebtoonReaderScreenContent(
                         size = 42.dp,
                         iconSize = 20.dp,
                         tint = if (isBookmarked) ElectricBlue else TextPrimary,
+                        glassState = glassState,
+                        hasDimming = true,
                         onClick = { isBookmarked = !isBookmarked }
                     )
                     PanelCircleIconButton(
                         icon = Icons.Default.MoreVert,
                         size = 42.dp,
                         iconSize = 20.dp,
+                        glassState = glassState,
+                        hasDimming = true,
                         onClick = { /* Menu */ }
                     )
                 }
@@ -239,9 +256,15 @@ fun WebtoonReaderScreenContent(
                 .navigationBarsPadding()
                 .padding(horizontal = 24.dp, vertical = 24.dp)
         ) {
-            FrostedGlassCapsule(
-                hazeState = hazeState,
-                modifier = Modifier.fillMaxWidth()
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .glassDimming(alpha = 0.35f, shape = CapsuleShape)
+                    .glassSurface(
+                        state = glassState,
+                        variant = GlassVariant.Clear,
+                        shape = CapsuleShape
+                    )
             ) {
                 Row(
                     modifier = Modifier
@@ -255,6 +278,9 @@ fun WebtoonReaderScreenContent(
                         icon = Icons.AutoMirrored.Filled.NavigateBefore,
                         size = 36.dp,
                         iconSize = 20.dp,
+                        glassState = null,
+                        backgroundColor = Color.White.copy(alpha = 0.08f),
+                        borderColor = Color.White.copy(alpha = 0.12f),
                         onClick = {
                             coroutineScope.launch {
                                 val target = (listState.firstVisibleItemIndex - 1).coerceAtLeast(0)
@@ -282,6 +308,9 @@ fun WebtoonReaderScreenContent(
                         icon = Icons.AutoMirrored.Filled.NavigateNext,
                         size = 36.dp,
                         iconSize = 20.dp,
+                        glassState = null,
+                        backgroundColor = Color.White.copy(alpha = 0.08f),
+                        borderColor = Color.White.copy(alpha = 0.12f),
                         onClick = {
                             coroutineScope.launch {
                                 val target = (listState.firstVisibleItemIndex + 1).coerceAtMost(displayPages.lastIndex)
