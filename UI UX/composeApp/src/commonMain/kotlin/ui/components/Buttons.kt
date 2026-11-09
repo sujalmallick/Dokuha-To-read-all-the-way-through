@@ -37,7 +37,6 @@ import ui.glass.glassDimming
 import ui.glass.glassPress
 import ui.glass.glassSurface
 import ui.glass.nonGlassPress
-import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
 import ui.theme.GlassBorderStrong
 import ui.theme.PanelSurfaceGlassHigh
@@ -54,7 +53,7 @@ val PanelButtonShape = RoundedCornerShape(16.dp)
 
 /**
  * Modern rounded-rectangle action button.
- * - Flat ElectricBlue fill on PRIMARY (no gradient slop, no glow washes)
+ * - Crisp Luxe White fill with dark charcoal ink on PRIMARY (professional minimalist luxury)
  * - Liquid glass lens on GLASS variant
  * - Modern spring press feedback
  */
@@ -75,7 +74,7 @@ fun PanelPillButton(
         ButtonVariant.PRIMARY -> Modifier
             .nonGlassPress(interactionSource)
             .clip(PanelButtonShape)
-            .background(ElectricBlue)
+            .background(Color.White)
         ButtonVariant.GLASS -> Modifier
             .glassPress(interactionSource)
             .glassSurface(
@@ -88,6 +87,11 @@ fun PanelPillButton(
             .clip(PanelButtonShape)
             .background(Color.Transparent)
             .border(1.dp, GlassBorder, PanelButtonShape)
+    }
+
+    val contentColor = when (variant) {
+        ButtonVariant.PRIMARY -> Color(0xFF090D15)
+        else -> TextPrimary
     }
 
     Box(
@@ -109,14 +113,14 @@ fun PanelPillButton(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = TextPrimary,
+                    tint = contentColor,
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
             }
             Text(
                 text = text,
-                color = TextPrimary,
+                color = contentColor,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold
             )
@@ -125,7 +129,7 @@ fun PanelPillButton(
                 Icon(
                     imageVector = trailingIcon,
                     contentDescription = null,
-                    tint = TextPrimary,
+                    tint = contentColor,
                     modifier = Modifier.size(18.dp)
                 )
             }

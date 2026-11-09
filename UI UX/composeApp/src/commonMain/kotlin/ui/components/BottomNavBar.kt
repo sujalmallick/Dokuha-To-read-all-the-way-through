@@ -1,7 +1,6 @@
 package ui.components
 
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,8 +41,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.hazeChild
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import ui.glass.GlassVariant
 import ui.glass.PanelGlassState
@@ -81,8 +78,7 @@ fun PanelBottomNavBar(
     selectedTab: PanelTab,
     onTabSelected: (PanelTab) -> Unit,
     modifier: Modifier = Modifier,
-    glassState: PanelGlassState? = null,
-    hazeState: HazeState? = null
+    glassState: PanelGlassState? = null
 ) {
     val dockShape = CapsuleShape
 
@@ -93,15 +89,6 @@ fun PanelBottomNavBar(
                 variant = GlassVariant.Regular,
                 shape = dockShape
             )
-        }
-        hazeState != null -> {
-            Modifier
-                .clip(dockShape)
-                .hazeChild(state = hazeState) {
-                    backgroundColor = PanelSurfaceGlassHigh
-                }
-                .background(PanelSurfaceGlassHigh)
-                .border(1.dp, GlassBorder, dockShape)
         }
         else -> {
             Modifier

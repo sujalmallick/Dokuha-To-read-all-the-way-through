@@ -1,5 +1,6 @@
 package ui.screens.extensions
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +25,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -107,6 +110,24 @@ fun ExtensionsScreenContent(
             .fillMaxSize()
             .background(PanelBackground)
     ) {
+        // Ambient liquid refraction glow orbs in background
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color(0xFF38BDF8).copy(alpha = 0.08f), Color.Transparent),
+                    center = Offset(size.width * 0.85f, size.height * 0.30f),
+                    radius = size.width * 0.65f
+                )
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color(0xFFA855F7).copy(alpha = 0.07f), Color.Transparent),
+                    center = Offset(size.width * 0.15f, size.height * 0.60f),
+                    radius = size.width * 0.60f
+                )
+            )
+        }
+
         // LAYER 1: Scrollable Content Layer (marked with glassSource)
         LazyColumn(
             modifier = Modifier

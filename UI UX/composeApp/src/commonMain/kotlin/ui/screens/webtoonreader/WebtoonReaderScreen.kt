@@ -11,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,8 +26,13 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.VerticalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.NavigateBefore
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material.icons.filled.Bookmark
@@ -36,11 +42,9 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -59,15 +63,19 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import core.source.SourcePage
-import data.mock.FakePanelRepository
 import data.mock.PanelRepository
+import data.settings.DefaultReadingMode
+import data.settings.FakeSettingsRepository
+import data.settings.SettingsRepository
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.PanelCircleIconButton
 import ui.components.PanelSlider
 import ui.glass.GlassVariant
+import ui.glass.PanelGlassState
 import ui.glass.glassDimming
+import ui.glass.glassPress
 import ui.glass.glassSource
 import ui.glass.glassSurface
 import ui.glass.rememberPanelGlassState
@@ -88,14 +96,55 @@ data class WebtoonReaderScreen(
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repository: PanelRepository = koinInject()
+        val settingsRepository: SettingsRepository = koinInject()
 
-        val pages by repository.getPages(chapterUrl).collectAsState(initial = emptyList())
+        var currentChapterUrl by remember(chapterUrl) { mutableStateOf(chapterUrl) }
+        var currentChapterTitle by remember(chapterTitle) { mutableStateOf(chapterTitle) }
+
+        val chapters by repository.getChapters(mangaUrl).collectAsState(initial = emptyList())
+        val pages by repository.getPages(currentChapterUrl).collectAsState(initial = emptyList())
+
+        val currentChapterIndex = chapters.indexOfFirst { it.url == currentChapterUrl || it.name == currentChapterTitle }
+        val hasPrevious = if (chapters.isNotEmpty() && currentChapterIndex >= 0) {
+            currentChapterIndex < chapters.lastIndex
+        } else true
+        val hasNext = if (chapters.isNotEmpty() && currentChapterIndex >= 0) {
+            currentChapterIndex > 0
+        } else true
+
+        val nextTitle = if (chapters.isNotEmpty() && currentChapterIndex > 0) {
+            chapters[currentChapterIndex - 1].name
+        } else "Episode 43"
 
         WebtoonReaderScreenContent(
-            chapterTitle = chapterTitle,
+            chapterTitle = currentChapterTitle,
             pages = pages,
             onBack = { navigator.pop() },
-            onOpenSettings = { navigator.push(ReaderSettingsScreen()) }
+            settingsRepository = settingsRepository,
+            onOpenSettings = { navigator.push(ReaderSettingsScreen()) },
+            onPreviousChapter = {
+                if (chapters.isNotEmpty() && currentChapterIndex in 0 until chapters.lastIndex) {
+                    val prevChapter = chapters[currentChapterIndex + 1]
+                    currentChapterUrl = prevChapter.url
+                    currentChapterTitle = prevChapter.name
+                } else {
+                    currentChapterTitle = "Episode 41"
+                    currentChapterUrl = "ch-209"
+                }
+            },
+            onNextChapter = {
+                if (chapters.isNotEmpty() && currentChapterIndex > 0) {
+                    val nextChapter = chapters[currentChapterIndex - 1]
+                    currentChapterUrl = nextChapter.url
+                    currentChapterTitle = nextChapter.name
+                } else {
+                    currentChapterTitle = "Episode 43"
+                    currentChapterUrl = "ch-211"
+                }
+            },
+            hasPreviousChapter = hasPrevious,
+            hasNextChapter = hasNext,
+            nextChapterTitle = nextTitle
         )
     }
 }
@@ -105,12 +154,24 @@ fun WebtoonReaderScreenContent(
     chapterTitle: String,
     pages: List<SourcePage>,
     onBack: () -> Unit,
+    settingsRepository: SettingsRepository? = null,
     onOpenSettings: () -> Unit = {},
+    onPreviousChapter: () -> Unit = {},
+    onNextChapter: () -> Unit = {},
+    hasPreviousChapter: Boolean = true,
+    hasNextChapter: Boolean = true,
+    nextChapterTitle: String = "Episode 43",
     modifier: Modifier = Modifier
 ) {
     val glassState = rememberPanelGlassState()
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+
+    val repo = settingsRepository ?: remember { FakeSettingsRepository() }
+    val readingMode by repo.defaultReadingMode.collectAsState()
+    val sidePadding by repo.sidePadding.collectAsState()
+    val brightness by repo.brightness.collectAsState()
+    val cropBorders by repo.cropBorders.collectAsState()
 
     var areControlsVisible by remember { mutableStateOf(true) }
     var isBookmarked by remember { mutableStateOf(false) }
@@ -119,57 +180,263 @@ fun WebtoonReaderScreenContent(
         SourcePage(index = it, url = "slice_$it")
     }
 
+    // In paginated modes, pageCount includes all pages plus 1 end-of-chapter transition card
+    val totalContentCount = displayPages.size + 1
+    val pagerState = rememberPagerState(pageCount = { totalContentCount })
+
+    val isRtl = readingMode == DefaultReadingMode.RIGHT_TO_LEFT
+
     // Derive scroll progression percentage 0f..1f
-    val currentProgress by remember {
+    val currentProgress by remember(readingMode, displayPages.size) {
         derivedStateOf {
-            val total = displayPages.size
-            if (total <= 1) 0f
-            else {
-                val index = listState.firstVisibleItemIndex.toFloat()
-                val offset = listState.firstVisibleItemScrollOffset.toFloat() / 1000f
-                ((index + offset) / total.toFloat()).coerceIn(0f, 1f)
+            if (readingMode == DefaultReadingMode.WEBTOON) {
+                val total = displayPages.size
+                if (total <= 1) 0f
+                else {
+                    val index = listState.firstVisibleItemIndex.toFloat()
+                    val offset = listState.firstVisibleItemScrollOffset.toFloat() / 1000f
+                    ((index + offset) / total.toFloat()).coerceIn(0f, 1f)
+                }
+            } else {
+                val total = displayPages.size
+                if (total <= 1) 0f
+                else {
+                    (pagerState.currentPage.toFloat() / (total - 1).coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+                }
             }
         }
     }
 
-    var sliderProgress by remember { mutableFloatStateOf(0f) }
-    var isDraggingSlider by remember { mutableStateOf(false) }
-
-    LaunchedEffect(currentProgress) {
-        if (!isDraggingSlider) {
-            sliderProgress = currentProgress
+    // Current page counter for indicator pill
+    val currentPageIndex by remember(readingMode, displayPages.size) {
+        derivedStateOf {
+            if (readingMode == DefaultReadingMode.WEBTOON) {
+                (listState.firstVisibleItemIndex + 1).coerceAtMost(displayPages.size)
+            } else {
+                (pagerState.currentPage + 1).coerceAtMost(displayPages.size)
+            }
         }
     }
 
-    Box(
+    val isAtEndOfChapter by remember(readingMode, displayPages.size) {
+        derivedStateOf {
+            if (readingMode == DefaultReadingMode.WEBTOON) {
+                listState.firstVisibleItemIndex >= displayPages.size
+            } else {
+                pagerState.currentPage >= displayPages.size
+            }
+        }
+    }
+
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(PanelBackground)
     ) {
-        // Continuous Vertical Webtoon Strip (0px seams) - Content layer sampled by glass
-        LazyColumn(
-            state = listState,
+        val horizontalPadding = maxWidth * sidePadding.coerceIn(0f, 0.4f)
+
+        val handlePrevious: () -> Unit = {
+            coroutineScope.launch {
+                if (readingMode == DefaultReadingMode.WEBTOON) {
+                    val target = (listState.firstVisibleItemIndex - 1).coerceAtLeast(0)
+                    listState.animateScrollToItem(target)
+                } else {
+                    val prevPage = (pagerState.currentPage - 1).coerceAtLeast(0)
+                    pagerState.animateScrollToPage(prevPage)
+                }
+            }
+        }
+
+        val handleNext: () -> Unit = {
+            coroutineScope.launch {
+                if (readingMode == DefaultReadingMode.WEBTOON) {
+                    val target = (listState.firstVisibleItemIndex + 1).coerceAtMost(displayPages.size)
+                    listState.animateScrollToItem(target)
+                } else {
+                    val nextPage = (pagerState.currentPage + 1).coerceAtMost(totalContentCount - 1)
+                    pagerState.animateScrollToPage(nextPage)
+                }
+            }
+        }
+
+        val handleToggleControls: () -> Unit = {
+            areControlsVisible = !areControlsVisible
+        }
+
+        // LAYER 1: Artwork Reading Viewport (Multi-Mode Engine with Side Padding)
+        Box(
             modifier = Modifier
                 .fillMaxSize()
+                .padding(horizontal = horizontalPadding)
                 .glassSource(glassState)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = { areControlsVisible = !areControlsVisible }
-                )
         ) {
-            itemsIndexed(displayPages) { index, page ->
-                WebtoonPanelSlice(
-                    sliceIndex = index,
-                    totalSlices = displayPages.size,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(520.dp)
+            when (readingMode) {
+                DefaultReadingMode.WEBTOON -> {
+                    LazyColumn(
+                        state = listState,
+                        verticalArrangement = Arrangement.spacedBy(0.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .readerTapHandler(
+                                isRtl = false,
+                                onPrevious = handlePrevious,
+                                onToggleControls = handleToggleControls,
+                                onNext = handleNext
+                            )
+                    ) {
+                        itemsIndexed(displayPages) { index, _ ->
+                            WebtoonPanelSlice(
+                                sliceIndex = index,
+                                totalSlices = displayPages.size,
+                                cropBorders = cropBorders,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(if (cropBorders) 540.dp else 520.dp)
+                            )
+                        }
+                        item {
+                            WebtoonEndOfChapterCard(
+                                chapterTitle = chapterTitle,
+                                nextChapterTitle = nextChapterTitle,
+                                hasNextChapter = hasNextChapter,
+                                onNextChapter = onNextChapter,
+                                glassState = glassState
+                            )
+                        }
+                    }
+                }
+                DefaultReadingMode.RIGHT_TO_LEFT -> {
+                    HorizontalPager(
+                        state = pagerState,
+                        reverseLayout = true,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .readerTapHandler(
+                                isRtl = true,
+                                onPrevious = handlePrevious,
+                                onToggleControls = handleToggleControls,
+                                onNext = handleNext
+                            )
+                    ) { pageIndex ->
+                        if (pageIndex < displayPages.size) {
+                            WebtoonPanelSlice(
+                                sliceIndex = pageIndex,
+                                totalSlices = displayPages.size,
+                                cropBorders = cropBorders,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            WebtoonEndOfChapterCard(
+                                chapterTitle = chapterTitle,
+                                nextChapterTitle = nextChapterTitle,
+                                hasNextChapter = hasNextChapter,
+                                onNextChapter = onNextChapter,
+                                glassState = glassState,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                }
+                DefaultReadingMode.LEFT_TO_RIGHT -> {
+                    HorizontalPager(
+                        state = pagerState,
+                        reverseLayout = false,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .readerTapHandler(
+                                isRtl = false,
+                                onPrevious = handlePrevious,
+                                onToggleControls = handleToggleControls,
+                                onNext = handleNext
+                            )
+                    ) { pageIndex ->
+                        if (pageIndex < displayPages.size) {
+                            WebtoonPanelSlice(
+                                sliceIndex = pageIndex,
+                                totalSlices = displayPages.size,
+                                cropBorders = cropBorders,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            WebtoonEndOfChapterCard(
+                                chapterTitle = chapterTitle,
+                                nextChapterTitle = nextChapterTitle,
+                                hasNextChapter = hasNextChapter,
+                                onNextChapter = onNextChapter,
+                                glassState = glassState,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                }
+                DefaultReadingMode.VERTICAL -> {
+                    VerticalPager(
+                        state = pagerState,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .readerTapHandler(
+                                isRtl = false,
+                                onPrevious = handlePrevious,
+                                onToggleControls = handleToggleControls,
+                                onNext = handleNext
+                            )
+                    ) { pageIndex ->
+                        if (pageIndex < displayPages.size) {
+                            WebtoonPanelSlice(
+                                sliceIndex = pageIndex,
+                                totalSlices = displayPages.size,
+                                cropBorders = cropBorders,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            WebtoonEndOfChapterCard(
+                                chapterTitle = chapterTitle,
+                                nextChapterTitle = nextChapterTitle,
+                                hasNextChapter = hasNextChapter,
+                                onNextChapter = onNextChapter,
+                                glassState = glassState,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // LAYER 1.5: In-App Brightness Dimmer Scrim Overlay (10%..100% -> 0.0..0.9 alpha black)
+        val dimmerAlpha = (1f - brightness).coerceIn(0f, 0.9f)
+        if (dimmerAlpha > 0f) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = dimmerAlpha))
+            )
+        }
+
+        // Floating Page Indicator Pill
+        if (!isAtEndOfChapter) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = if (areControlsVisible) 96.dp else 24.dp)
+                    .glassDimming(alpha = 0.35f, shape = CapsuleShape)
+                    .glassSurface(
+                        state = glassState,
+                        variant = GlassVariant.Clear,
+                        shape = CapsuleShape
+                    )
+                    .padding(horizontal = 14.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = "$currentPageIndex / ${displayPages.size}",
+                    color = TextPrimary,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
                 )
             }
         }
 
-        // Top Floating Control Bar - Sibling overlay using Clear Glass with 35% dimming over artwork
+        // LAYER 2: Top Floating Control Bar - Sibling overlay using Clear Glass with 35% dimming over artwork
         AnimatedVisibility(
             visible = areControlsVisible,
             enter = fadeIn() + slideInVertically { -it },
@@ -215,7 +482,7 @@ fun WebtoonReaderScreenContent(
                     )
                 }
 
-                // Bookmark & More Buttons
+                // Bookmark & Settings Buttons
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     PanelCircleIconButton(
                         icon = Icons.Default.Tune,
@@ -246,7 +513,7 @@ fun WebtoonReaderScreenContent(
             }
         }
 
-        // Bottom Floating Scrubber Capsule Bar matching option 2.png
+        // LAYER 3: Bottom Floating Scrubber Capsule Bar matching option 2.png
         AnimatedVisibility(
             visible = areControlsVisible,
             enter = fadeIn() + slideInVertically { it },
@@ -273,7 +540,7 @@ fun WebtoonReaderScreenContent(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Previous button
+                    // Previous Chapter button
                     PanelCircleIconButton(
                         icon = Icons.AutoMirrored.Filled.NavigateBefore,
                         size = 36.dp,
@@ -281,29 +548,32 @@ fun WebtoonReaderScreenContent(
                         glassState = null,
                         backgroundColor = Color.White.copy(alpha = 0.08f),
                         borderColor = Color.White.copy(alpha = 0.12f),
-                        onClick = {
-                            coroutineScope.launch {
-                                val target = (listState.firstVisibleItemIndex - 1).coerceAtLeast(0)
-                                listState.animateScrollToItem(target)
-                            }
-                        }
+                        tint = if (hasPreviousChapter) TextPrimary else TextPrimary.copy(alpha = 0.3f),
+                        onClick = { if (hasPreviousChapter) onPreviousChapter() }
                     )
 
                     Spacer(modifier = Modifier.width(8.dp))
 
                     // Reading progress slider
                     PanelSlider(
-                        value = if (isDraggingSlider) sliderProgress else currentProgress,
-                        onValueChange = {
-                            isDraggingSlider = true
-                            sliderProgress = it
+                        value = currentProgress,
+                        onValueChange = { targetFraction ->
+                            coroutineScope.launch {
+                                if (readingMode == DefaultReadingMode.WEBTOON) {
+                                    val targetIndex = (targetFraction * (displayPages.size - 1)).toInt().coerceIn(0, displayPages.size - 1)
+                                    listState.scrollToItem(targetIndex)
+                                } else {
+                                    val targetPage = (targetFraction * (displayPages.size - 1)).toInt().coerceIn(0, displayPages.size - 1)
+                                    pagerState.scrollToPage(targetPage)
+                                }
+                            }
                         },
                         modifier = Modifier.weight(1f)
                     )
 
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    // Next button
+                    // Next Chapter button
                     PanelCircleIconButton(
                         icon = Icons.AutoMirrored.Filled.NavigateNext,
                         size = 36.dp,
@@ -311,13 +581,110 @@ fun WebtoonReaderScreenContent(
                         glassState = null,
                         backgroundColor = Color.White.copy(alpha = 0.08f),
                         borderColor = Color.White.copy(alpha = 0.12f),
-                        onClick = {
-                            coroutineScope.launch {
-                                val target = (listState.firstVisibleItemIndex + 1).coerceAtMost(displayPages.lastIndex)
-                                listState.animateScrollToItem(target)
-                            }
-                        }
+                        tint = if (hasNextChapter) TextPrimary else TextPrimary.copy(alpha = 0.3f),
+                        onClick = { if (hasNextChapter) onNextChapter() }
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * End-of-Chapter transition glass card presented after the last page of a chapter.
+ */
+@Composable
+fun WebtoonEndOfChapterCard(
+    chapterTitle: String,
+    nextChapterTitle: String,
+    hasNextChapter: Boolean,
+    onNextChapter: () -> Unit,
+    glassState: PanelGlassState,
+    modifier: Modifier = Modifier
+) {
+    val cardShape = RoundedCornerShape(24.dp)
+    val buttonInteraction = remember { MutableInteractionSource() }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(24.dp)
+            .glassDimming(alpha = 0.35f, shape = cardShape)
+            .glassSurface(
+                state = glassState,
+                variant = GlassVariant.Regular,
+                shape = cardShape
+            )
+            .padding(28.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(CapsuleShape)
+                    .background(ElectricBlue.copy(alpha = 0.15f))
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = "CHAPTER COMPLETE",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = ElectricBlue,
+                    letterSpacing = 1.sp
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "$chapterTitle Finished",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = if (hasNextChapter) "Up Next: $nextChapterTitle" else "You have caught up to the latest chapter",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Normal,
+                color = TextSecondary
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+
+            if (hasNextChapter) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.85f)
+                        .height(50.dp)
+                        .clip(CapsuleShape)
+                        .glassPress(buttonInteraction)
+                        .background(ElectricBlue)
+                        .clickable(
+                            interactionSource = buttonInteraction,
+                            indication = null,
+                            onClick = onNextChapter
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "Read Next Chapter",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
         }
@@ -332,6 +699,7 @@ fun WebtoonReaderScreenContent(
 fun WebtoonPanelSlice(
     sliceIndex: Int,
     totalSlices: Int,
+    cropBorders: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     Canvas(modifier = modifier) {
@@ -357,24 +725,26 @@ fun WebtoonPanelSlice(
         // Torii Gate / Architectural Silhouette in slice 0 and 1
         if (sliceIndex % 4 == 0 || sliceIndex % 4 == 1) {
             val gateColor = Color(0xFF0F0915).copy(alpha = 0.85f)
+            val leftPillarInset = if (cropBorders) 0.08f else 0.12f
+            val rightPillarInset = if (cropBorders) 0.86f else 0.82f
             // Left pillar
             drawRect(
                 color = gateColor,
-                topLeft = Offset(width * 0.12f, 0f),
+                topLeft = Offset(width * leftPillarInset, 0f),
                 size = androidx.compose.ui.geometry.Size(width * 0.06f, height)
             )
             // Right pillar
             drawRect(
                 color = gateColor,
-                topLeft = Offset(width * 0.82f, 0f),
+                topLeft = Offset(width * rightPillarInset, 0f),
                 size = androidx.compose.ui.geometry.Size(width * 0.06f, height)
             )
             // Top beam
             if (sliceIndex % 4 == 0) {
                 drawRect(
                     color = gateColor,
-                    topLeft = Offset(width * 0.06f, height * 0.22f),
-                    size = androidx.compose.ui.geometry.Size(width * 0.88f, 24f)
+                    topLeft = Offset(width * 0.04f, height * 0.22f),
+                    size = androidx.compose.ui.geometry.Size(width * 0.92f, 24f)
                 )
             }
         }
@@ -420,7 +790,6 @@ fun WebtoonPanelSlice(
         }
 
         // Page watermark indicator
-        val pageNumber = sliceIndex + 1
         drawCircle(
             color = Color.Black.copy(alpha = 0.3f),
             radius = 16f,
