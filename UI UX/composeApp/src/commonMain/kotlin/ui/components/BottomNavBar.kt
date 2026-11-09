@@ -1,19 +1,25 @@
 package ui.components
 
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
@@ -26,6 +32,7 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,11 +45,16 @@ import androidx.compose.ui.unit.sp
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeChild
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import ui.glass.GlassVariant
+import ui.glass.PanelGlassState
+import ui.glass.glassPress
+import ui.glass.glassSurface
+import ui.motion.rememberTabIndicatorSpring
+import ui.theme.CapsuleShape
 import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
 import ui.theme.PanelSurfaceGlassHigh
 import ui.theme.PanelTheme
-import ui.theme.TextMuted
 import ui.theme.TextSecondary
 
 enum class PanelTab(
@@ -56,67 +68,119 @@ enum class PanelTab(
     MORE("More", Icons.Filled.MoreHoriz, Icons.Outlined.MoreHoriz)
 }
 
+/**
+ * Floating Liquid Glass capsule dock navigation bar.
+ * Features:
+ * - Liquid glass lens body with edge refraction rim
+ * - Sliding glass lens indicator moving between tabs with a no-overshoot spring
+ * - Gentle swell press feedback (~1.04)
+ * - Flat ElectricBlue accent, no gradient slop
+ */
 @Composable
 fun PanelBottomNavBar(
     selectedTab: PanelTab,
     onTabSelected: (PanelTab) -> Unit,
     modifier: Modifier = Modifier,
+    glassState: PanelGlassState? = null,
     hazeState: HazeState? = null
 ) {
-    val navShape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
-    val hazeModifier = if (hazeState != null) {
-        Modifier.hazeChild(state = hazeState) {
-            backgroundColor = PanelSurfaceGlassHigh
+    val dockShape = CapsuleShape
+
+    val surfaceModifier = when {
+        glassState != null -> {
+            Modifier.glassSurface(
+                state = glassState,
+                variant = GlassVariant.Regular,
+                shape = dockShape
+            )
         }
-    } else {
-        Modifier
+        hazeState != null -> {
+            Modifier
+                .clip(dockShape)
+                .hazeChild(state = hazeState) {
+                    backgroundColor = PanelSurfaceGlassHigh
+                }
+                .background(PanelSurfaceGlassHigh)
+                .border(1.dp, GlassBorder, dockShape)
+        }
+        else -> {
+            Modifier
+                .clip(dockShape)
+                .background(Color.White.copy(alpha = 0.08f))
+                .border(1.dp, GlassBorder, dockShape)
+        }
     }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(navShape)
-            .then(hazeModifier)
-            .background(PanelSurfaceGlassHigh)
-            .border(
-                width = 1.dp,
-                color = GlassBorder,
-                shape = navShape
-            )
-            .padding(top = 10.dp, bottom = 22.dp)
+            .height(64.dp)
+            .then(surfaceModifier),
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(4.dp)
         ) {
-            PanelTab.entries.forEach { tab ->
-                val isSelected = tab == selectedTab
-                val contentColor = if (isSelected) ElectricBlue else TextSecondary
+            val tabCount = PanelTab.entries.size
+            val tabWidth = maxWidth / tabCount
+            val indicatorOffset by animateDpAsState(
+                targetValue = tabWidth * selectedTab.ordinal,
+                animationSpec = rememberTabIndicatorSpring(),
+                label = "tabIndicatorOffset"
+            )
 
-                Column(
-                    modifier = Modifier
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null,
-                            onClick = { onTabSelected(tab) }
+            // Sliding Glass Lens Indicator
+            Box(
+                modifier = Modifier
+                    .offset(x = indicatorOffset)
+                    .width(tabWidth)
+                    .fillMaxHeight()
+                    .clip(CapsuleShape)
+                    .background(Color.White.copy(alpha = 0.12f))
+                    .border(0.5.dp, Color.White.copy(alpha = 0.28f), CapsuleShape)
+            )
+
+            // Tab items row
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.SpaceAround,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                PanelTab.entries.forEach { tab ->
+                    val isSelected = tab == selectedTab
+                    val contentColor = if (isSelected) ElectricBlue else TextSecondary
+                    val interactionSource = remember { MutableInteractionSource() }
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .glassPress(interactionSource = interactionSource, pressedScale = 1.04f)
+                            .clickable(
+                                interactionSource = interactionSource,
+                                indication = null,
+                                onClick = { onTabSelected(tab) }
+                            ),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
+                            contentDescription = tab.title,
+                            tint = contentColor,
+                            modifier = Modifier.size(20.dp)
                         )
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = if (isSelected) tab.selectedIcon else tab.unselectedIcon,
-                        contentDescription = tab.title,
-                        tint = contentColor,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = tab.title,
-                        color = contentColor,
-                        fontSize = 11.sp,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
-                    )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = tab.title,
+                            color = contentColor,
+                            fontSize = 11.sp,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            letterSpacing = (-0.2).sp
+                        )
+                    }
                 }
             }
         }

@@ -43,24 +43,21 @@ import data.mock.FakePanelRepository
 import data.mock.MockDownloadItem
 import data.mock.MockStorageInfo
 import data.mock.PanelRepository
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.DownloadQueueCard
-import ui.components.GlassContainer
 import ui.components.PanelBottomNavBar
 import ui.components.PanelCircleIconButton
 import ui.components.PanelTab
 import ui.components.StorageDonutChart
+import ui.glass.glassSource
+import ui.glass.rememberPanelGlassState
 import ui.screens.browse.BrowseScreen
 import ui.screens.details.TitleDetailsScreen
 import ui.screens.library.LibraryScreen
 import ui.screens.updates.UpdatesScreen
 import ui.theme.ElectricBlue
-import ui.theme.GlassBorder
 import ui.theme.PanelBackground
-import ui.theme.PanelSurfaceGlassHigh
 import ui.theme.PanelTheme
 import ui.theme.TextPrimary
 import ui.theme.TextSecondary
@@ -99,7 +96,7 @@ fun DownloadsScreenContent(
     onTabSelected: (PanelTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val hazeState = remember { HazeState() }
+    val glassState = rememberPanelGlassState()
 
     val downloadItems = remember(initialDownloads) {
         mutableStateListOf<MockDownloadItem>().apply {
@@ -115,15 +112,16 @@ fun DownloadsScreenContent(
             .fillMaxSize()
             .background(PanelBackground)
     ) {
+        // LAYER 1: Scrollable Content Layer (marked with glassSource)
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .haze(hazeState),
+                .glassSource(glassState),
             contentPadding = PaddingValues(
                 start = 20.dp,
                 end = 20.dp,
                 top = 16.dp,
-                bottom = 100.dp
+                bottom = 110.dp
             )
         ) {
             // Header Bar
@@ -147,19 +145,23 @@ fun DownloadsScreenContent(
                         icon = Icons.Default.MoreHoriz,
                         size = 40.dp,
                         iconSize = 20.dp,
+                        backgroundColor = Color.White.copy(alpha = 0.08f),
+                        borderColor = Color.White.copy(alpha = 0.14f),
                         onClick = { /* Menu */ }
                     )
                 }
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // Storage Breakdown Card matching option 2.png
+            // Storage Breakdown Card (Quiet non-glass content layer)
             item {
-                GlassContainer(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    backgroundColor = PanelSurfaceGlassHigh,
-                    borderColor = GlassBorder
+                val storageCardShape = RoundedCornerShape(16.dp)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(storageCardShape)
+                        .background(Color.White.copy(alpha = 0.07f))
+                        .border(0.5.dp, Color.White.copy(alpha = 0.12f), storageCardShape)
                 ) {
                     Row(
                         modifier = Modifier
@@ -229,7 +231,7 @@ fun DownloadsScreenContent(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Download Queue Items
+            // Download Queue Items (Quiet non-glass cards)
             itemsIndexed(downloadItems) { index, item ->
                 val downloadedMb = item.downloadedBytes / (1024 * 1024)
                 val totalMb = item.totalBytes / (1024 * 1024)
@@ -252,11 +254,11 @@ fun DownloadsScreenContent(
             }
         }
 
-        // Floating Frosted Glass Bottom Navigation Bar
+        // LAYER 2: Floating Liquid Glass Bottom Navigation Bar (Sibling Overlay)
         PanelBottomNavBar(
             selectedTab = PanelTab.MORE,
             onTabSelected = onTabSelected,
-            hazeState = hazeState,
+            glassState = glassState,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
     }

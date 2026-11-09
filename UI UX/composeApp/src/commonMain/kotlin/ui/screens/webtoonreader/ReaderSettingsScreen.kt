@@ -1,7 +1,6 @@
 package ui.screens.webtoonreader
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -12,16 +11,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.MenuBook
-import androidx.compose.material.icons.filled.AutoStories
-import androidx.compose.material.icons.filled.Crop
-import androidx.compose.material.icons.filled.StayCurrentPortrait
-import androidx.compose.material.icons.filled.TableRows
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -42,30 +37,27 @@ import androidx.compose.ui.unit.sp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
-import dev.chrisbanes.haze.hazeChild
 import org.jetbrains.compose.ui.tooling.preview.Preview
-import ui.components.GlassContainer
+import ui.components.GlassSegmentedControl
 import ui.components.PanelBottomNavBar
 import ui.components.PanelSlider
 import ui.components.PanelSwitch
 import ui.components.PanelTab
-import ui.components.ReaderModeTile
-import ui.theme.BottomSheetShape
+import ui.glass.GlassVariant
+import ui.glass.glassDimming
+import ui.glass.glassSource
+import ui.glass.glassSurface
+import ui.glass.rememberPanelGlassState
 import ui.theme.CapsuleShape
-import ui.theme.GlassBorder
-import ui.theme.GlassBorderStrong
 import ui.theme.PanelBackground
-import ui.theme.PanelSurfaceGlassHigh
 import ui.theme.PanelTheme
 import ui.theme.TextPrimary
 import ui.theme.TextSecondary
 
 enum class ReadingMode(val label: String) {
     WEBTOON("Webtoon"),
-    RTL("Right to Left"),
-    LTR("Left to Right"),
+    RTL("RTL"),
+    LTR("LTR"),
     VERTICAL("Vertical")
 }
 
@@ -88,64 +80,76 @@ fun ReaderSettingsScreenContent(
     onTabSelected: (PanelTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val hazeState = remember { HazeState() }
+    val glassState = rememberPanelGlassState()
     var selectedMode by remember { mutableStateOf(ReadingMode.WEBTOON) }
     var brightness by remember { mutableFloatStateOf(0.80f) }
     var sidePadding by remember { mutableFloatStateOf(0.12f) }
     var cropBorders by remember { mutableStateOf(true) }
+
+    val sheetShape = RoundedCornerShape(28.dp)
+    val readingModes = listOf(ReadingMode.WEBTOON, ReadingMode.RTL, ReadingMode.LTR, ReadingMode.VERTICAL)
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(PanelBackground)
     ) {
-        // Blurred Webtoon reader background canvas
-        WebtoonPanelSlice(
-            sliceIndex = 1,
-            totalSlices = 4,
+        // LAYER 1: Webtoon background canvas (Sampled Source Layer)
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .haze(hazeState)
+                .glassSource(glassState)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
                     onClick = onDismiss
                 )
-        )
+        ) {
+            WebtoonPanelSlice(
+                sliceIndex = 1,
+                totalSlices = 4,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
 
-        // Semi-transparent dark scrim overlay
+        // Ambient backdrop dark scrim for modal focus
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f))
+                .background(Color.Black.copy(alpha = 0.40f))
         )
 
-        // Reading Settings Modal Bottom Sheet (Screen 5)
+        // LAYER 2: Functional Overlays (Liquid Glass Bottom Sheet & Floating Dock)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 12.dp)
         ) {
-            GlassContainer(
+            // Reading Settings Liquid Glass Modal Bottom Sheet
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp),
-                shape = BottomSheetShape,
-                backgroundColor = PanelSurfaceGlassHigh.copy(alpha = 0.92f),
-                borderColor = GlassBorderStrong,
-                hazeState = hazeState
+                    .padding(horizontal = 12.dp)
+                    .glassDimming(alpha = 0.30f, shape = sheetShape)
+                    .glassSurface(
+                        state = glassState,
+                        variant = GlassVariant.Regular,
+                        shape = sheetShape
+                    )
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp)
+                        .padding(horizontal = 20.dp, vertical = 18.dp)
                 ) {
-                    // Drag Handle pill at top center
+                    // Drag Handle affordance at top center
                     Box(
                         modifier = Modifier
                             .size(width = 36.dp, height = 4.dp)
                             .clip(CapsuleShape)
-                            .background(Color.White.copy(alpha = 0.3f))
+                            .background(Color.White.copy(alpha = 0.35f))
                             .align(Alignment.CenterHorizontally)
                     )
 
@@ -160,7 +164,7 @@ fun ReaderSettingsScreenContent(
                         fontSize = 20.sp
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
 
                     // Reading Mode Section
                     Text(
@@ -172,40 +176,14 @@ fun ReaderSettingsScreenContent(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // 4 Mode Toggle Tiles in a Row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ReaderModeTile(
-                            title = "Webtoon",
-                            icon = Icons.Default.StayCurrentPortrait,
-                            isSelected = selectedMode == ReadingMode.WEBTOON,
-                            onClick = { selectedMode = ReadingMode.WEBTOON },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ReaderModeTile(
-                            title = "Right to Left",
-                            icon = Icons.AutoMirrored.Filled.MenuBook,
-                            isSelected = selectedMode == ReadingMode.RTL,
-                            onClick = { selectedMode = ReadingMode.RTL },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ReaderModeTile(
-                            title = "Left to Right",
-                            icon = Icons.Default.AutoStories,
-                            isSelected = selectedMode == ReadingMode.LTR,
-                            onClick = { selectedMode = ReadingMode.LTR },
-                            modifier = Modifier.weight(1f)
-                        )
-                        ReaderModeTile(
-                            title = "Vertical",
-                            icon = Icons.Default.TableRows,
-                            isSelected = selectedMode == ReadingMode.VERTICAL,
-                            onClick = { selectedMode = ReadingMode.VERTICAL },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                    // Unified Glass Segmented Control with sliding lens indicator
+                    GlassSegmentedControl(
+                        items = readingModes,
+                        selectedIndex = readingModes.indexOf(selectedMode),
+                        onItemSelected = { selectedMode = readingModes[it] },
+                        labelProvider = { it.label },
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
                     Spacer(modifier = Modifier.height(20.dp))
 
@@ -298,11 +276,14 @@ fun ReaderSettingsScreenContent(
                 }
             }
 
-            // Bottom Navigation Bar visible underneath
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Bottom Navigation Bar visible underneath as floating Liquid Glass dock
             PanelBottomNavBar(
                 selectedTab = PanelTab.LIBRARY,
                 onTabSelected = onTabSelected,
-                hazeState = hazeState
+                glassState = glassState,
+                modifier = Modifier.padding(horizontal = 24.dp)
             )
         }
     }

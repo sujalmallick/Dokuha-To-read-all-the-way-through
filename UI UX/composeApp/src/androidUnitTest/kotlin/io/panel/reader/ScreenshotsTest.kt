@@ -8,6 +8,15 @@ import core.source.MangaStatus
 import core.source.SourceManga
 import data.mock.FakePanelRepository
 import data.mock.MockStorageInfo
+import data.profile.DayReadingActivity
+import data.profile.LibrarySummary
+import data.profile.ReadingStats
+import data.profile.TrackerAccount
+import data.profile.TrackerService
+import data.profile.UserProfile
+import data.settings.DefaultReadingMode
+import data.settings.NovelFont
+import data.settings.NovelReaderTheme
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -20,12 +29,17 @@ import ui.screens.details.TitleDetailsScreenContent
 import ui.screens.downloads.DownloadsScreenContent
 import ui.screens.extensions.ExtensionsScreenContent
 import ui.screens.library.LibraryScreenContent
+import ui.screens.more.MoreScreenContent
 import ui.screens.novelreader.NovelReaderScreenContent
+import ui.screens.profile.ProfileScreenContent
+import ui.screens.settings.AppearanceSettingsScreenContent
+import ui.screens.settings.GlobalReaderSettingsScreenContent
 import ui.screens.updates.UpdatesScreenContent
 import ui.screens.webtoonreader.ReaderSettingsScreenContent
 import ui.screens.webtoonreader.WebtoonReaderScreenContent
 import ui.screens.welcome.WelcomeScreenContent
 import ui.theme.PanelTheme
+import ui.theme.ThemeMode
 
 @RunWith(AndroidJUnit4::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -194,5 +208,131 @@ class ScreenshotsTest {
             }
         }
         composeTestRule.onRoot().captureRoboImage("screenshots/10_downloads.png")
+    }
+
+    @Test
+    fun capture_11_profile_screen() {
+        val profile = UserProfile(
+            name = "Sujal",
+            memberSince = "Reading since March 2026",
+            avatarColorHex = 0xFF007AFF,
+            initials = "S"
+        )
+        val stats = ReadingStats(
+            chaptersRead = 482,
+            titlesCount = 37,
+            hoursRead = 142.5f
+        )
+        val weeklyActivity = listOf(
+            DayReadingActivity("M", 45),
+            DayReadingActivity("T", 90),
+            DayReadingActivity("W", 30),
+            DayReadingActivity("T", 120),
+            DayReadingActivity("F", 60),
+            DayReadingActivity("S", 150),
+            DayReadingActivity("S", 85)
+        )
+        val trackers = listOf(
+            TrackerAccount(TrackerService.ANILIST, isConnected = true, username = "sujal_reads"),
+            TrackerAccount(TrackerService.MY_ANIME_LIST, isConnected = false),
+            TrackerAccount(TrackerService.KITSU, isConnected = false)
+        )
+        val librarySummary = LibrarySummary(readingCount = 14, completedCount = 18, planToReadCount = 5)
+
+        composeTestRule.setContent {
+            PanelTheme {
+                ProfileScreenContent(
+                    profile = profile,
+                    stats = stats,
+                    weeklyActivity = weeklyActivity,
+                    trackers = trackers,
+                    librarySummary = librarySummary,
+                    onBack = {},
+                    onUpdateProfile = { _, _ -> },
+                    onToggleTracker = {}
+                )
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/11_profile.png")
+    }
+
+    @Test
+    fun capture_12_more_hub_screen() {
+        val profile = UserProfile(
+            name = "Sujal",
+            memberSince = "Reading since March 2026",
+            avatarColorHex = 0xFF007AFF,
+            initials = "S"
+        )
+
+        composeTestRule.setContent {
+            PanelTheme {
+                MoreScreenContent(
+                    profile = profile,
+                    themeModeName = "Dark Navy",
+                    cacheSize = "324 MB",
+                    onOpenProfile = {},
+                    onNavigateAppearance = {},
+                    onNavigateReader = {},
+                    onNavigateLibrary = {},
+                    onNavigateDownloads = {},
+                    onNavigateSources = {},
+                    onNavigateBackup = {},
+                    onNavigateStorage = {},
+                    onNavigateAbout = {},
+                    onTabSelected = {}
+                )
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/12_more_hub.png")
+    }
+
+    @Test
+    fun capture_13_appearance_settings_screen() {
+        composeTestRule.setContent {
+            PanelTheme {
+                AppearanceSettingsScreenContent(
+                    themeMode = ThemeMode.DARK,
+                    accentIndex = 0,
+                    reduceGlass = false,
+                    reduceMotion = false,
+                    onBack = {},
+                    onSelectThemeMode = {},
+                    onSelectAccentIndex = {},
+                    onToggleReduceGlass = {},
+                    onToggleReduceMotion = {}
+                )
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/13_appearance_settings.png")
+    }
+
+    @Test
+    fun capture_14_reader_settings_screen() {
+        composeTestRule.setContent {
+            PanelTheme {
+                GlobalReaderSettingsScreenContent(
+                    defaultReadingMode = DefaultReadingMode.WEBTOON,
+                    sidePadding = 0.12f,
+                    brightness = 0.85f,
+                    cropBorders = false,
+                    keepScreenOn = true,
+                    novelFont = NovelFont.SYSTEM,
+                    novelFontSize = 16f,
+                    novelLineHeight = 1.6f,
+                    novelTheme = NovelReaderTheme.DARK,
+                    onBack = {},
+                    onSelectReadingMode = {},
+                    onChangeSidePadding = {},
+                    onChangeBrightness = {},
+                    onToggleCropBorders = {},
+                    onToggleKeepScreenOn = {},
+                    onSelectNovelTheme = {},
+                    onChangeNovelFontSize = {},
+                    onChangeNovelLineHeight = {}
+                )
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/14_reader_settings.png")
     }
 }

@@ -1,0 +1,30 @@
+name: iOS Simulator Build
+
+# NOTE: macOS runner minutes cost 10x compared to Linux runners on GitHub private repositories.
+# This workflow is strictly restricted to manual trigger (workflow_dispatch) to avoid unexpected billing.
+on:
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    name: Build iOS Simulator
+    runs-on: macos-14
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+        working-directory: UI UX
+
+      - name: Compile and Link iOS Simulator Target
+        # NOTE: Compiles and links the ComposeApp static framework for iosSimulatorArm64
+        run: ./gradlew :composeApp:compileKotlinIosSimulatorArm64 :composeApp:linkDebugFrameworkIosSimulatorArm64
+        working-directory: UI UX

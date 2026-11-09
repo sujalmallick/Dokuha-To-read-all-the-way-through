@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,14 +34,14 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import data.mock.FakePanelRepository
 import data.mock.MockExtension
 import data.mock.PanelRepository
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
-import ui.components.CategoryPillRow
 import ui.components.ExtensionItemCard
+import ui.components.GlassSegmentedControl
 import ui.components.PanelBottomNavBar
 import ui.components.PanelTab
+import ui.glass.glassSource
+import ui.glass.rememberPanelGlassState
 import ui.screens.browse.BrowseScreen
 import ui.screens.library.LibraryScreen
 import ui.screens.more.MoreScreen
@@ -78,7 +79,7 @@ fun ExtensionsScreenContent(
     onTabSelected: (PanelTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val hazeState = remember { HazeState() }
+    val glassState = rememberPanelGlassState()
     var selectedFilter by remember { mutableStateOf("Installed") }
     val filters = listOf("Installed", "Available", "Updates")
 
@@ -106,18 +107,19 @@ fun ExtensionsScreenContent(
             .fillMaxSize()
             .background(PanelBackground)
     ) {
+        // LAYER 1: Scrollable Content Layer (marked with glassSource)
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .haze(hazeState),
+                .glassSource(glassState),
             contentPadding = PaddingValues(
                 start = 20.dp,
                 end = 20.dp,
                 top = 16.dp,
-                bottom = 100.dp
+                bottom = 110.dp
             )
         ) {
-            // Header Bar & Filter Tabs
+            // Header Bar & Glass Segmented Control
             item {
                 Column(modifier = Modifier.statusBarsPadding()) {
                     Text(
@@ -129,18 +131,19 @@ fun ExtensionsScreenContent(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Status Pill Tabs
-                    CategoryPillRow(
-                        categories = filters,
-                        selectedCategory = selectedFilter,
-                        onCategorySelected = { selectedFilter = it },
+                    // Unified Glass Segmented Control with sliding glass lens indicator
+                    GlassSegmentedControl(
+                        items = filters,
+                        selectedIndex = filters.indexOf(selectedFilter),
+                        onItemSelected = { selectedFilter = filters[it] },
+                        labelProvider = { it },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
                 Spacer(modifier = Modifier.height(20.dp))
             }
 
-            // Extensions Items List matching option 2.png Screen 8
+            // Extensions Items List (Quiet non-glass content layer)
             items(filteredExtensions) { ext ->
                 val avatarColor = when (ext.name) {
                     "MangaDex" -> Color(0xFFFF6740)
@@ -171,12 +174,15 @@ fun ExtensionsScreenContent(
             }
         }
 
-        // Floating Frosted Glass Bottom Navigation Bar
+        // LAYER 2: Floating Liquid Glass Bottom Navigation Dock
         PanelBottomNavBar(
             selectedTab = PanelTab.MORE,
             onTabSelected = onTabSelected,
-            hazeState = hazeState,
-            modifier = Modifier.align(Alignment.BottomCenter)
+            glassState = glassState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 12.dp)
         )
     }
 }

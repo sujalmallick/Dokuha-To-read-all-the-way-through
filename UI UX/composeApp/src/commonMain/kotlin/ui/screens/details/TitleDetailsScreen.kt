@@ -8,8 +8,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,7 +20,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -36,7 +33,6 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -61,23 +57,19 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import core.source.MangaStatus
 import core.source.SourceChapter
 import core.source.SourceManga
-import data.mock.FakePanelRepository
 import data.mock.PanelRepository
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.ChapterRowItem
-import ui.components.GenreChip
 import ui.components.PanelCircleIconButton
-import ui.components.RatingBadge
-import ui.components.StatusBadge
+import ui.components.PanelPillButton
+import ui.glass.glassSource
+import ui.glass.nonGlassPress
+import ui.glass.rememberPanelGlassState
 import ui.screens.webtoonreader.WebtoonReaderScreen
-import ui.theme.CapsuleShape
 import ui.theme.ElectricBlue
-import ui.theme.ElectricBlueLight
 import ui.theme.GlassBorder
-import ui.theme.GlassBorderStrong
 import ui.theme.PanelBackground
-import ui.theme.PanelSurfaceGlassHigh
 import ui.theme.PanelTheme
 import ui.theme.TextPrimary
 import ui.theme.TextSecondary
@@ -103,7 +95,6 @@ data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") :
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TitleDetailsScreenContent(
     manga: SourceManga?,
@@ -112,6 +103,7 @@ fun TitleDetailsScreenContent(
     onReadChapter: (SourceChapter) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val glassState = rememberPanelGlassState()
     var isBookmarked by remember { mutableStateOf(false) }
     var isInLibrary by remember { mutableStateOf(false) }
     var isDescriptionExpanded by remember { mutableStateOf(false) }
@@ -129,8 +121,11 @@ fun TitleDetailsScreenContent(
             .fillMaxSize()
             .background(PanelBackground)
     ) {
+        // LAYER 1: Scrolling Content Layer (Glass Sampling Source)
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .glassSource(glassState),
             contentPadding = PaddingValues(bottom = 48.dp)
         ) {
             // Hero Image Header with Backdrop Gradient
@@ -140,7 +135,6 @@ fun TitleDetailsScreenContent(
                         .fillMaxWidth()
                         .height(340.dp)
                 ) {
-                    // Procedural Hero Artwork Canvas (character silhouette with glowing eyes and crimson aura)
                     TitleHeroArtwork(
                         modifier = Modifier.fillMaxSize()
                     )
@@ -158,30 +152,6 @@ fun TitleDetailsScreenContent(
                                 )
                             )
                     )
-
-                    // Top Floating Navigation Bar (Back & Bookmark)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        PanelCircleIconButton(
-                            icon = Icons.AutoMirrored.Filled.ArrowBack,
-                            size = 40.dp,
-                            iconSize = 20.dp,
-                            onClick = onBack
-                        )
-                        PanelCircleIconButton(
-                            icon = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                            size = 40.dp,
-                            iconSize = 20.dp,
-                            tint = if (isBookmarked) ElectricBlue else TextPrimary,
-                            onClick = { isBookmarked = !isBookmarked }
-                        )
-                    }
                 }
             }
 
@@ -201,75 +171,39 @@ fun TitleDetailsScreenContent(
                         fontSize = 26.sp
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                    // Status and Rating Badges
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        StatusBadge(
-                            statusText = if (displayManga.status == MangaStatus.ONGOING) "Ongoing" else "Completed",
-                            isOngoing = displayManga.status == MangaStatus.ONGOING
-                        )
-                        RatingBadge(ratingText = "4.8 (12.4K)")
-                    }
+                    // Secondary text replacing badges: Status & Rating
+                    val statusText = if (displayManga.status == MangaStatus.ONGOING) "Ongoing" else "Completed"
+                    Text(
+                        text = "$statusText · 4.8 (12.4K)",
+                        color = TextSecondary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
-                    // Genre Chips
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        displayManga.genres.forEach { genre ->
-                            GenreChip(text = genre)
-                        }
-                    }
+                    // Secondary text replacing genre chips
+                    Text(
+                        text = displayManga.genres.joinToString(" · "),
+                        color = TextSecondary,
+                        fontSize = 13.sp
+                    )
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // Primary CTA Button: "Start Reading"
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp)
-                            .clip(CapsuleShape)
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    listOf(ElectricBlue, ElectricBlueLight)
-                                )
-                            )
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = ripple(color = Color.White),
-                                onClick = {
-                                    if (chapters.isNotEmpty()) {
-                                        onReadChapter(chapters.first())
-                                    }
-                                }
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.PlayArrow,
-                                contentDescription = null,
-                                tint = TextPrimary,
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Start Reading",
-                                color = TextPrimary,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
+                    // Primary CTA Button: "Start Reading" (flat ElectricBlue fill, no gradient slop)
+                    PanelPillButton(
+                        text = "Start Reading",
+                        icon = Icons.Default.PlayArrow,
+                        onClick = {
+                            if (chapters.isNotEmpty()) {
+                                onReadChapter(chapters.first())
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
 
                     Spacer(modifier = Modifier.height(14.dp))
 
@@ -352,7 +286,7 @@ fun TitleDetailsScreenContent(
                 }
             }
 
-            // Chapter List Items
+            // Chapter List Items (Quiet translucent fill, non-glass content layer)
             items(chapters) { chapter ->
                 val dateStr = when (chapter.name) {
                     "Ch. 210" -> "Jun 15, 2024"
@@ -374,9 +308,42 @@ fun TitleDetailsScreenContent(
                 }
             }
         }
+
+        // LAYER 2: Floating Top Navigation Bar (Back & Bookmark Overlays)
+        // Hard Rule: Sibling overlay to LazyColumn, uses GlassVariant.Clear with 35% scrim over hero art
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PanelCircleIconButton(
+                icon = Icons.AutoMirrored.Filled.ArrowBack,
+                size = 40.dp,
+                iconSize = 20.dp,
+                glassState = glassState,
+                hasDimming = true,
+                onClick = onBack
+            )
+            PanelCircleIconButton(
+                icon = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                size = 40.dp,
+                iconSize = 20.dp,
+                tint = if (isBookmarked) ElectricBlue else TextPrimary,
+                glassState = glassState,
+                hasDimming = true,
+                onClick = { isBookmarked = !isBookmarked }
+            )
+        }
     }
 }
 
+/**
+ * Action button in details header (Add to Library, Download, Track).
+ * Content layer: quiet translucent fill with hairline stroke.
+ */
 @Composable
 fun ActionGlassButton(
     icon: ImageVector,
@@ -384,14 +351,18 @@ fun ActionGlassButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(16.dp)
+
     Box(
         modifier = modifier
-            .clip(CapsuleShape)
-            .background(PanelSurfaceGlassHigh)
-            .border(1.dp, GlassBorder, CapsuleShape)
+            .nonGlassPress(interactionSource)
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.07f))
+            .border(1.dp, GlassBorder, shape)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = Color.White),
+                interactionSource = interactionSource,
+                indication = null,
                 onClick = onClick
             )
             .padding(vertical = 12.dp, horizontal = 4.dp),
@@ -422,7 +393,7 @@ fun ActionGlassButton(
 
 /**
  * Procedural stylized hero artwork composition evoking the anime protagonist
- * with dark hair, glowing cyan aura, and crimson cape from option 2.png Screen 3.
+ * with dark hair, glowing cyan aura, and crimson cape.
  */
 @Composable
 fun TitleHeroArtwork(modifier: Modifier = Modifier) {
@@ -434,10 +405,10 @@ fun TitleHeroArtwork(modifier: Modifier = Modifier) {
         drawRect(
             brush = Brush.verticalGradient(
                 colors = listOf(
-                    Color(0xFF2E0A12), // Deep crimson
-                    Color(0xFF1F0D1E), // Dark plum
-                    Color(0xFF0F1528), // Midnight navy
-                    Color(0xFF080B11)  // Base background
+                    Color(0xFF2E0A12),
+                    Color(0xFF1F0D1E),
+                    Color(0xFF0F1528),
+                    Color(0xFF080B11)
                 ),
                 startY = 0f,
                 endY = height
@@ -448,53 +419,119 @@ fun TitleHeroArtwork(modifier: Modifier = Modifier) {
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
-                    Color(0xFFDC2626).copy(alpha = 0.45f),
-                    Color(0xFF991B1B).copy(alpha = 0.2f),
+                    Color(0xFFE50914).copy(alpha = 0.45f),
+                    Color(0xFF990000).copy(alpha = 0.20f),
                     Color.Transparent
                 ),
-                center = Offset(width * 0.75f, height * 0.35f),
-                radius = width * 0.5f
+                center = Offset(width * 0.85f, height * 0.35f),
+                radius = width * 0.55f
             ),
-            center = Offset(width * 0.75f, height * 0.35f),
-            radius = width * 0.5f
+            center = Offset(width * 0.85f, height * 0.35f),
+            radius = width * 0.55f
         )
 
-        // Character silhouette with dramatic cape
+        // Radial electric blue / cyan magic flare on the left
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(
+                    ElectricBlue.copy(alpha = 0.35f),
+                    Color(0xFF0055AA).copy(alpha = 0.15f),
+                    Color.Transparent
+                ),
+                center = Offset(width * 0.15f, height * 0.5f),
+                radius = width * 0.45f
+            ),
+            center = Offset(width * 0.15f, height * 0.5f),
+            radius = width * 0.45f
+        )
+
+        // Stylized anime character silhouette: Cape
         val capePath = Path().apply {
-            moveTo(width * 0.2f, height * 0.9f)
-            lineTo(width * 0.38f, height * 0.42f)
-            lineTo(width * 0.62f, height * 0.42f)
-            lineTo(width * 0.85f, height * 0.9f)
+            moveTo(width * 0.28f, height * 0.32f)
+            cubicTo(
+                width * 0.15f, height * 0.45f,
+                width * 0.05f, height * 0.70f,
+                width * 0.18f, height * 0.95f
+            )
+            lineTo(width * 0.82f, height * 0.95f)
+            cubicTo(
+                width * 0.92f, height * 0.70f,
+                width * 0.85f, height * 0.45f,
+                width * 0.72f, height * 0.32f
+            )
             close()
         }
         drawPath(
             path = capePath,
             brush = Brush.verticalGradient(
-                listOf(Color(0xFF180A12), Color(0xFF0A0B14))
+                colors = listOf(
+                    Color(0xFF1B0409),
+                    Color(0xFF0A0205)
+                )
             )
         )
 
-        // Head and hair shape
-        drawCircle(
-            color = Color(0xFF0D0F1A),
-            radius = 42f,
-            center = Offset(width * 0.5f, height * 0.32f)
+        // Stylized anime character silhouette: Torso & Shoulders
+        val bodyPath = Path().apply {
+            moveTo(width * 0.36f, height * 0.38f)
+            lineTo(width * 0.64f, height * 0.38f)
+            lineTo(width * 0.70f, height * 0.85f)
+            lineTo(width * 0.30f, height * 0.85f)
+            close()
+        }
+        drawPath(
+            path = bodyPath,
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFF0F1424),
+                    Color(0xFF050810)
+                )
+            )
         )
 
-        // Glowing Blue eye / anime aura (electric-blue accent)
+        // Head and Spiky Hair Silhouette
+        val hairPath = Path().apply {
+            moveTo(width * 0.50f, height * 0.16f)
+            lineTo(width * 0.44f, height * 0.20f)
+            lineTo(width * 0.42f, height * 0.23f)
+            lineTo(width * 0.38f, height * 0.22f)
+            lineTo(width * 0.40f, height * 0.27f)
+            lineTo(width * 0.44f, height * 0.32f)
+            lineTo(width * 0.50f, height * 0.36f)
+            lineTo(width * 0.56f, height * 0.32f)
+            lineTo(width * 0.60f, height * 0.27f)
+            lineTo(width * 0.62f, height * 0.22f)
+            lineTo(width * 0.58f, height * 0.23f)
+            lineTo(width * 0.56f, height * 0.20f)
+            close()
+        }
+        drawPath(
+            path = hairPath,
+            color = Color(0xFF060912)
+        )
+
+        // Glowing Cyan Eyes
         drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    Color.White,
-                    Color(0xFF38BDF8),
-                    Color(0xFF0284C7).copy(alpha = 0.6f),
-                    Color.Transparent
-                ),
-                center = Offset(width * 0.48f, height * 0.31f),
-                radius = 16f
-            ),
-            center = Offset(width * 0.48f, height * 0.31f),
-            radius = 16f
+            color = Color(0xFF64D2FF),
+            radius = 3.5.dp.toPx(),
+            center = Offset(width * 0.47f, height * 0.285f)
+        )
+        drawCircle(
+            color = Color(0xFF64D2FF),
+            radius = 3.5.dp.toPx(),
+            center = Offset(width * 0.53f, height * 0.285f)
+        )
+
+        // Cyan Eye Glow
+        drawCircle(
+            color = Color(0xFF00D1FF).copy(alpha = 0.4f),
+            radius = 9.dp.toPx(),
+            center = Offset(width * 0.47f, height * 0.285f)
+        )
+        drawCircle(
+            color = Color(0xFF00D1FF).copy(alpha = 0.4f),
+            radius = 9.dp.toPx(),
+            center = Offset(width * 0.53f, height * 0.285f)
         )
     }
 }
@@ -504,7 +541,7 @@ fun TitleHeroArtwork(modifier: Modifier = Modifier) {
 fun TitleDetailsScreenPreview() {
     PanelTheme {
         TitleDetailsScreenContent(
-            manga = FakePanelRepository().getMangaDetails("").let { null },
+            manga = null,
             chapters = emptyList(),
             onBack = {},
             onReadChapter = {}

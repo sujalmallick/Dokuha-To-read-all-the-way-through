@@ -59,6 +59,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import ui.glass.GlassVariant
+import ui.glass.PanelGlassState
+import ui.glass.glassDimming
+import ui.glass.glassSurface
+import ui.glass.nonGlassPress
 import ui.theme.CapsuleShape
 import ui.theme.CoverGradients
 import ui.theme.CoverImageShape
@@ -529,16 +534,31 @@ fun PanelSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
     placeholder: String = "Search titles, authors, genres...",
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    glassState: PanelGlassState? = null
 ) {
+    val shape = CapsuleShape
+    val surfaceModifier = if (glassState != null) {
+        Modifier
+            .glassDimming(alpha = 0.35f, shape = shape)
+            .glassSurface(
+                state = glassState,
+                variant = GlassVariant.Regular,
+                shape = shape
+            )
+    } else {
+        Modifier
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.08f))
+            .border(1.dp, GlassBorder, shape)
+    }
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(PanelSurfaceGlassHigh)
-            .border(1.dp, GlassBorderStrong, RoundedCornerShape(14.dp))
-            .padding(horizontal = 14.dp),
+            .then(surfaceModifier)
+            .padding(horizontal = 16.dp),
         contentAlignment = Alignment.CenterStart
     ) {
         Row(
@@ -585,23 +605,25 @@ fun SourceCard(
     modifier: Modifier = Modifier,
     avatarColor: Color = ElectricBlue
 ) {
-    GlassContainer(
+    val interactionSource = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(16.dp)
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .nonGlassPress(interactionSource)
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.07f))
+            .border(0.5.dp, Color.White.copy(alpha = 0.12f), shape)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = Color.White),
+                interactionSource = interactionSource,
+                indication = null,
                 onClick = onClick
-            ),
-        shape = RoundedCornerShape(14.dp),
-        backgroundColor = PanelSurfaceGlassHigh,
-        borderColor = GlassBorder
+            )
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Source logo avatar
@@ -609,8 +631,8 @@ fun SourceCard(
                 modifier = Modifier
                     .size(40.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(avatarColor.copy(alpha = 0.2f))
-                    .border(1.dp, avatarColor.copy(alpha = 0.4f), RoundedCornerShape(10.dp)),
+                    .background(avatarColor.copy(alpha = 0.18f))
+                    .border(1.dp, avatarColor.copy(alpha = 0.35f), RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -640,37 +662,22 @@ fun SourceCard(
                 )
             }
 
-            // Language chips
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                languages.forEach { lang ->
-                    Box(
-                        modifier = Modifier
-                            .clip(CapsuleShape)
-                            .background(Color.White.copy(alpha = 0.08f))
-                            .border(1.dp, GlassBorder, CapsuleShape)
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = lang,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextSecondary
-                        )
-                    }
-                }
+            // Plain secondary text replacing language tags
+            Text(
+                text = languages.joinToString(" · "),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = TextSecondary
+            )
 
-                Spacer(modifier = Modifier.width(4.dp))
+            Spacer(modifier = Modifier.width(6.dp))
 
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.NavigateNext,
-                    contentDescription = null,
-                    tint = TextSecondary,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.NavigateNext,
+                contentDescription = null,
+                tint = TextSecondary,
+                modifier = Modifier.size(18.dp)
+            )
         }
     }
 }
@@ -685,18 +692,20 @@ fun ExtensionItemCard(
     modifier: Modifier = Modifier,
     avatarColor: Color = ElectricBlue
 ) {
-    GlassContainer(
+    val interactionSource = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(16.dp)
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp)),
-        shape = RoundedCornerShape(14.dp),
-        backgroundColor = PanelSurfaceGlassHigh,
-        borderColor = GlassBorder
+            .nonGlassPress(interactionSource)
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.07f))
+            .border(0.5.dp, Color.White.copy(alpha = 0.12f), shape)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 14.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Extension icon avatar
@@ -704,7 +713,7 @@ fun ExtensionItemCard(
                 modifier = Modifier
                     .size(42.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(avatarColor.copy(alpha = 0.15f))
+                    .background(avatarColor.copy(alpha = 0.18f))
                     .border(1.dp, avatarColor.copy(alpha = 0.35f), RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
@@ -735,37 +744,64 @@ fun ExtensionItemCard(
                 )
             }
 
-            // Action Pill Button (Installed / Update / Install)
-            val isActionPrimary = hasUpdate || !isInstalled
-            val buttonText = when {
-                hasUpdate -> "Update"
-                isInstalled -> "Installed"
-                else -> "Install"
-            }
-
-            Box(
-                modifier = Modifier
-                    .clip(CapsuleShape)
-                    .background(if (isActionPrimary) ElectricBlue else PanelSurfaceGlass)
-                    .border(
-                        width = 1.dp,
-                        color = if (isActionPrimary) Color.Transparent else GlassBorder,
-                        shape = CapsuleShape
+            // Phase C: Pill removal & clean actions
+            when {
+                hasUpdate -> {
+                    // "Update" becomes a text-only accent button in ElectricBlue
+                    val actionInteraction = remember { MutableInteractionSource() }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .nonGlassPress(actionInteraction)
+                            .clickable(
+                                interactionSource = actionInteraction,
+                                indication = null,
+                                onClick = onActionClick
+                            )
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Update",
+                            color = ElectricBlue,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                isInstalled -> {
+                    // "Installed" becomes plain secondary text (pill deleted)
+                    Text(
+                        text = "Installed",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
                     )
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = ripple(color = Color.White),
-                        onClick = onActionClick
-                    )
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = buttonText,
-                    color = if (isActionPrimary) TextPrimary else TextSecondary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
+                }
+                else -> {
+                    // "Install" text-only accent action
+                    val actionInteraction = remember { MutableInteractionSource() }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .nonGlassPress(actionInteraction)
+                            .clickable(
+                                interactionSource = actionInteraction,
+                                indication = null,
+                                onClick = onActionClick
+                            )
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Install",
+                            color = ElectricBlue,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
         }
     }
@@ -781,23 +817,25 @@ fun UpdateItemCard(
     onDownloadClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    GlassContainer(
+    val interactionSource = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(16.dp)
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .nonGlassPress(interactionSource)
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.07f))
+            .border(0.5.dp, Color.White.copy(alpha = 0.12f), shape)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = Color.White),
+                interactionSource = interactionSource,
+                indication = null,
                 onClick = onClick
-            ),
-        shape = RoundedCornerShape(14.dp),
-        backgroundColor = PanelSurfaceGlassHigh,
-        borderColor = GlassBorder
+            )
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Thumbnail with gradient artwork placeholder
@@ -842,7 +880,7 @@ fun UpdateItemCard(
                 )
             }
 
-            // Download icon button & Resume pill button
+            // Download icon button & Resume text-only action (pill removal)
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -851,26 +889,29 @@ fun UpdateItemCard(
                     icon = Icons.Default.FileDownload,
                     size = 36.dp,
                     iconSize = 18.dp,
+                    backgroundColor = Color.White.copy(alpha = 0.08f),
+                    borderColor = Color.White.copy(alpha = 0.14f),
                     onClick = onDownloadClick
                 )
 
+                val resumeInteraction = remember { MutableInteractionSource() }
                 Box(
                     modifier = Modifier
-                        .clip(CapsuleShape)
-                        .background(ElectricBlue)
+                        .clip(RoundedCornerShape(8.dp))
+                        .nonGlassPress(resumeInteraction)
                         .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = ripple(color = Color.White),
+                            interactionSource = resumeInteraction,
+                            indication = null,
                             onClick = onResume
                         )
-                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "Resume",
-                        color = TextPrimary,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold
+                        color = ElectricBlue,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
@@ -982,23 +1023,25 @@ fun DownloadQueueCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    GlassContainer(
+    val interactionSource = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(16.dp)
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .nonGlassPress(interactionSource)
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.07f))
+            .border(0.5.dp, Color.White.copy(alpha = 0.12f), shape)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = Color.White),
+                interactionSource = interactionSource,
+                indication = null,
                 onClick = onClick
-            ),
-        shape = RoundedCornerShape(14.dp),
-        backgroundColor = PanelSurfaceGlassHigh,
-        borderColor = GlassBorder
+            )
+            .padding(12.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Thumbnail
@@ -1079,6 +1122,8 @@ fun DownloadQueueCard(
                 icon = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
                 size = 36.dp,
                 iconSize = 18.dp,
+                backgroundColor = Color.White.copy(alpha = 0.08f),
+                borderColor = Color.White.copy(alpha = 0.14f),
                 onClick = onPauseToggle
             )
         }
