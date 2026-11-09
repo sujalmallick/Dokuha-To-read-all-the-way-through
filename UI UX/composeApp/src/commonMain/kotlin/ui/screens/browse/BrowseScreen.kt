@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -36,8 +37,6 @@ import core.source.SourceManga
 import data.mock.FakePanelRepository
 import data.mock.MockSourceInfo
 import data.mock.PanelRepository
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.MangaCoverCard
@@ -45,6 +44,8 @@ import ui.components.PanelBottomNavBar
 import ui.components.PanelSearchBar
 import ui.components.PanelTab
 import ui.components.SourceCard
+import ui.glass.glassSource
+import ui.glass.rememberPanelGlassState
 import ui.screens.details.TitleDetailsScreen
 import ui.screens.extensions.ExtensionsScreen
 import ui.screens.library.LibraryScreen
@@ -94,7 +95,7 @@ fun BrowseScreenContent(
     onTabSelected: (PanelTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val hazeState = remember { HazeState() }
+    val glassState = rememberPanelGlassState()
     var searchQuery by remember { mutableStateOf("") }
 
     Box(
@@ -102,15 +103,16 @@ fun BrowseScreenContent(
             .fillMaxSize()
             .background(PanelBackground)
     ) {
+        // LAYER 1: Scrollable Content Layer (marked with glassSource)
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .haze(hazeState),
+                .glassSource(glassState),
             contentPadding = PaddingValues(
                 start = 20.dp,
                 end = 20.dp,
                 top = 16.dp,
-                bottom = 100.dp
+                bottom = 110.dp
             )
         ) {
             // Header Bar
@@ -131,7 +133,7 @@ fun BrowseScreenContent(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Global Search Bar
+                    // Global Search Bar with quiet translucent styling in scroll layer
                     PanelSearchBar(
                         query = searchQuery,
                         onQueryChange = { searchQuery = it },
@@ -165,7 +167,7 @@ fun BrowseScreenContent(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Source Cards List
+            // Source Cards List (Quiet non-glass content layer, language tags replaced by plain text)
             items(sources) { source ->
                 val avatarColor = when (source.name) {
                     "MangaDex" -> Color(0xFFFF6740)
@@ -222,12 +224,15 @@ fun BrowseScreenContent(
             }
         }
 
-        // Floating Frosted Glass Bottom Navigation Bar
+        // LAYER 2: Floating Liquid Glass Bottom Navigation Dock
         PanelBottomNavBar(
             selectedTab = PanelTab.BROWSE,
             onTabSelected = onTabSelected,
-            hazeState = hazeState,
-            modifier = Modifier.align(Alignment.BottomCenter)
+            glassState = glassState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 12.dp)
         )
     }
 }

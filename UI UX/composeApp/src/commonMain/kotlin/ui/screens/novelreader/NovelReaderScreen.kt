@@ -53,16 +53,18 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import core.source.NovelContent
 import data.mock.FakePanelRepository
 import data.mock.PanelRepository
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
-import ui.components.FrostedGlassCapsule
 import ui.components.PanelCircleIconButton
+import ui.glass.GlassVariant
+import ui.glass.glassDimming
+import ui.glass.glassSource
+import ui.glass.glassSurface
+import ui.glass.nonGlassPress
+import ui.glass.rememberPanelGlassState
 import ui.theme.CapsuleShape
 import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
-import ui.theme.GlassBorderStrong
 import ui.theme.PanelTheme
 import ui.theme.TextPrimary
 import ui.theme.TextSecondary
@@ -109,7 +111,7 @@ fun NovelReaderScreenContent(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val hazeState = remember { HazeState() }
+    val glassState = rememberPanelGlassState()
     var selectedTheme by remember { mutableStateOf(NovelThemePreset.DARK) }
     var fontSize by remember { mutableFloatStateOf(16f) }
     var isListening by remember { mutableStateOf(false) }
@@ -120,73 +122,21 @@ fun NovelReaderScreenContent(
             .fillMaxSize()
             .background(selectedTheme.backgroundColor)
     ) {
-        // Main Scrollable Reader Content
+        // LAYER 1: Main Scrollable Reader Content (Sampled by Glass Overlays)
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .haze(hazeState),
+                .glassSource(glassState),
             contentPadding = PaddingValues(
                 start = 24.dp,
                 end = 24.dp,
-                top = 16.dp,
+                top = 84.dp,
                 bottom = 120.dp
             )
         ) {
-            // Top Bar
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    PanelCircleIconButton(
-                        icon = Icons.AutoMirrored.Filled.ArrowBack,
-                        size = 40.dp,
-                        iconSize = 20.dp,
-                        tint = selectedTheme.textColor,
-                        backgroundColor = Color.White.copy(alpha = 0.08f),
-                        borderColor = Color.White.copy(alpha = 0.12f),
-                        onClick = onBack
-                    )
-
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        PanelCircleIconButton(
-                            icon = Icons.AutoMirrored.Filled.FormatListBulleted,
-                            size = 40.dp,
-                            iconSize = 20.dp,
-                            tint = selectedTheme.textColor,
-                            backgroundColor = Color.White.copy(alpha = 0.08f),
-                            borderColor = Color.White.copy(alpha = 0.12f),
-                            onClick = { /* Table of contents */ }
-                        )
-                        PanelCircleIconButton(
-                            icon = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                            size = 40.dp,
-                            iconSize = 20.dp,
-                            tint = if (isBookmarked) ElectricBlue else selectedTheme.textColor,
-                            backgroundColor = Color.White.copy(alpha = 0.08f),
-                            borderColor = Color.White.copy(alpha = 0.12f),
-                            onClick = { isBookmarked = !isBookmarked }
-                        )
-                        PanelCircleIconButton(
-                            icon = Icons.Default.MoreVert,
-                            size = 40.dp,
-                            iconSize = 20.dp,
-                            tint = selectedTheme.textColor,
-                            backgroundColor = Color.White.copy(alpha = 0.08f),
-                            borderColor = Color.White.copy(alpha = 0.12f),
-                            onClick = { /* Menu */ }
-                        )
-                    }
-                }
-            }
-
             // Chapter Header Block
             item {
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Column {
                     Text(
                         text = chapterNumber,
@@ -278,114 +228,172 @@ fun NovelReaderScreenContent(
             }
         }
 
-        // Floating Bottom Control Capsule Bar matching option 2.png
+        // LAYER 2: Floating Top Bar (Sibling Glass Overlay)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 10.dp)
+                .align(Alignment.TopCenter),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PanelCircleIconButton(
+                icon = Icons.AutoMirrored.Filled.ArrowBack,
+                size = 40.dp,
+                iconSize = 20.dp,
+                tint = selectedTheme.textColor,
+                glassState = glassState,
+                hasDimming = true,
+                onClick = onBack
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                PanelCircleIconButton(
+                    icon = Icons.AutoMirrored.Filled.FormatListBulleted,
+                    size = 40.dp,
+                    iconSize = 20.dp,
+                    tint = selectedTheme.textColor,
+                    glassState = glassState,
+                    hasDimming = true,
+                    onClick = { /* Table of contents */ }
+                )
+                PanelCircleIconButton(
+                    icon = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                    size = 40.dp,
+                    iconSize = 20.dp,
+                    tint = if (isBookmarked) ElectricBlue else selectedTheme.textColor,
+                    glassState = glassState,
+                    hasDimming = true,
+                    onClick = { isBookmarked = !isBookmarked }
+                )
+                PanelCircleIconButton(
+                    icon = Icons.Default.MoreVert,
+                    size = 40.dp,
+                    iconSize = 20.dp,
+                    tint = selectedTheme.textColor,
+                    glassState = glassState,
+                    hasDimming = true,
+                    onClick = { /* Menu */ }
+                )
+            }
+        }
+
+        // LAYER 3: Floating Bottom Control Capsule Bar (Liquid Glass Dock)
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
                 .padding(horizontal = 24.dp, vertical = 20.dp)
+                .glassDimming(alpha = 0.35f, shape = CapsuleShape)
+                .glassSurface(
+                    state = glassState,
+                    variant = GlassVariant.Clear,
+                    shape = CapsuleShape
+                )
         ) {
-            FrostedGlassCapsule(
-                hazeState = hazeState,
-                modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
+                // Left: "Aa" Typography toggle with nonGlassPress
+                val aaInteraction = remember { MutableInteractionSource() }
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Left: "Aa" Typography toggle
-                    Box(
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = ripple(color = Color.White),
-                                onClick = {
-                                    fontSize = when (fontSize) {
-                                        16f -> 18f
-                                        18f -> 20f
-                                        else -> 16f
-                                    }
+                        .clip(CapsuleShape)
+                        .nonGlassPress(aaInteraction)
+                        .clickable(
+                            interactionSource = aaInteraction,
+                            indication = null,
+                            onClick = {
+                                fontSize = when (fontSize) {
+                                    16f -> 18f
+                                    18f -> 20f
+                                    else -> 16f
                                 }
-                            )
-                            .padding(8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Aa",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                    }
-
-                    // Center: 4 Color Theme Dots with "Theme" label
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            NovelThemePreset.entries.forEach { preset ->
-                                val isSelected = preset == selectedTheme
-                                Box(
-                                    modifier = Modifier
-                                        .size(20.dp)
-                                        .clip(CircleShape)
-                                        .background(preset.dotColor)
-                                        .border(
-                                            width = if (isSelected) 2.dp else 1.dp,
-                                            color = if (isSelected) ElectricBlue else Color.White.copy(alpha = 0.25f),
-                                            shape = CircleShape
-                                        )
-                                        .clickable(
-                                            interactionSource = remember { MutableInteractionSource() },
-                                            indication = null,
-                                            onClick = { selectedTheme = preset }
-                                        )
-                                )
                             }
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Theme",
-                            fontSize = 10.sp,
-                            color = TextSecondary,
-                            fontWeight = FontWeight.Medium
                         )
-                    }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Aa",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                }
 
-                    // Right: "Listen" TTS Audio Button
+                // Center: 4 Color Theme Dots with "Theme" label
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
                     Row(
-                        modifier = Modifier
-                            .clip(CapsuleShape)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = ripple(color = Color.White),
-                                onClick = { isListening = !isListening }
-                            )
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Headphones,
-                            contentDescription = "Listen",
-                            tint = if (isListening) ElectricBlue else TextPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (isListening) "Playing" else "Listen",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (isListening) ElectricBlue else TextPrimary
-                        )
+                        NovelThemePreset.entries.forEach { preset ->
+                            val isSelected = preset == selectedTheme
+                            val dotInteraction = remember { MutableInteractionSource() }
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .nonGlassPress(dotInteraction)
+                                    .background(preset.dotColor)
+                                    .border(
+                                        width = if (isSelected) 2.dp else 1.dp,
+                                        color = if (isSelected) ElectricBlue else Color.White.copy(alpha = 0.25f),
+                                        shape = CircleShape
+                                    )
+                                    .clickable(
+                                        interactionSource = dotInteraction,
+                                        indication = null,
+                                        onClick = { selectedTheme = preset }
+                                    )
+                            )
+                        }
                     }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Theme",
+                        fontSize = 10.sp,
+                        color = TextSecondary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                // Right: "Listen" TTS Audio Button with nonGlassPress
+                val ttsInteraction = remember { MutableInteractionSource() }
+                Row(
+                    modifier = Modifier
+                        .clip(CapsuleShape)
+                        .nonGlassPress(ttsInteraction)
+                        .clickable(
+                            interactionSource = ttsInteraction,
+                            indication = null,
+                            onClick = { isListening = !isListening }
+                        )
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Headphones,
+                        contentDescription = "Listen",
+                        tint = if (isListening) ElectricBlue else TextPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (isListening) "Playing" else "Listen",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isListening) ElectricBlue else TextPrimary
+                    )
                 }
             }
         }

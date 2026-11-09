@@ -33,14 +33,14 @@ import core.source.SourceManga
 import data.mock.FakePanelRepository
 import data.mock.MockUpdateGroup
 import data.mock.PanelRepository
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
-import ui.components.CategoryPillRow
+import ui.components.GlassSegmentedControl
 import ui.components.PanelBottomNavBar
 import ui.components.PanelTab
 import ui.components.UpdateItemCard
+import ui.glass.glassSource
+import ui.glass.rememberPanelGlassState
 import ui.screens.browse.BrowseScreen
 import ui.screens.details.TitleDetailsScreen
 import ui.screens.library.LibraryScreen
@@ -85,7 +85,7 @@ fun UpdatesScreenContent(
     onTabSelected: (PanelTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val hazeState = remember { HazeState() }
+    val glassState = rememberPanelGlassState()
     var selectedTab by remember { mutableStateOf("Updates") }
     val tabs = listOf("Updates", "History")
 
@@ -94,18 +94,19 @@ fun UpdatesScreenContent(
             .fillMaxSize()
             .background(PanelBackground)
     ) {
+        // LAYER 1: Scrollable Content Layer (marked with glassSource)
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .haze(hazeState),
+                .glassSource(glassState),
             contentPadding = PaddingValues(
                 start = 20.dp,
                 end = 20.dp,
                 top = 16.dp,
-                bottom = 100.dp
+                bottom = 110.dp
             )
         ) {
-            // Header Bar & Tab Filter
+            // Header Bar & Glass Segmented Control
             item {
                 Column(modifier = Modifier.statusBarsPadding()) {
                     Text(
@@ -117,10 +118,12 @@ fun UpdatesScreenContent(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    CategoryPillRow(
-                        categories = tabs,
-                        selectedCategory = selectedTab,
-                        onCategorySelected = { selectedTab = it },
+                    // Unified Glass Segmented Control with sliding glass lens indicator
+                    GlassSegmentedControl(
+                        items = tabs,
+                        selectedIndex = tabs.indexOf(selectedTab),
+                        onItemSelected = { selectedTab = tabs[it] },
+                        labelProvider = { it },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -158,11 +161,11 @@ fun UpdatesScreenContent(
             }
         }
 
-        // Floating Frosted Glass Bottom Navigation Bar
+        // LAYER 2: Floating Liquid Glass Bottom Navigation Bar (Sibling Overlay)
         PanelBottomNavBar(
             selectedTab = PanelTab.UPDATES,
             onTabSelected = onTabSelected,
-            hazeState = hazeState,
+            glassState = glassState,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
     }
