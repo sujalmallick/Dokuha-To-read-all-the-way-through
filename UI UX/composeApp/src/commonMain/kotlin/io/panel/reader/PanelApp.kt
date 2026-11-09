@@ -9,13 +9,17 @@ import core.di.appModule
 import data.settings.SettingsRepository
 import org.koin.compose.KoinApplication
 import org.koin.compose.koinInject
+import org.koin.dsl.KoinAppDeclaration
 import ui.screens.welcome.WelcomeScreen
 import ui.theme.PanelAccentColors
 import ui.theme.PanelTheme
 
 @Composable
-fun PanelApp() {
+fun PanelApp(
+    appDeclaration: KoinAppDeclaration? = null
+) {
     KoinApplication(application = {
+        appDeclaration?.invoke(this)
         modules(appModule)
     }) {
         PanelAppRoot()
