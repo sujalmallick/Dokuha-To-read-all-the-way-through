@@ -888,15 +888,31 @@ fun UpdateItemCard(
     modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(18.dp)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .nonGlassPress(interactionSource)
+            .glassPress(interactionSource)
             .clip(shape)
-            .background(Color.White.copy(alpha = 0.07f))
-            .border(0.5.dp, Color.White.copy(alpha = 0.12f), shape)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.12f),
+                        Color.White.copy(alpha = 0.04f)
+                    )
+                )
+            )
+            .border(
+                width = 0.75.dp,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.35f),
+                        Color.White.copy(alpha = 0.08f)
+                    )
+                ),
+                shape = shape
+            )
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -909,21 +925,31 @@ fun UpdateItemCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Thumbnail with gradient artwork placeholder
+            val coverShape = RoundedCornerShape(10.dp)
             Box(
                 modifier = Modifier
                     .size(width = 46.dp, height = 58.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(coverShape)
                     .background(
                         brush = Brush.verticalGradient(
                             CoverGradients[gradientIndex.mod(CoverGradients.size)]
                         )
                     )
-                    .border(1.dp, GlassBorderStrong, RoundedCornerShape(8.dp)),
+                    .border(
+                        width = 1.dp,
+                        brush = Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.45f),
+                                Color.White.copy(alpha = 0.12f)
+                            )
+                        ),
+                        shape = coverShape
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = title.take(1),
-                    color = Color.White.copy(alpha = 0.25f),
+                    color = Color.White.copy(alpha = 0.35f),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -950,7 +976,7 @@ fun UpdateItemCard(
                 )
             }
 
-            // Download icon button & Resume text-only action (pill removal)
+            // Download icon button & Resume Luxe White CTA
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -960,28 +986,30 @@ fun UpdateItemCard(
                     size = 36.dp,
                     iconSize = 18.dp,
                     backgroundColor = Color.White.copy(alpha = 0.08f),
-                    borderColor = Color.White.copy(alpha = 0.14f),
+                    borderColor = Color.White.copy(alpha = 0.18f),
                     onClick = onDownloadClick
                 )
 
                 val resumeInteraction = remember { MutableInteractionSource() }
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .nonGlassPress(resumeInteraction)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White)
+                        .glassPress(resumeInteraction)
                         .clickable(
                             interactionSource = resumeInteraction,
                             indication = null,
                             onClick = onResume
                         )
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "Resume",
-                        color = ElectricBlue,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
+                        color = Color(0xFF090D15),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.2.sp
                     )
                 }
             }
@@ -1094,42 +1122,68 @@ fun DownloadQueueCard(
     modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(18.dp)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .nonGlassPress(interactionSource)
+            .glassPress(interactionSource)
             .clip(shape)
-            .background(Color.White.copy(alpha = 0.07f))
-            .border(0.5.dp, Color.White.copy(alpha = 0.12f), shape)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.12f),
+                        Color.White.copy(alpha = 0.04f)
+                    )
+                )
+            )
+            .border(
+                width = 0.75.dp,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.35f),
+                        Color.White.copy(alpha = 0.08f)
+                    )
+                ),
+                shape = shape
+            )
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick
             )
-            .padding(12.dp)
+            .padding(14.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Thumbnail
+            // Thumbnail with gradient artwork placeholder
+            val coverShape = RoundedCornerShape(10.dp)
             Box(
                 modifier = Modifier
                     .size(width = 46.dp, height = 62.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(coverShape)
                     .background(
                         brush = Brush.verticalGradient(
                             CoverGradients[gradientIndex.mod(CoverGradients.size)]
                         )
                     )
-                    .border(1.dp, GlassBorderStrong, RoundedCornerShape(8.dp)),
+                    .border(
+                        width = 1.dp,
+                        brush = Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.45f),
+                                Color.White.copy(alpha = 0.12f)
+                            )
+                        ),
+                        shape = coverShape
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = title.take(1),
-                    color = Color.White.copy(alpha = 0.25f),
+                    color = Color.White.copy(alpha = 0.35f),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -1164,6 +1218,8 @@ fun DownloadQueueCard(
                     PanelProgressBar(
                         progress = progress,
                         modifier = Modifier.weight(1f),
+                        fillColor = Color.White,
+                        trackColor = Color.White.copy(alpha = 0.12f),
                         height = 4.dp
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -1193,7 +1249,7 @@ fun DownloadQueueCard(
                 size = 36.dp,
                 iconSize = 18.dp,
                 backgroundColor = Color.White.copy(alpha = 0.08f),
-                borderColor = Color.White.copy(alpha = 0.14f),
+                borderColor = Color.White.copy(alpha = 0.18f),
                 onClick = onPauseToggle
             )
         }
