@@ -22,11 +22,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,7 +35,11 @@ import androidx.compose.ui.unit.sp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import data.settings.DefaultReadingMode
+import data.settings.FakeSettingsRepository
+import data.settings.SettingsRepository
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import org.koin.compose.koinInject
 import ui.components.GlassSegmentedControl
 import ui.components.PanelBottomNavBar
 import ui.components.PanelSlider
@@ -54,20 +56,15 @@ import ui.theme.PanelTheme
 import ui.theme.TextPrimary
 import ui.theme.TextSecondary
 
-enum class ReadingMode(val label: String) {
-    WEBTOON("Webtoon"),
-    RTL("RTL"),
-    LTR("LTR"),
-    VERTICAL("Vertical")
-}
-
 class ReaderSettingsScreen : Screen {
 
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
+        val settingsRepository: SettingsRepository = koinInject()
 
         ReaderSettingsScreenContent(
+            settingsRepository = settingsRepository,
             onDismiss = { navigator.pop() },
             onTabSelected = { navigator.pop() }
         )
@@ -76,18 +73,26 @@ class ReaderSettingsScreen : Screen {
 
 @Composable
 fun ReaderSettingsScreenContent(
+    settingsRepository: SettingsRepository? = null,
     onDismiss: () -> Unit,
     onTabSelected: (PanelTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val glassState = rememberPanelGlassState()
-    var selectedMode by remember { mutableStateOf(ReadingMode.WEBTOON) }
-    var brightness by remember { mutableFloatStateOf(0.80f) }
-    var sidePadding by remember { mutableFloatStateOf(0.12f) }
-    var cropBorders by remember { mutableStateOf(true) }
+    val repo = settingsRepository ?: remember { FakeSettingsRepository() }
+
+    val selectedMode by repo.defaultReadingMode.collectAsState()
+    val brightness by repo.brightness.collectAsState()
+    val sidePadding by repo.sidePadding.collectAsState()
+    val cropBorders by repo.cropBorders.collectAsState()
 
     val sheetShape = RoundedCornerShape(28.dp)
-    val readingModes = listOf(ReadingMode.WEBTOON, ReadingMode.RTL, ReadingMode.LTR, ReadingMode.VERTICAL)
+    val readingModes = listOf(
+        DefaultReadingMode.WEBTOON,
+        DefaultReadingMode.RIGHT_TO_LEFT,
+        DefaultReadingMode.LEFT_TO_RIGHT,
+        DefaultReadingMode.VERTICAL
+    )
 
     Box(
         modifier = modifier
@@ -179,9 +184,16 @@ fun ReaderSettingsScreenContent(
                     // Unified Glass Segmented Control with sliding lens indicator
                     GlassSegmentedControl(
                         items = readingModes,
-                        selectedIndex = readingModes.indexOf(selectedMode),
-                        onItemSelected = { selectedMode = readingModes[it] },
-                        labelProvider = { it.label },
+                        selectedIndex = readingModes.indexOf(selectedMode).coerceAtLeast(0),
+                        onItemSelected = { repo.setDefaultReadingMode(readingModes[it]) },
+                        labelProvider = { mode ->
+                            when (mode) {
+                                DefaultReadingMode.WEBTOON -> "Webtoon"
+                                DefaultReadingMode.RIGHT_TO_LEFT -> "RTL"
+                                DefaultReadingMode.LEFT_TO_RIGHT -> "LTR"
+                                DefaultReadingMode.VERTICAL -> "Vertical"
+                            }
+                        },
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -218,7 +230,7 @@ fun ReaderSettingsScreenContent(
                         }
                         PanelSlider(
                             value = brightness,
-                            onValueChange = { brightness = it },
+                            onValueChange = { repo.setBrightness(it) },
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -247,7 +259,7 @@ fun ReaderSettingsScreenContent(
                         }
                         PanelSlider(
                             value = sidePadding,
-                            onValueChange = { sidePadding = it },
+                            onValueChange = { repo.setSidePadding(it) },
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -268,7 +280,7 @@ fun ReaderSettingsScreenContent(
                         )
                         PanelSwitch(
                             checked = cropBorders,
-                            onCheckedChange = { cropBorders = it }
+                            onCheckedChange = { repo.setCropBorders(it) }
                         )
                     }
 

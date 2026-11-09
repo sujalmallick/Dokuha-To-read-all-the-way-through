@@ -1,5 +1,6 @@
 package ui.screens.browse
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,6 +27,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -103,6 +106,24 @@ fun BrowseScreenContent(
             .fillMaxSize()
             .background(PanelBackground)
     ) {
+        // Ambient liquid refraction glow orbs in background
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color(0xFF38BDF8).copy(alpha = 0.08f), Color.Transparent),
+                    center = Offset(size.width * 0.85f, size.height * 0.35f),
+                    radius = size.width * 0.65f
+                )
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color(0xFFA855F7).copy(alpha = 0.07f), Color.Transparent),
+                    center = Offset(size.width * 0.15f, size.height * 0.55f),
+                    radius = size.width * 0.60f
+                )
+            )
+        }
+
         // LAYER 1: Scrollable Content Layer (marked with glassSource)
         LazyColumn(
             modifier = Modifier
@@ -160,20 +181,20 @@ fun BrowseScreenContent(
                         text = "See All",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = ElectricBlue,
+                        color = Color(0xFFF8FAFC),
                         modifier = Modifier.clickable(onClick = onSeeAllSources)
                     )
                 }
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Source Cards List (Quiet non-glass content layer, language tags replaced by plain text)
+            // Source Cards List (Liquid Glass Source Cards)
             items(sources) { source ->
                 val avatarColor = when (source.name) {
                     "MangaDex" -> Color(0xFFFF6740)
                     "Comick" -> Color(0xFF60A5FA)
                     "Asura Scans" -> Color(0xFFA855F7)
-                    else -> ElectricBlue
+                    else -> Color.White
                 }
 
                 SourceCard(

@@ -62,6 +62,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 import ui.glass.GlassVariant
 import ui.glass.PanelGlassState
 import ui.glass.glassDimming
+import ui.glass.glassPress
 import ui.glass.glassSurface
 import ui.glass.nonGlassPress
 import ui.theme.CapsuleShape
@@ -603,36 +604,69 @@ fun SourceCard(
     languages: List<String>,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    avatarColor: Color = ElectricBlue
+    avatarColor: Color = Color.White
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(18.dp)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .nonGlassPress(interactionSource)
+            .glassPress(interactionSource)
             .clip(shape)
-            .background(Color.White.copy(alpha = 0.07f))
-            .border(0.5.dp, Color.White.copy(alpha = 0.12f), shape)
+            .background(
+                brush = Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.12f),
+                        Color.White.copy(alpha = 0.04f)
+                    )
+                )
+            )
+            .border(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.35f),
+                        Color.White.copy(alpha = 0.08f),
+                        Color.White.copy(alpha = 0.18f)
+                    )
+                ),
+                shape = shape
+            )
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick
             )
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Source logo avatar
+            // Source logo avatar in liquid glass frame
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(avatarColor.copy(alpha = 0.18f))
-                    .border(1.dp, avatarColor.copy(alpha = 0.35f), RoundedCornerShape(10.dp)),
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(
+                        brush = Brush.verticalGradient(
+                            listOf(
+                                avatarColor.copy(alpha = 0.22f),
+                                avatarColor.copy(alpha = 0.08f)
+                            )
+                        )
+                    )
+                    .border(
+                        1.dp,
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.35f),
+                                avatarColor.copy(alpha = 0.30f)
+                            )
+                        ),
+                        RoundedCornerShape(12.dp)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -675,7 +709,7 @@ fun SourceCard(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.NavigateNext,
                 contentDescription = null,
-                tint = TextSecondary,
+                tint = Color.White.copy(alpha = 0.7f),
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -690,31 +724,64 @@ fun ExtensionItemCard(
     hasUpdate: Boolean,
     onActionClick: () -> Unit,
     modifier: Modifier = Modifier,
-    avatarColor: Color = ElectricBlue
+    avatarColor: Color = Color.White
 ) {
     val interactionSource = remember { MutableInteractionSource() }
-    val shape = RoundedCornerShape(16.dp)
+    val shape = RoundedCornerShape(18.dp)
 
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .nonGlassPress(interactionSource)
+            .glassPress(interactionSource)
             .clip(shape)
-            .background(Color.White.copy(alpha = 0.07f))
-            .border(0.5.dp, Color.White.copy(alpha = 0.12f), shape)
+            .background(
+                brush = Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.12f),
+                        Color.White.copy(alpha = 0.04f)
+                    )
+                )
+            )
+            .border(
+                width = 1.dp,
+                brush = Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = 0.35f),
+                        Color.White.copy(alpha = 0.08f),
+                        Color.White.copy(alpha = 0.18f)
+                    )
+                ),
+                shape = shape
+            )
             .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Extension icon avatar
+            // Extension icon avatar in liquid glass frame
             Box(
                 modifier = Modifier
                     .size(42.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(avatarColor.copy(alpha = 0.18f))
-                    .border(1.dp, avatarColor.copy(alpha = 0.35f), RoundedCornerShape(12.dp)),
+                    .background(
+                        brush = Brush.verticalGradient(
+                            listOf(
+                                avatarColor.copy(alpha = 0.22f),
+                                avatarColor.copy(alpha = 0.08f)
+                            )
+                        )
+                    )
+                    .border(
+                        1.dp,
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.35f),
+                                avatarColor.copy(alpha = 0.30f)
+                            )
+                        ),
+                        RoundedCornerShape(12.dp)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -744,33 +811,35 @@ fun ExtensionItemCard(
                 )
             }
 
-            // Phase C: Pill removal & clean actions
+            // Phase C: Professional Option A actions
             when {
                 hasUpdate -> {
-                    // "Update" becomes a text-only accent button in ElectricBlue
+                    // "Update" liquid glass mini capsule button
                     val actionInteraction = remember { MutableInteractionSource() }
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .nonGlassPress(actionInteraction)
+                            .clip(CapsuleShape)
+                            .glassPress(actionInteraction)
+                            .background(Color.White.copy(alpha = 0.15f))
+                            .border(0.5.dp, Color.White.copy(alpha = 0.35f), CapsuleShape)
                             .clickable(
                                 interactionSource = actionInteraction,
                                 indication = null,
                                 onClick = onActionClick
                             )
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = "Update",
-                            color = ElectricBlue,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
                 isInstalled -> {
-                    // "Installed" becomes plain secondary text (pill deleted)
+                    // "Installed" plain secondary text
                     Text(
                         text = "Installed",
                         color = TextSecondary,
@@ -780,24 +849,25 @@ fun ExtensionItemCard(
                     )
                 }
                 else -> {
-                    // "Install" text-only accent action
+                    // "Install" Crisp Luxe White button with dark ink
                     val actionInteraction = remember { MutableInteractionSource() }
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .nonGlassPress(actionInteraction)
+                            .clip(CapsuleShape)
+                            .glassPress(actionInteraction)
+                            .background(Color.White)
                             .clickable(
                                 interactionSource = actionInteraction,
                                 indication = null,
                                 onClick = onActionClick
                             )
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = "Install",
-                            color = ElectricBlue,
-                            fontSize = 13.sp,
+                            color = Color(0xFF090D15),
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }

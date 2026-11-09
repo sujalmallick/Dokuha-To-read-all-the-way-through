@@ -48,10 +48,6 @@ kotlin {
             implementation(libs.voyager.transitions)
             implementation(libs.voyager.koin)
             
-            // Haze (backdrop blur & glassmorphism)
-            implementation(libs.haze)
-            implementation(libs.haze.materials)
-            
             // Koin DI
             implementation(libs.koin.core)
             implementation(libs.koin.compose)
