@@ -1023,23 +1023,25 @@ fun DownloadQueueCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    GlassContainer(
+    val interactionSource = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(16.dp)
+
+    Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .nonGlassPress(interactionSource)
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.07f))
+            .border(0.5.dp, Color.White.copy(alpha = 0.12f), shape)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = Color.White),
+                interactionSource = interactionSource,
+                indication = null,
                 onClick = onClick
-            ),
-        shape = RoundedCornerShape(14.dp),
-        backgroundColor = PanelSurfaceGlassHigh,
-        borderColor = GlassBorder
+            )
+            .padding(12.dp)
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Thumbnail
@@ -1120,6 +1122,8 @@ fun DownloadQueueCard(
                 icon = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
                 size = 36.dp,
                 iconSize = 18.dp,
+                backgroundColor = Color.White.copy(alpha = 0.08f),
+                borderColor = Color.White.copy(alpha = 0.14f),
                 onClick = onPauseToggle
             )
         }

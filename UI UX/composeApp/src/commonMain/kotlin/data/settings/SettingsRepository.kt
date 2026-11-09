@@ -1,8 +1,10 @@
 package data.settings
 
+import core.extensions.ExtensionRepoValidator
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.Serializable
 import ui.theme.ThemeMode
 
 enum class DefaultReadingMode(val label: String) {
@@ -34,11 +36,13 @@ enum class UpdateInterval(val label: String) {
     WEEKLY("Weekly")
 }
 
+@Serializable
 data class ExtensionRepo(
     val id: String,
     val name: String,
     val url: String,
-    val isOfficial: Boolean = false
+    val isOfficial: Boolean = false,
+    val fingerprint: String? = null
 )
 
 const val REPOSITORY_SECURITY_WARNING = "Extensions can run code on your device. Only add repositories you trust."
@@ -305,17 +309,24 @@ class FakeSettingsRepository : SettingsRepository {
     private var repoCounter = 100
 
     override fun addExtensionRepo(name: String, url: String): Result<Unit> {
-        val trimmed = url.trim()
-        if (!trimmed.startsWith("https://", ignoreCase = true)) {
-            return Result.failure(IllegalArgumentException("Repository URL must use https://"))
+        val validation = ExtensionRepoValidator.validateAndNormalize(url)
+        if (!validation.isValid) {
+            return Result.failure(IllegalArgumentException(validation.errorMessage ?: "Invalid URL"))
         }
+
+        val normalized = validation.normalizedUrl!!
+        if (_extensionRepos.value.any { it.url.equals(normalized, ignoreCase = true) }) {
+            return Result.failure(IllegalArgumentException("Repository has already been added"))
+        }
+
         val cleanName = name.trim().ifEmpty { "Custom Repository" }
         repoCounter++
         val newRepo = ExtensionRepo(
             id = "repo-$repoCounter",
             name = cleanName,
-            url = trimmed,
-            isOfficial = false
+            url = normalized,
+            isOfficial = false,
+            fingerprint = validation.fingerprint
         )
         _extensionRepos.value = _extensionRepos.value + newRepo
         return Result.success(Unit)

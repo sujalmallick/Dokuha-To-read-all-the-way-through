@@ -42,6 +42,9 @@ import androidx.compose.ui.unit.sp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import core.extensions.ExtensionRepoValidator
+import core.platform.PlatformInfo
+import data.settings.ExtensionRepo
 import data.settings.DefaultReadingMode
 import data.settings.NovelFont
 import data.settings.NovelReaderTheme
@@ -657,8 +660,12 @@ class SourcesSettingsScreen : Screen {
         val showNsfw by repo.showNsfw.collectAsState()
 
         var isAddRepoVisible by remember { mutableStateOf(false) }
+        var newRepoName by remember { mutableStateOf("") }
         var newRepoUrl by remember { mutableStateOf("") }
         var errorMessage by remember { mutableStateOf<String?>(null) }
+        var repoToRemove by remember { mutableStateOf<ExtensionRepo?>(null) }
+
+        val isAndroid = PlatformInfo.isAndroid
 
         Box(
             modifier = Modifier
@@ -673,22 +680,104 @@ class SourcesSettingsScreen : Screen {
                     SectionHeader(text = "Repositories")
                     Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                         SettingsGroup {
-                            extensionRepos.forEachIndexed { index, extRepo ->
-                                SettingsRow.Value(
-                                    title = extRepo.name,
-                                    subtitle = extRepo.url,
-                                    value = if (extRepo.isOfficial) "Official" else "Community"
-                                )
-                                SettingsSeparator()
-                            }
-                            SettingsRow.Action(
-                                text = "Add repository",
-                                onClick = {
-                                    newRepoUrl = ""
-                                    errorMessage = null
-                                    isAddRepoVisible = true
+                            if (!isAndroid) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 14.dp)
+                                ) {
+                                    Text(
+                                        text = "Extension repositories are currently supported on Android only. iOS extensions are coming in a future update.",
+                                        fontSize = 13.sp,
+                                        color = TextSecondary,
+                                        lineHeight = 18.sp
+                                    )
                                 }
-                            )
+                            } else {
+                                if (extensionRepos.isEmpty()) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 14.dp)
+                                    ) {
+                                        Text(
+                                            text = "No extension repositories added. Tap 'Add repository' to add trusted sources.",
+                                            fontSize = 13.sp,
+                                            color = TextSecondary,
+                                            lineHeight = 18.sp
+                                        )
+                                    }
+                                    SettingsSeparator()
+                                } else {
+                                    extensionRepos.forEach { extRepo ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(
+                                                        text = extRepo.name,
+                                                        fontSize = 15.sp,
+                                                        fontWeight = FontWeight.Medium,
+                                                        color = TextPrimary
+                                                    )
+                                                    if (extRepo.isOfficial) {
+                                                        Spacer(modifier = Modifier.width(6.dp))
+                                                        Text(
+                                                            text = "Official",
+                                                            fontSize = 11.sp,
+                                                            color = ElectricBlue,
+                                                            fontWeight = FontWeight.SemiBold
+                                                        )
+                                                    }
+                                                }
+                                                Spacer(modifier = Modifier.height(2.dp))
+                                                Text(
+                                                    text = extRepo.url,
+                                                    fontSize = 12.sp,
+                                                    color = TextSecondary,
+                                                    maxLines = 1
+                                                )
+                                                if (!extRepo.fingerprint.isNullOrBlank()) {
+                                                    Spacer(modifier = Modifier.height(3.dp))
+                                                    Text(
+                                                        text = "SHA-256: ${extRepo.fingerprint}",
+                                                        fontSize = 11.sp,
+                                                        fontFamily = FontFamily.Monospace,
+                                                        color = TextSecondary.copy(alpha = 0.8f),
+                                                        maxLines = 1
+                                                    )
+                                                }
+                                            }
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "Remove",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Medium,
+                                                color = Color(0xFFEF4444),
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .clickable { repoToRemove = extRepo }
+                                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                                            )
+                                        }
+                                        SettingsSeparator()
+                                    }
+                                }
+                                SettingsRow.Action(
+                                    text = "Add repository",
+                                    onClick = {
+                                        newRepoName = ""
+                                        newRepoUrl = ""
+                                        errorMessage = null
+                                        isAddRepoVisible = true
+                                    }
+                                )
+                            }
                         }
                     }
                     Spacer(modifier = Modifier.height(20.dp))
@@ -726,6 +815,11 @@ class SourcesSettingsScreen : Screen {
 
             // Add repository glass sheet with warning text
             if (isAddRepoVisible) {
+                val validation = remember(newRepoUrl) {
+                    if (newRepoUrl.isBlank()) null
+                    else ExtensionRepoValidator.validateAndNormalize(newRepoUrl)
+                }
+
                 ModalBottomSheet(
                     onDismissRequest = { isAddRepoVisible = false },
                     sheetState = rememberModalBottomSheetState(),
@@ -757,14 +851,11 @@ class SourcesSettingsScreen : Screen {
                         Spacer(modifier = Modifier.height(16.dp))
 
                         OutlinedTextField(
-                            value = newRepoUrl,
-                            onValueChange = {
-                                newRepoUrl = it
-                                errorMessage = null
-                            },
-                            label = { Text("Repository URL (https:// only)") },
+                            value = newRepoName,
+                            onValueChange = { newRepoName = it },
+                            label = { Text("Repository Name (optional)") },
+                            placeholder = { Text("e.g. Community Extensions") },
                             singleLine = true,
-                            isError = errorMessage != null,
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = TextPrimary,
                                 unfocusedTextColor = TextPrimary,
@@ -773,6 +864,60 @@ class SourcesSettingsScreen : Screen {
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = newRepoUrl,
+                            onValueChange = {
+                                newRepoUrl = it
+                                errorMessage = null
+                            },
+                            label = { Text("Repository URL (https:// only)") },
+                            singleLine = true,
+                            isError = errorMessage != null || (validation != null && !validation.isValid),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                focusedBorderColor = ElectricBlue,
+                                unfocusedBorderColor = GlassBorder
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        if (validation != null && validation.isValid) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFF10B981).copy(alpha = 0.08f), RoundedCornerShape(8.dp))
+                                    .border(1.dp, Color(0xFF10B981).copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "SHA-256 Fingerprint",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color(0xFF10B981)
+                                    )
+                                    Spacer(modifier = Modifier.height(2.dp))
+                                    Text(
+                                        text = validation.fingerprint.orEmpty(),
+                                        fontSize = 11.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = TextPrimary
+                                    )
+                                }
+                            }
+                        } else if (validation != null && !validation.isValid) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = validation.errorMessage.orEmpty(),
+                                color = Color(0xFFEF4444),
+                                fontSize = 12.sp
+                            )
+                        }
 
                         if (errorMessage != null) {
                             Spacer(modifier = Modifier.height(6.dp))
@@ -784,6 +929,8 @@ class SourcesSettingsScreen : Screen {
                         }
 
                         Spacer(modifier = Modifier.height(24.dp))
+
+                        val canAdd = validation != null && validation.isValid
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -802,10 +949,11 @@ class SourcesSettingsScreen : Screen {
                                 text = "Add",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = ElectricBlue,
+                                color = if (canAdd) ElectricBlue else TextSecondary.copy(alpha = 0.4f),
                                 modifier = Modifier
-                                    .clickable {
-                                        val result = repo.addExtensionRepo("Custom Extensions", newRepoUrl)
+                                    .clickable(enabled = canAdd) {
+                                        val targetName = newRepoName.trim().ifEmpty { "Community Extensions" }
+                                        val result = repo.addExtensionRepo(targetName, newRepoUrl)
                                         if (result.isSuccess) {
                                             isAddRepoVisible = false
                                         } else {
@@ -818,6 +966,20 @@ class SourcesSettingsScreen : Screen {
                         Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
+            }
+
+            if (repoToRemove != null) {
+                GlassConfirmDialog(
+                    title = "Remove Repository?",
+                    message = "Are you sure you want to remove '" + (repoToRemove?.name ?: "") + "'? Extensions from this repository will no longer receive updates.",
+                    confirmText = "Remove",
+                    isDestructive = true,
+                    onConfirm = {
+                        repoToRemove?.let { repo.removeExtensionRepo(it.id) }
+                        repoToRemove = null
+                    },
+                    onDismiss = { repoToRemove = null }
+                )
             }
         }
     }
