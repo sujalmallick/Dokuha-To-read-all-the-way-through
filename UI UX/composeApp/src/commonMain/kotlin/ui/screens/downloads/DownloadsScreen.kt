@@ -1,5 +1,6 @@
 package ui.screens.downloads
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -8,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -31,6 +33,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -43,24 +47,24 @@ import data.mock.FakePanelRepository
 import data.mock.MockDownloadItem
 import data.mock.MockStorageInfo
 import data.mock.PanelRepository
+import kotlin.math.roundToInt
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.DownloadQueueCard
 import ui.components.PanelBottomNavBar
 import ui.components.PanelCircleIconButton
 import ui.components.PanelTab
-import ui.components.StorageDonutChart
 import ui.glass.glassSource
 import ui.glass.rememberPanelGlassState
 import ui.screens.browse.BrowseScreen
 import ui.screens.details.TitleDetailsScreen
 import ui.screens.library.LibraryScreen
 import ui.screens.updates.UpdatesScreen
-import ui.theme.ElectricBlue
 import ui.theme.PanelBackground
 import ui.theme.PanelTheme
 import ui.theme.TextPrimary
 import ui.theme.TextSecondary
+import ui.theme.TextTertiary
 
 class DownloadsScreen : Screen {
 
@@ -112,6 +116,30 @@ fun DownloadsScreenContent(
             .fillMaxSize()
             .background(PanelBackground)
     ) {
+        // Subtle ambient liquid glow orbs behind content for realistic glass refraction
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0x18FFFFFF),
+                        Color.Transparent
+                    ),
+                    center = Offset(size.width * 0.85f, size.height * 0.15f),
+                    radius = size.width * 0.7f
+                )
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0x1038BDF8), // ultra-faint liquid cyan refraction
+                        Color.Transparent
+                    ),
+                    center = Offset(size.width * 0.15f, size.height * 0.60f),
+                    radius = size.width * 0.8f
+                )
+            )
+        }
+
         // LAYER 1: Scrollable Content Layer (marked with glassSource)
         LazyColumn(
             modifier = Modifier
@@ -146,77 +174,16 @@ fun DownloadsScreenContent(
                         size = 40.dp,
                         iconSize = 20.dp,
                         backgroundColor = Color.White.copy(alpha = 0.08f),
-                        borderColor = Color.White.copy(alpha = 0.14f),
+                        borderColor = Color.White.copy(alpha = 0.18f),
                         onClick = { /* Menu */ }
                     )
                 }
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // Storage Breakdown Card (Quiet non-glass content layer)
+            // Minimal Aesthetic Storage Breakdown Card (Liquid Glass)
             item {
-                val storageCardShape = RoundedCornerShape(16.dp)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(storageCardShape)
-                        .background(Color.White.copy(alpha = 0.07f))
-                        .border(0.5.dp, Color.White.copy(alpha = 0.12f), storageCardShape)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Circular Donut Storage Chart
-                        StorageDonutChart(
-                            usedGb = storageInfo.usedGb,
-                            totalGb = storageInfo.totalGb,
-                            mangaMb = storageInfo.mangaMb,
-                            manhwaMb = storageInfo.manhwaMb,
-                            novelsMb = storageInfo.novelsMb,
-                            othersMb = storageInfo.othersMb
-                        )
-
-                        Spacer(modifier = Modifier.width(16.dp))
-
-                        // Storage Legend Details
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Storage",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "${storageInfo.usedGb} GB of ${storageInfo.totalGb.toInt()} GB used",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontSize = 12.sp,
-                                color = TextSecondary
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            // Breakdown Dots
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                StorageLegendItem(color = ElectricBlue, label = "Manga 1.6 GB")
-                                StorageLegendItem(color = Color(0xFF06B6D4), label = "Manhwa 512 MB")
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                StorageLegendItem(color = Color(0xFFA855F7), label = "Novels 208 MB")
-                                StorageLegendItem(color = Color(0xFF64748B), label = "Others")
-                            }
-                        }
-                    }
-                }
+                AestheticStorageWidget(storageInfo = storageInfo)
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
@@ -231,7 +198,7 @@ fun DownloadsScreenContent(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Download Queue Items (Quiet non-glass cards)
+            // Download Queue Items (Liquid Glass cards)
             itemsIndexed(downloadItems) { index, item ->
                 val downloadedMb = item.downloadedBytes / (1024 * 1024)
                 val totalMb = item.totalBytes / (1024 * 1024)
@@ -261,6 +228,166 @@ fun DownloadsScreenContent(
             glassState = glassState,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
+    }
+}
+
+/**
+ * Minimal, aesthetic storage breakdown widget with Liquid Glass container,
+ * horizontal segmented liquid capsule bar, and refined typography.
+ */
+@Composable
+fun AestheticStorageWidget(
+    storageInfo: MockStorageInfo,
+    modifier: Modifier = Modifier
+) {
+    val shape = RoundedCornerShape(18.dp)
+    val usedGb = storageInfo.usedGb
+    val totalGb = storageInfo.totalGb
+    val freeGb = (totalGb - usedGb).coerceAtLeast(0f)
+    val totalMb = totalGb * 1024f
+    val mangaFraction = (storageInfo.mangaMb / totalMb).coerceIn(0f, 1f)
+    val manhwaFraction = (storageInfo.manhwaMb / totalMb).coerceIn(0f, 1f)
+    val novelsFraction = (storageInfo.novelsMb / totalMb).coerceIn(0f, 1f)
+    val othersFraction = (storageInfo.othersMb / totalMb).coerceIn(0f, 1f)
+    val freeFraction = (1f - (mangaFraction + manhwaFraction + novelsFraction + othersFraction)).coerceAtLeast(0f)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.12f),
+                        Color.White.copy(alpha = 0.04f)
+                    )
+                )
+            )
+            .border(
+                width = 0.75.dp,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.35f),
+                        Color.White.copy(alpha = 0.08f)
+                    )
+                ),
+                shape = shape
+            )
+            .padding(16.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Header Row: Storage label & Free Space Pill Badge
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Storage",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "${usedGb} GB used of ${totalGb.toInt()} GB",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 12.sp,
+                        color = TextSecondary
+                    )
+                }
+
+                // Minimal Frosted Pill Badge
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .border(0.5.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = "${(freeGb * 10).roundToInt() / 10f} GB Free",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Multi-segment horizontal liquid capsule bar
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(7.dp)
+                    .clip(RoundedCornerShape(3.5.dp))
+                    .background(Color.White.copy(alpha = 0.08f))
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    // Manga Segment (Crisp Luxe Platinum White)
+                    if (mangaFraction > 0.005f) {
+                        Box(
+                            modifier = Modifier
+                                .weight(mangaFraction.coerceAtLeast(0.04f))
+                                .fillMaxHeight()
+                                .background(Color.White)
+                        )
+                    }
+                    // Manhwa Segment (Titanium Slate)
+                    if (manhwaFraction > 0.005f) {
+                        Box(
+                            modifier = Modifier
+                                .weight(manhwaFraction.coerceAtLeast(0.03f))
+                                .fillMaxHeight()
+                                .background(Color(0xFF94A3B8))
+                        )
+                    }
+                    // Novels Segment (Muted Titanium)
+                    if (novelsFraction > 0.005f) {
+                        Box(
+                            modifier = Modifier
+                                .weight(novelsFraction.coerceAtLeast(0.02f))
+                                .fillMaxHeight()
+                                .background(Color(0xFF64748B))
+                        )
+                    }
+                    // Free space remaining
+                    Box(
+                        modifier = Modifier
+                            .weight(freeFraction.coerceAtLeast(0.05f))
+                            .fillMaxHeight()
+                            .background(Color.Transparent)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Minimal Legend Row (Free space is displayed in the top right pill badge)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                StorageLegendItem(
+                    color = Color.White,
+                    label = "Manga ${(storageInfo.mangaMb / 1024f * 10).roundToInt() / 10f} GB"
+                )
+                StorageLegendItem(
+                    color = Color(0xFF94A3B8),
+                    label = "Manhwa ${storageInfo.manhwaMb.toInt()} MB"
+                )
+                StorageLegendItem(
+                    color = Color(0xFF64748B),
+                    label = "Novels ${storageInfo.novelsMb.toInt()} MB"
+                )
+            }
+        }
     }
 }
 

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import cafe.adriel.voyager.navigator.Navigator
+import cafe.adriel.voyager.transitions.FadeTransition
 import cafe.adriel.voyager.transitions.SlideTransition
 import core.di.appModule
 import data.settings.SettingsRepository
@@ -43,7 +44,11 @@ private fun PanelAppRoot() {
         reduceMotion = reduceMotion
     ) {
         Navigator(WelcomeScreen()) { navigator ->
-            SlideTransition(navigator)
+            if (reduceMotion) {
+                FadeTransition(navigator)
+            } else {
+                SlideTransition(navigator)
+            }
         }
     }
 }

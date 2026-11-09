@@ -1,5 +1,6 @@
 package ui.screens.updates
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +23,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -94,6 +98,30 @@ fun UpdatesScreenContent(
             .fillMaxSize()
             .background(PanelBackground)
     ) {
+        // Subtle ambient liquid glow orbs behind content for realistic glass refraction
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0x18FFFFFF),
+                        Color.Transparent
+                    ),
+                    center = Offset(size.width * 0.85f, size.height * 0.15f),
+                    radius = size.width * 0.7f
+                )
+            )
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0x10A855F7), // ultra-faint liquid violet refraction
+                        Color.Transparent
+                    ),
+                    center = Offset(size.width * 0.15f, size.height * 0.65f),
+                    radius = size.width * 0.8f
+                )
+            )
+        }
+
         // LAYER 1: Scrollable Content Layer (marked with glassSource)
         LazyColumn(
             modifier = Modifier
