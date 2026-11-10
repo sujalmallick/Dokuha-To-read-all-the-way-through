@@ -53,17 +53,76 @@ import ui.theme.PanelBackground
 import ui.theme.PanelTheme
 import ui.theme.TextPrimary
 
+import androidx.compose.runtime.rememberCoroutineScope
+import core.extensions.ExtensionManager
+import kotlinx.coroutines.launch
+
 class ExtensionsScreen : Screen {
 
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repository: PanelRepository = koinInject()
+        val extensionManager: ExtensionManager = koinInject()
+        val coroutineScope = rememberCoroutineScope()
 
-        val initialExtensions by repository.getExtensions().collectAsState(initial = emptyList())
+        val mockExtensions by repository.getExtensions().collectAsState(initial = emptyList())
+        val installedExts by extensionManager.installedExtensions.collectAsState(initial = emptyList())
+        val availableCatalog by extensionManager.availableExtensions.collectAsState(initial = emptyList())
+
+        val effectiveExtensions = remember(mockExtensions, installedExts, availableCatalog) {
+            if (installedExts.isNotEmpty() || availableCatalog.isNotEmpty()) {
+                val installedIds = installedExts.map { it.id }.toSet()
+                val list = mutableListOf<MockExtension>()
+                for (inst in installedExts) {
+                    list.add(
+                        MockExtension(
+                            id = inst.id,
+                            name = inst.name,
+                            version = inst.version,
+                            lang = inst.lang.uppercase(),
+                            isInstalled = true,
+                            hasUpdate = false,
+                            iconUrl = inst.iconUrl
+                        )
+                    )
+                }
+                for (avail in availableCatalog) {
+                    if (!installedIds.contains(avail.id)) {
+                        list.add(
+                            MockExtension(
+                                id = avail.id,
+                                name = avail.name,
+                                version = avail.version,
+                                lang = avail.lang.uppercase(),
+                                isInstalled = false,
+                                hasUpdate = false,
+                                iconUrl = avail.iconUrl
+                            )
+                        )
+                    }
+                }
+                list
+            } else {
+                mockExtensions
+            }
+        }
 
         ExtensionsScreenContent(
-            initialExtensions = initialExtensions,
+            initialExtensions = effectiveExtensions,
+            onActionClick = { ext ->
+                coroutineScope.launch {
+                    if (ext.isInstalled) {
+                        extensionManager.uninstallExtension(ext.id)
+                    } else {
+                        val catalogItem = availableCatalog.firstOrNull { it.id == ext.id }
+                        if (catalogItem != null) {
+                            val repoBase = extensionManager.repoUrls.value.firstOrNull() ?: ""
+                            extensionManager.installExtension(catalogItem, repoBase)
+                        }
+                    }
+                }
+            },
             onTabSelected = { tab ->
                 when (tab) {
                     PanelTab.LIBRARY -> navigator.push(LibraryScreen())
@@ -80,6 +139,7 @@ class ExtensionsScreen : Screen {
 fun ExtensionsScreenContent(
     initialExtensions: List<MockExtension>,
     onTabSelected: (PanelTab) -> Unit,
+    onActionClick: (MockExtension) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val glassState = rememberPanelGlassState()
@@ -185,10 +245,11 @@ fun ExtensionsScreenContent(
                         if (index != -1) {
                             val current = extensionsList[index]
                             extensionsList[index] = current.copy(
-                                isInstalled = true,
+                                isInstalled = !current.isInstalled,
                                 hasUpdate = false
                             )
                         }
+                        onActionClick(ext)
                     }
                 )
                 Spacer(modifier = Modifier.height(10.dp))

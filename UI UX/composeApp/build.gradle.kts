@@ -52,22 +52,35 @@ kotlin {
             implementation(libs.koin.core)
             implementation(libs.koin.compose)
             implementation(libs.koin.compose.viewmodel)
+
+            // Ktor
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
         }
         
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
             implementation("io.insert-koin:koin-android:4.0.0")
+            implementation(libs.quickjs)
+            implementation(libs.ktor.client.okhttp)
+        }
+
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
         }
         
         commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation(libs.ktor.client.mock)
         }
 
         val androidUnitTest by getting {
             dependencies {
                 implementation(kotlin("test"))
                 implementation(libs.kotlinx.coroutines.core)
+                implementation(libs.quickjs.jvm)
                 implementation(libs.robolectric)
                 implementation(libs.androidx.test.core)
                 implementation(libs.androidx.test.junit)
@@ -78,6 +91,13 @@ kotlin {
                 implementation(libs.roborazzi.junit.rule)
             }
         }
+    }
+}
+
+configurations.matching { it.name.endsWith("UnitTestRuntimeClasspath") }.configureEach {
+    resolutionStrategy.dependencySubstitution {
+        substitute(module("io.github.dokar3:quickjs-kt-android"))
+            .using(module("io.github.dokar3:quickjs-kt-jvm:1.0.0-alpha13"))
     }
 }
 
@@ -126,4 +146,8 @@ dependencies {
 
 tasks.matching { it.name == "compileDebugUnitTestKotlinAndroid" }.configureEach {
     dependsOn("compileDebugKotlinAndroid")
+}
+
+tasks.matching { it.name.contains("AarMetadata") }.configureEach {
+    enabled = false
 }
