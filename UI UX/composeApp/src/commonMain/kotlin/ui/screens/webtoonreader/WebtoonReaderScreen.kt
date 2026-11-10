@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
@@ -127,12 +128,23 @@ data class WebtoonReaderScreen(
             chapters[currentChapterIndex - 1].name
         } else "Episode 43"
 
+        val coroutineScope = rememberCoroutineScope()
+
+        LaunchedEffect(currentChapterUrl) {
+            repository.recordHistory(currentChapterUrl)
+        }
+
         WebtoonReaderScreenContent(
             chapterTitle = currentChapterTitle,
             pages = pages,
             onBack = { navigator.pop() },
             settingsRepository = settingsRepository,
             onOpenSettings = { navigator.push(ReaderSettingsScreen()) },
+            onProgressChange = { page, isCompleted ->
+                coroutineScope.launch {
+                    repository.updateChapterProgress(currentChapterUrl, page, isCompleted)
+                }
+            },
             onPreviousChapter = {
                 if (chapters.isNotEmpty() && currentChapterIndex in 0 until chapters.lastIndex) {
                     val prevChapter = chapters[currentChapterIndex + 1]
@@ -167,6 +179,7 @@ fun WebtoonReaderScreenContent(
     onBack: () -> Unit,
     settingsRepository: SettingsRepository? = null,
     onOpenSettings: () -> Unit = {},
+    onProgressChange: (page: Int, isCompleted: Boolean) -> Unit = { _, _ -> },
     onPreviousChapter: () -> Unit = {},
     onNextChapter: () -> Unit = {},
     hasPreviousChapter: Boolean = true,
@@ -237,6 +250,10 @@ fun WebtoonReaderScreenContent(
                 pagerState.currentPage >= displayPages.size
             }
         }
+    }
+
+    LaunchedEffect(currentPageIndex, isAtEndOfChapter) {
+        onProgressChange(currentPageIndex, isAtEndOfChapter)
     }
 
     BoxWithConstraints(
