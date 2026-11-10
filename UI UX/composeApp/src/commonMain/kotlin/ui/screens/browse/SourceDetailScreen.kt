@@ -368,6 +368,7 @@ fun SourceDetailScreenContent(
                         title = manga.title,
                         subtitle = manga.genres.firstOrNull() ?: (if (manga.isNovel) "Novel" else "Manga"),
                         gradientIndex = index,
+                        thumbnailUrl = manga.thumbnailUrl,
                         onClick = { onOpenManga(manga) }
                     )
                 }

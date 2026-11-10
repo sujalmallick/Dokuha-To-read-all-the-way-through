@@ -9,9 +9,13 @@ import cafe.adriel.voyager.transitions.SlideTransition
 import core.di.appModule
 import data.settings.SettingsRepository
 import org.koin.compose.KoinApplication
+import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
+import org.koin.core.context.GlobalContext
 import org.koin.dsl.KoinAppDeclaration
 import ui.screens.welcome.WelcomeScreen
+import coil3.compose.setSingletonImageLoaderFactory
+import core.image.newPanelImageLoader
 import ui.theme.PanelAccentColors
 import ui.theme.PanelTheme
 
@@ -19,11 +23,21 @@ import ui.theme.PanelTheme
 fun PanelApp(
     appDeclaration: KoinAppDeclaration? = null
 ) {
-    KoinApplication(application = {
-        appDeclaration?.invoke(this)
-        modules(appModule)
-    }) {
-        PanelAppRoot()
+    setSingletonImageLoaderFactory { context ->
+        newPanelImageLoader(context)
+    }
+
+    if (GlobalContext.getOrNull() != null) {
+        KoinContext {
+            PanelAppRoot()
+        }
+    } else {
+        KoinApplication(application = {
+            appDeclaration?.invoke(this)
+            modules(appModule)
+        }) {
+            PanelAppRoot()
+        }
     }
 }
 
