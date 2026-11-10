@@ -102,6 +102,10 @@ interface PanelRepository {
         query: String = "",
         filters: BrowseFilters = BrowseFilters()
     ): Flow<List<SourceManga>>
+
+    fun registerSource(source: core.source.ContentSource) {}
+    fun unregisterSource(sourceId: Long) {}
+    fun getRegisteredSources(): List<core.source.ContentSource> = emptyList()
 }
 
 data class MockSourceInfo(
@@ -252,6 +256,18 @@ class FakePanelRepository : PanelRepository {
         "3" to listOf(lastHorizon, windBeneath, frostbound, auroraBlade, shadowCrown, shadowSlave)
     )
 
+    private val dynamicSources = mutableMapOf<Long, core.source.ContentSource>()
+
+    override fun registerSource(source: core.source.ContentSource) {
+        dynamicSources[source.id] = source
+    }
+
+    override fun unregisterSource(sourceId: Long) {
+        dynamicSources.remove(sourceId)
+    }
+
+    override fun getRegisteredSources(): List<core.source.ContentSource> = dynamicSources.values.toList()
+
     override fun getLibrary(category: String): Flow<List<SourceManga>> {
         val list = listOf(
             soloLeveling,
@@ -335,13 +351,21 @@ class FakePanelRepository : PanelRepository {
     }
 
     override fun getSources(): Flow<List<MockSourceInfo>> {
-        return flowOf(
-            listOf(
-                MockSourceInfo("1", "MangaDex", "Manga", listOf("EN", "JP")),
-                MockSourceInfo("2", "Comick", "Manga", listOf("EN", "KR")),
-                MockSourceInfo("3", "Asura Scans", "Manhwa", listOf("EN"))
-            )
+        val baseSources = listOf(
+            MockSourceInfo("1", "MangaDex", "Manga", listOf("EN", "JP")),
+            MockSourceInfo("2", "Comick", "Manga", listOf("EN", "KR")),
+            MockSourceInfo("3", "Asura Scans", "Manhwa", listOf("EN"))
         )
+        val dynamicList = dynamicSources.values.map { src ->
+            val type = if (src is core.source.NovelSource && src !is core.source.ComicSource) "Novel" else "Manga"
+            MockSourceInfo(
+                id = src.id.toString(),
+                name = src.name,
+                type = type,
+                languages = listOf(src.lang.uppercase())
+            )
+        }
+        return flowOf(baseSources + dynamicList)
     }
 
     override fun getExtensions(): Flow<List<MockExtension>> {
@@ -463,6 +487,22 @@ class FakePanelRepository : PanelRepository {
         query: String,
         filters: BrowseFilters
     ): Flow<List<SourceManga>> {
+        val dynamicSource = sourceId.toLongOrNull()?.let { dynamicSources[it] }
+        if (dynamicSource != null) {
+            return kotlinx.coroutines.flow.flow {
+                val pageResult = try {
+                    if (query.isNotBlank()) {
+                        dynamicSource.search(query, page)
+                    } else {
+                        dynamicSource.getPopular(page)
+                    }
+                } catch (_: Exception) {
+                    null
+                }
+                emit(pageResult?.mangas ?: emptyList())
+            }
+        }
+
         val baseList = sourceMangaMap[sourceId] ?: allMangaList
         val trimmedQuery = query.trim()
 
