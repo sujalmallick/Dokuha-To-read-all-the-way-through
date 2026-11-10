@@ -291,10 +291,36 @@ class FakePanelRepository : PanelRepository {
     }
 
     override fun getMangaDetails(url: String): Flow<SourceManga?> {
-        return flowOf(lastHorizon)
+        val matchingDynamic = dynamicSources.values.firstOrNull { src ->
+            url.startsWith(src.baseUrl)
+        }
+        if (matchingDynamic != null) {
+            return kotlinx.coroutines.flow.flow {
+                val details = try {
+                    matchingDynamic.getMangaDetails(SourceManga(url = url, title = ""))
+                } catch (_: Exception) {
+                    null
+                }
+                emit(details)
+            }
+        }
+        return flowOf(allMangaList.find { it.url == url } ?: lastHorizon)
     }
 
     override fun getChapters(mangaUrl: String): Flow<List<SourceChapter>> {
+        val matchingDynamic = dynamicSources.values.firstOrNull { src ->
+            mangaUrl.startsWith(src.baseUrl)
+        }
+        if (matchingDynamic != null) {
+            return kotlinx.coroutines.flow.flow {
+                val chapters = try {
+                    matchingDynamic.getChapterList(SourceManga(url = mangaUrl, title = ""))
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                emit(chapters)
+            }
+        }
         val chapters = listOf(
             SourceChapter(
                 url = "ch-210",
@@ -325,6 +351,19 @@ class FakePanelRepository : PanelRepository {
     }
 
     override fun getPages(chapterUrl: String): Flow<List<SourcePage>> {
+        val matchingDynamic = dynamicSources.values.filterIsInstance<core.source.ComicSource>().firstOrNull { src ->
+            chapterUrl.startsWith(src.baseUrl)
+        }
+        if (matchingDynamic != null) {
+            return kotlinx.coroutines.flow.flow {
+                val pages = try {
+                    matchingDynamic.getPageList(SourceChapter(url = chapterUrl, name = ""))
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                emit(pages)
+            }
+        }
         val pages = (1..6).map { i ->
             SourcePage(
                 index = i,
@@ -336,6 +375,19 @@ class FakePanelRepository : PanelRepository {
     }
 
     override fun getNovelContent(chapterUrl: String): Flow<NovelContent?> {
+        val matchingDynamic = dynamicSources.values.filterIsInstance<core.source.NovelSource>().firstOrNull { src ->
+            chapterUrl.startsWith(src.baseUrl)
+        }
+        if (matchingDynamic != null) {
+            return kotlinx.coroutines.flow.flow {
+                val content = try {
+                    matchingDynamic.getChapterContent(SourceChapter(url = chapterUrl, name = ""))
+                } catch (_: Exception) {
+                    null
+                }
+                emit(content)
+            }
+        }
         return flowOf(
             NovelContent(
                 chapterUrl = chapterUrl,
@@ -444,6 +496,22 @@ class FakePanelRepository : PanelRepository {
         sourceId: String?,
         filters: BrowseFilters
     ): Flow<List<SourceManga>> {
+        val dynamicSource = sourceId?.toLongOrNull()?.let { dynamicSources[it] }
+        if (dynamicSource != null) {
+            return kotlinx.coroutines.flow.flow {
+                val pageResult = try {
+                    if (query.isNotBlank()) {
+                        dynamicSource.search(query, 1)
+                    } else {
+                        dynamicSource.getPopular(1)
+                    }
+                } catch (_: Exception) {
+                    null
+                }
+                emit(pageResult?.mangas ?: emptyList())
+            }
+        }
+
         val baseList = if (!sourceId.isNullOrBlank()) {
             sourceMangaMap[sourceId] ?: allMangaList
         } else {

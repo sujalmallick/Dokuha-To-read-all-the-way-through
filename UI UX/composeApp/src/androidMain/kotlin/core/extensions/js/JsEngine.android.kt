@@ -6,6 +6,8 @@ import com.dokar.quickjs.binding.function
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 actual class JsEngine actual constructor() {
     private var quickJs: QuickJs? = QuickJs.create(Dispatchers.Default)
@@ -49,6 +51,16 @@ actual class JsEngine actual constructor() {
 
     actual suspend fun evaluate(script: String): String = mutex.withLock {
         val qjs = quickJs ?: error("JsEngine is closed")
+        val trimmed = script.trim()
+        val looksAsync = trimmed.startsWith("(async") ||
+            trimmed.startsWith("async") ||
+            trimmed.startsWith("new Promise") ||
+            trimmed.startsWith("Promise.")
+
+        if (looksAsync) {
+            return runAsyncScript(qjs, script)
+        }
+
         val res = qjs.evaluate<Any?>(script)
         val str = when (res) {
             null -> "null"
@@ -56,35 +68,39 @@ actual class JsEngine actual constructor() {
             else -> res.toString()
         }
         if (str.startsWith("Promise { <state>:")) {
-            lastEvalResult = null
-            lastEvalError = null
-            val asyncRunner = """
-                (async () => {
-                    try {
-                        let res = ($script);
-                        if (res && typeof res.then === 'function') {
-                            let done = false;
-                            let val = null;
-                            let err = null;
-                            res.then(v => { done = true; val = v; }, e => { done = true; err = e; });
-                            while (!done) {
-                                await __dokuha_yield();
-                            }
-                            if (err) throw err;
-                            res = val;
-                        }
-                        const serialized = (typeof res === 'object' && res !== null) ? JSON.stringify(res) : (res === undefined ? 'undefined' : String(res));
-                        await __dokuha_finish(true, serialized);
-                    } catch (e) {
-                        await __dokuha_finish(false, e && e.message ? e.message : String(e));
-                    }
-                })();
-            """.trimIndent()
-            qjs.evaluate<Any?>(asyncRunner)
-            lastEvalError?.let { error("JavaScript error: $it") }
-            return lastEvalResult ?: "null"
+            return runAsyncScript(qjs, script)
         }
         return str
+    }
+
+    private suspend fun runAsyncScript(qjs: QuickJs, script: String): String {
+        lastEvalResult = null
+        lastEvalError = null
+        val asyncRunner = """
+            (async () => {
+                try {
+                    let res = ($script);
+                    if (res && typeof res.then === 'function') {
+                        let done = false;
+                        let val = null;
+                        let err = null;
+                        res.then(v => { done = true; val = v; }, e => { done = true; err = e; });
+                        while (!done) {
+                            await __dokuha_yield();
+                        }
+                        if (err) throw err;
+                        res = val;
+                    }
+                    const serialized = (typeof res === 'object' && res !== null) ? JSON.stringify(res) : (res === undefined ? 'undefined' : String(res));
+                    await __dokuha_finish(true, serialized);
+                } catch (e) {
+                    await __dokuha_finish(false, e && e.message ? e.message : String(e));
+                }
+            })();
+        """.trimIndent()
+        qjs.evaluate<Any?>(asyncRunner)
+        lastEvalError?.let { error("JavaScript error: $it") }
+        return lastEvalResult ?: "null"
     }
 
     actual fun setGlobalFunction(name: String, block: (List<Any?>) -> Any?) {

@@ -1,6 +1,18 @@
 package core.extensions.js
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.longOrNull
 import platform.Foundation.NSString
 import platform.JavaScriptCore.JSContext
 import platform.JavaScriptCore.JSValue
@@ -9,15 +21,16 @@ actual class JsEngine actual constructor() {
     private var context: JSContext? = JSContext()
     private val syncFunctions = mutableMapOf<String, (List<Any?>) -> Any?>()
     private val asyncFunctions = mutableMapOf<String, suspend (List<Any?>) -> Any?>()
-    private val coroutineScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default)
+    private val coroutineScope = CoroutineScope(Dispatchers.Default)
 
     init {
         context?.let { ctx ->
             val dispatcher: (String, String) -> String? = { fnName, argsJson ->
                 val fn = syncFunctions[fnName]
                 if (fn != null) {
-                    val result = fn(listOf(argsJson))
-                    result?.toString()
+                    val parsedArgs = deserializeArgs(argsJson)
+                    val result = fn(parsedArgs)
+                    if (result is String) result else (result?.toString() ?: "null")
                 } else {
                     null
                 }
@@ -27,19 +40,42 @@ actual class JsEngine actual constructor() {
             val asyncDispatcher: (String, String, String) -> Unit = { fnName, reqId, argsJson ->
                 val fn = asyncFunctions[fnName]
                 if (fn != null) {
-                    kotlinx.coroutines.launch(kotlinx.coroutines.Dispatchers.Default) {
+                    coroutineScope.launch {
                         try {
-                            val result = fn(listOf(argsJson))
-                            val serializedResult = if (result is String) "\"${result.replace("\"", "\\\"")}\"" else (result?.toString() ?: "null")
-                            context?.evaluateScript("__dokuha_resolve_async('$reqId', $serializedResult);")
+                            val parsedArgs = deserializeArgs(argsJson)
+                            val result = fn(parsedArgs)
+                            val encoded = Json.encodeToString(result?.toString() ?: "null")
+                            context?.evaluateScript("__dokuha_resolve_async('$reqId', $encoded);")
                         } catch (e: Exception) {
-                            val err = e.message ?: "Error"
-                            context?.evaluateScript("__dokuha_reject_async('$reqId', '$err');")
+                            val errEncoded = Json.encodeToString(e.message ?: "Error")
+                            context?.evaluateScript("__dokuha_reject_async('$reqId', $errEncoded);")
                         }
                     }
                 }
             }
             ctx.setObject(asyncDispatcher, forKeyedSubscript = "__dokuha_native_async_dispatcher" as NSString)
+        }
+    }
+
+    private fun deserializeArgs(argsJson: String): List<Any?> {
+        return try {
+            val element = Json.parseToJsonElement(argsJson)
+            if (element is JsonArray) {
+                element.map { item ->
+                    when {
+                        item is JsonPrimitive && item.isString -> item.content
+                        item is JsonPrimitive && item.booleanOrNull != null -> item.booleanOrNull
+                        item is JsonPrimitive && item.longOrNull != null -> item.longOrNull
+                        item is JsonPrimitive && item.doubleOrNull != null -> item.doubleOrNull
+                        item is JsonNull -> null
+                        else -> item.toString()
+                    }
+                }
+            } else {
+                listOf(argsJson)
+            }
+        } catch (_: Exception) {
+            listOf(argsJson)
         }
     }
 
@@ -51,6 +87,17 @@ actual class JsEngine actual constructor() {
             val msg = ex.toString()
             ctx.exception = null
             error("JavaScript error: $msg")
+        }
+        if (res != null && res.hasProperty("then")) {
+            val deferred = CompletableDeferred<String>()
+            val resolveCallback: (Any?) -> Unit = { value ->
+                deferred.complete(value?.toString() ?: "")
+            }
+            val rejectCallback: (Any?) -> Unit = { error ->
+                deferred.completeExceptionally(RuntimeException("Promise rejected: $error"))
+            }
+            res.invokeMethod("then", listOf(resolveCallback, rejectCallback))
+            return deferred.await()
         }
         return res?.toString() ?: ""
     }
@@ -120,21 +167,22 @@ actual class JsEngine actual constructor() {
                 else -> arg.toString()
             }
         }
+        val escapedFunctionName = functionName.replace("'", "\\'")
         val script = """
             (async () => {
                     let parent = globalThis;
                     let fn;
                     try {
-                        fn = eval('$functionName');
+                        fn = eval('$escapedFunctionName');
                     } catch (_) {}
-                    const lastDot = '$functionName'.lastIndexOf('.');
+                    const lastDot = '$escapedFunctionName'.lastIndexOf('.');
                     if (lastDot !== -1) {
                         try {
-                            parent = eval('$functionName'.substring(0, lastDot));
+                            parent = eval('$escapedFunctionName'.substring(0, lastDot));
                         } catch (_) {}
                     }
                     if (typeof fn !== 'function') {
-                        throw new Error('$functionName is not a function');
+                        throw new Error('$escapedFunctionName is not a function');
                     }
                     const res = await fn.call(parent, $argsJs);
                     return typeof res === 'object' && res !== null ? JSON.stringify(res) : (res === undefined ? 'undefined' : String(res));
@@ -164,7 +212,9 @@ actual class JsEngine actual constructor() {
     }
 
     actual fun close() {
+        coroutineScope.cancel()
         context = null
         syncFunctions.clear()
+        asyncFunctions.clear()
     }
 }
