@@ -210,7 +210,7 @@ class JsBridge(
     globalThis.dokuha.fetch = async (url, options = {}) => {
         const method = options.method || 'GET';
         const headers = options.headers || {};
-        const body = options.body || null;
+        const body = (typeof options.body === 'object' && options.body !== null) ? JSON.stringify(options.body) : (options.body != null ? String(options.body) : null);
         const resStr = await globalThis.__dokuha_fetch(url, method, JSON.stringify(headers), body);
         const res = JSON.parse(resStr);
         return {
@@ -250,7 +250,7 @@ class JsBridge(
                     const tagName = tagParts[0].toLowerCase();
 
                     const attrs = {};
-                    const attrRegex = /([a-zA-Z0-9_:-]+)(?:=(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
+                    const attrRegex = /([a-zA-Z0-9_:-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;
                     let match;
                     const attrStr = tagBody.slice(tagName.length);
                     while ((match = attrRegex.exec(attrStr)) !== null) {
@@ -339,7 +339,7 @@ class JsBridge(
             }
 
             while (true) {
-                const attrMatch = rem.match(/^\[([a-zA-Z0-9_-]+)(?:([*^$]?=)(?:"([^"]*)"|'([^']*)'|([^\]]+)))?\]/);
+                const attrMatch = rem.match(/^\[([a-zA-Z0-9_:-]+)(?:\s*([*^$]?=)\s*(?:"([^"]*)"|'([^']*)'|([^\]]+)))?\]/);
                 if (!attrMatch) break;
                 const aName = attrMatch[1].toLowerCase();
                 const op = attrMatch[2];
@@ -539,7 +539,9 @@ object Base64Util {
     }
 
     fun decode(str: String): ByteArray {
-        val cleaned = str.replace("\n", "").replace("\r", "").replace(" ", "")
+        val cleaned = str.filter { !it.isWhitespace() }
+            .replace('-', '+')
+            .replace('_', '/')
         val out = mutableListOf<Byte>()
         var i = 0
         while (i < cleaned.length) {

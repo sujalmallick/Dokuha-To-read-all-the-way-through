@@ -13,6 +13,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.floatOrNull
@@ -20,6 +21,8 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.longOrNull
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 
 /**
  * Adapter that binds a JavaScript extension into Dokuha's ComicSource and NovelSource contracts.
@@ -82,31 +85,16 @@ class JsExtensionSource(
                 emptyMap()
             }
             val res = bridge.fetch(url, method, headersMap, body)
-            val resJson = buildString {
-                append("{")
-                append("\"status\":").append(res.status).append(",")
-                append("\"ok\":").append(res.ok).append(",")
-                append("\"headers\":{")
-                val headerEntries = res.headers.entries.joinToString(",") { (k, v) ->
-                    "\"${escape(k)}\":\"${escape(v)}\""
+            val resJson = buildJsonObject {
+                put("status", res.status)
+                put("ok", res.ok)
+                putJsonObject("headers") {
+                    res.headers.forEach { (k, v) -> put(k, v) }
                 }
-                append(headerEntries)
-                append("},")
-                append("\"body\":\"").append(escape(res.body)).append("\"")
-                append("}")
-            }
+                put("body", res.body)
+            }.toString()
             resJson
         }
-    }
-
-    private fun escape(s: String): String {
-        return s.replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\b", "\\b")
-            .replace("\u000C", "\\f")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t")
     }
 
     override suspend fun getPopular(page: Int): MangasPage {
@@ -124,8 +112,21 @@ class JsExtensionSource(
     }
 
     override suspend fun search(query: String, page: Int, filters: List<SourceFilter>): MangasPage {
-        val result = engine.callFunction("extension.search", query, page)
-        return parseMangasPage(result)
+        return try {
+            val result = engine.callFunction("extension.search", query, page)
+            parseMangasPage(result)
+        } catch (_: Exception) {
+            val popular = getPopular(page)
+            if (query.isBlank()) {
+                popular
+            } else {
+                val filtered = popular.mangas.filter {
+                    it.title.contains(query, ignoreCase = true) ||
+                        it.author?.contains(query, ignoreCase = true) == true
+                }
+                popular.copy(mangas = filtered)
+            }
+        }
     }
 
     override suspend fun getMangaDetails(manga: SourceManga): SourceManga {

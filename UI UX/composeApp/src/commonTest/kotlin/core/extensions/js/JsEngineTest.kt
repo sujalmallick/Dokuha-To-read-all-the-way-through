@@ -39,6 +39,24 @@ class JsEngineTest {
     }
 
     @Test
+    fun testPromiseEvaluationDoesNotExecuteTwice() = runBlocking {
+        val engine = JsEngine()
+        engine.evaluate("var evalCounter = 0;")
+        val result = engine.evaluate(
+            """
+            (async () => {
+                evalCounter++;
+                return evalCounter;
+            })()
+            """.trimIndent()
+        )
+        val finalCount = engine.evaluate("evalCounter")
+        assertEquals("1", result)
+        assertEquals("1", finalCount)
+        engine.close()
+    }
+
+    @Test
     fun testGlobalVariableAndFunctionCall() = runBlocking {
         val engine = JsEngine()
         engine.setGlobalVariable("config", """{"appName":"Dokuha","version":1}""")

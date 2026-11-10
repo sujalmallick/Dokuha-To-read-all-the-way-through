@@ -86,4 +86,54 @@ class ExtensionManagerTest {
         val invalidRes = manager.addRepository("http://insecure.example.com")
         assertFalse(invalidRes.isValid)
     }
+
+    @Test
+    fun testExtractManifestWithCommentsAndFormatting() = runBlocking {
+        val storage = InMemoryKeyValueStorage()
+        val manager = ExtensionManager(storage = storage)
+
+        val bundleWithComments = """
+            // Top-level extension configuration
+            const manifest = {
+                // Extension identifier
+                id: "commented-ext",
+                name: "Commented Source",
+                version: "2.0.0",
+                lang: "en",
+                baseUrl: "https://comments.example.com",
+                type: "COMIC",
+                isNsfw: false
+            };
+            const extension = {};
+        """.trimIndent()
+
+        val manifest = manager.extractManifest(bundleWithComments)
+        assertNotNull(manifest)
+        assertEquals("commented-ext", manifest.id)
+        assertEquals("Commented Source", manifest.name)
+        assertEquals("2.0.0", manifest.version)
+    }
+
+    @Test
+    fun testDynamicSourceCatalogueAndSearch() = runBlocking {
+        val storage = InMemoryKeyValueStorage()
+        val repo = FakePanelRepository()
+        val manager = ExtensionManager(storage = storage, panelRepository = repo)
+
+        val installed = manager.installExtensionFromBundle(sampleBundle)
+        assertTrue(installed)
+
+        val registeredSource = manager.getInstalledSource("persisted-manga")
+        assertNotNull(registeredSource)
+
+        // Query catalogue for dynamic source
+        val catalogue = repo.getSourceCatalogue(registeredSource.id.toString(), page = 1).first()
+        assertEquals(1, catalogue.size)
+        assertEquals("Persisted Title", catalogue[0].title)
+
+        // Search dynamic source
+        val searchResults = repo.searchManga(query = "Persisted", sourceId = registeredSource.id.toString()).first()
+        assertEquals(1, searchResults.size)
+        assertEquals("Persisted Title", searchResults[0].title)
+    }
 }

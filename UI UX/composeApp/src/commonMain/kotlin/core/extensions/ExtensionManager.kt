@@ -177,15 +177,13 @@ class ExtensionManager(
 
     fun getAllInstalledSources(): List<ContentSource> = activeSources.values.toList()
 
-    private fun registerAndActivateSource(manifest: JsExtensionManifest) {
+    private suspend fun registerAndActivateSource(manifest: JsExtensionManifest) {
         try {
             val engine = JsEngine()
             val bridge = JsBridge(httpClient = httpClient)
             val source = JsExtensionSource(manifest = manifest, engine = engine, bridge = bridge)
 
-            coroutineScope.launch {
-                source.initialize()
-            }
+            source.initialize()
 
             activeSources[manifest.id] = source
             panelRepository?.registerSource(source)
@@ -204,7 +202,9 @@ class ExtensionManager(
                 try {
                     val manifest = json.decodeFromString<JsExtensionManifest>(manifestJson)
                     restored.add(manifest)
-                    registerAndActivateSource(manifest)
+                    coroutineScope.launch {
+                        registerAndActivateSource(manifest)
+                    }
                 } catch (e: Exception) {
                     println("[ExtensionManager] Failed to restore extension $id: ${e.message}")
                 }
@@ -255,7 +255,7 @@ class ExtensionManager(
         return try {
             val engine = JsEngine()
             engine.evaluate(script)
-            val manifestJson = engine.callFunction("() => JSON.stringify(manifest)")
+            val manifestJson = engine.evaluate("JSON.stringify(manifest)")
             engine.close()
             val dto = json.decodeFromString<ManifestDto>(manifestJson)
             dto.toManifest(script)
@@ -269,8 +269,11 @@ class ExtensionManager(
         return try {
             val match = Regex("""manifest\s*=\s*(\{[\s\S]*?\});""").find(script)
             if (match != null) {
-                val jsonStr = match.groupValues[1]
-                val dto = json.decodeFromString<ManifestDto>(jsonStr)
+                val rawStr = match.groupValues[1]
+                val cleanedJson = rawStr
+                    .replace(Regex("""//.*"""), "")
+                    .replace(Regex("""/\*[\s\S]*?\*/"""), "")
+                val dto = json.decodeFromString<ManifestDto>(cleanedJson)
                 dto.toManifest(script)
             } else {
                 null
