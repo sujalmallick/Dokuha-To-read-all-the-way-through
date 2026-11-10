@@ -66,6 +66,7 @@ import ui.components.PanelPillButton
 import ui.glass.glassSource
 import ui.glass.nonGlassPress
 import ui.glass.rememberPanelGlassState
+import ui.screens.novelreader.NovelReaderScreen
 import ui.screens.webtoonreader.WebtoonReaderScreen
 import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
@@ -103,7 +104,11 @@ data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") :
             },
             onBack = { navigator.pop() },
             onReadChapter = { chapter ->
-                navigator.push(WebtoonReaderScreen(mangaUrl, chapter.url))
+                if (manga?.isNovel == true) {
+                    navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name))
+                } else {
+                    navigator.push(WebtoonReaderScreen(mangaUrl, chapter.url))
+                }
             }
         )
     }

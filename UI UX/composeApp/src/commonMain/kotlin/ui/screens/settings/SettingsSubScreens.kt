@@ -680,20 +680,6 @@ class SourcesSettingsScreen : Screen {
                     SectionHeader(text = "Repositories")
                     Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                         SettingsGroup {
-                            if (!isAndroid) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 14.dp)
-                                ) {
-                                    Text(
-                                        text = "Extension repositories are currently supported on Android only. iOS extensions are coming in a future update.",
-                                        fontSize = 13.sp,
-                                        color = TextSecondary,
-                                        lineHeight = 18.sp
-                                    )
-                                }
-                            } else {
                                 if (extensionRepos.isEmpty()) {
                                     Box(
                                         modifier = Modifier
@@ -777,7 +763,6 @@ class SourcesSettingsScreen : Screen {
                                         isAddRepoVisible = true
                                     }
                                 )
-                            }
                         }
                     }
                     Spacer(modifier = Modifier.height(20.dp))
