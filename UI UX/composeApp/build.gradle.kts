@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.roborazzi)
+    alias(libs.plugins.sqldelight)
 }
 
 kotlin {
@@ -64,6 +65,11 @@ kotlin {
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
+
+            // SQLDelight
+            implementation(libs.sqldelight.runtime)
+            implementation(libs.sqldelight.coroutines)
+            implementation(libs.sqldelight.primitive.adapters)
         }
         
         androidMain.dependencies {
@@ -72,6 +78,7 @@ kotlin {
             implementation("io.insert-koin:koin-android:4.0.0")
             implementation(libs.quickjs)
             implementation(libs.ktor.client.okhttp)
+            implementation(libs.sqldelight.android.driver)
         }
 
         val desktopMain by getting {
@@ -79,11 +86,13 @@ kotlin {
                 implementation(compose.desktop.currentOs)
                 implementation(libs.quickjs.jvm)
                 implementation(libs.ktor.client.okhttp)
+                implementation(libs.sqldelight.sqlite.driver)
             }
         }
 
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
+            implementation(libs.sqldelight.native.driver)
         }
         
         commonTest.dependencies {
@@ -175,6 +184,14 @@ compose.desktop {
             targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb)
             packageName = "Dokuha"
             packageVersion = "1.0.0"
+        }
+    }
+}
+
+sqldelight {
+    databases {
+        create("PanelDatabase") {
+            packageName.set("io.panel.reader.db")
         }
     }
 }

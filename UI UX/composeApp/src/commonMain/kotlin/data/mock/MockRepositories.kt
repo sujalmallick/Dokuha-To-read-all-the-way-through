@@ -106,6 +106,10 @@ interface PanelRepository {
     fun registerSource(source: core.source.ContentSource) {}
     fun unregisterSource(sourceId: Long) {}
     fun getRegisteredSources(): List<core.source.ContentSource> = emptyList()
+
+    suspend fun toggleFavorite(manga: SourceManga, isFavorite: Boolean) {}
+    suspend fun updateChapterProgress(chapterUrl: String, page: Int, isRead: Boolean) {}
+    suspend fun recordHistory(chapterUrl: String) {}
 }
 
 data class MockSourceInfo(

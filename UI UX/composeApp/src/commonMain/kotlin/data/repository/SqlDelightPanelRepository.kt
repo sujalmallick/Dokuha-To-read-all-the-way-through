@@ -1,0 +1,496 @@
+package data.repository
+
+import app.cash.sqldelight.coroutines.asFlow
+import app.cash.sqldelight.coroutines.mapToList
+import app.cash.sqldelight.coroutines.mapToOneOrNull
+import core.platform.currentTimeMillis
+import core.source.ComicSource
+import core.source.ContentSource
+import core.source.MangaStatus
+import core.source.NovelContent
+import core.source.NovelSource
+import core.source.SourceChapter
+import core.source.SourceManga
+import core.source.SourcePage
+import data.mock.BrowseFilters
+import data.mock.MockDownloadItem
+import data.mock.MockExtension
+import data.mock.MockSourceInfo
+import data.mock.MockStorageInfo
+import data.mock.MockUpdateGroup
+import data.mock.MockUpdateItem
+import data.mock.PanelRepository
+import io.panel.reader.db.Chapters
+import io.panel.reader.db.GetContinueReading
+import io.panel.reader.db.Mangas
+import io.panel.reader.db.PanelDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+
+/**
+ * Production local persistent repository backed by SQLite via CashApp SQLDelight.
+ * Replaces FakePanelRepository with real database queries, reactive Flows, and
+ * seamless integration with dynamically registered extensions.
+ */
+class SqlDelightPanelRepository(
+    private val database: PanelDatabase
+) : PanelRepository {
+
+    private val dynamicSources = mutableMapOf<Long, ContentSource>()
+
+    init {
+        seedInitialDataIfEmpty()
+    }
+
+    private fun seedInitialDataIfEmpty() {
+        val existing = database.mangaQueries.getLibrary().executeAsList()
+        if (existing.isEmpty()) {
+            val starterTitles = listOf(
+                SourceManga(
+                    url = "manga/solo-leveling",
+                    title = "Solo Leveling",
+                    description = "10 years ago, after 'the Gate' that connected the real world with the monster world opened, some ordinary people received powers.",
+                    genres = listOf("Action", "Fantasy", "Supernatural"),
+                    status = MangaStatus.COMPLETED,
+                    thumbnailUrl = "solo_leveling_cover"
+                ),
+                SourceManga(
+                    url = "manga/aurora-blade",
+                    title = "Aurora Blade",
+                    genres = listOf("Fantasy", "Action"),
+                    status = MangaStatus.ONGOING,
+                    thumbnailUrl = "aurora_cover"
+                ),
+                SourceManga(
+                    url = "manga/wind-beneath",
+                    title = "Wind Beneath",
+                    genres = listOf("Martial Arts", "Adventure"),
+                    status = MangaStatus.ONGOING,
+                    thumbnailUrl = "wind_cover"
+                ),
+                SourceManga(
+                    url = "manga/shadow-crown",
+                    title = "Shadow Crown",
+                    genres = listOf("Dark Fantasy", "Action"),
+                    status = MangaStatus.ONGOING,
+                    thumbnailUrl = "shadow_cover"
+                ),
+                SourceManga(
+                    url = "manga/neon-requiem",
+                    title = "Neon Requiem",
+                    genres = listOf("Sci-Fi", "Cyberpunk"),
+                    status = MangaStatus.ONGOING,
+                    thumbnailUrl = "neon_cover"
+                ),
+                SourceManga(
+                    url = "manga/the-last-horizon",
+                    title = "The Last Horizon",
+                    author = "A. V. Frost",
+                    artist = "Studio Horizon",
+                    description = "In a world where the sky has split, a young man follows the last light to uncover the truth behind a forgotten era...",
+                    genres = listOf("Action", "Fantasy", "Adventure"),
+                    status = MangaStatus.ONGOING,
+                    thumbnailUrl = "horizon_cover",
+                    isNovel = false
+                )
+            )
+
+            for (manga in starterTitles) {
+                insertOrUpdateMangaInternal(manga, sourceId = 0L, forceFavorite = true)
+            }
+
+            // Seed sample chapter and history for continue reading
+            val horizon = database.mangaQueries.getMangaByUrl("manga/the-last-horizon").executeAsOneOrNull()
+            if (horizon != null) {
+                database.chapterQueries.insertOrUpdateChapter(
+                    id = null,
+                    mangaId = horizon.id,
+                    url = "manga/the-last-horizon/ch-210",
+                    name = "Ch. 210",
+                    scanlator = null,
+                    read = 1L,
+                    bookmark = 0L,
+                    lastPageRead = 12L,
+                    chapterNumber = 210.0,
+                    sourceOrder = 0L,
+                    dateFetch = currentTimeMillis(),
+                    dateUpload = 1718409600000L,
+                    lastModifiedAt = currentTimeMillis()
+                )
+                val ch = database.chapterQueries.getChapterByUrl("manga/the-last-horizon/ch-210").executeAsOneOrNull()
+                if (ch != null) {
+                    database.historyQueries.upsertHistory(
+                        chapterId = ch.id,
+                        readAt = currentTimeMillis(),
+                        timeRead = 360L
+                    )
+                }
+            }
+        }
+    }
+
+    private fun insertOrUpdateMangaInternal(
+        manga: SourceManga,
+        sourceId: Long = 0L,
+        forceFavorite: Boolean? = null
+    ): Long {
+        val existing = database.mangaQueries.getMangaByUrl(manga.url).executeAsOneOrNull()
+        val fav = when (forceFavorite) {
+            true -> 1L
+            false -> 0L
+            null -> existing?.favorite ?: 0L
+        }
+        val dateAdded = if (fav == 1L) {
+            if (existing?.date_added != null && existing.date_added > 0L) existing.date_added else currentTimeMillis()
+        } else 0L
+
+        database.mangaQueries.insertOrUpdateManga(
+            id = existing?.id,
+            sourceId = sourceId,
+            url = manga.url,
+            title = manga.title,
+            artist = manga.artist,
+            author = manga.author,
+            description = manga.description,
+            genres = manga.genres.joinToString(","),
+            status = manga.status.name,
+            thumbnailUrl = manga.thumbnailUrl,
+            favorite = fav,
+            lastUpdate = currentTimeMillis(),
+            nextUpdate = 0L,
+            initialized = 1L,
+            viewerFlags = 0L,
+            chapterFlags = 0L,
+            coverLastModified = 0L,
+            dateAdded = dateAdded,
+            isNovel = if (manga.isNovel) 1L else 0L
+        )
+
+        return database.mangaQueries.getMangaByUrl(manga.url).executeAsOne().id
+    }
+
+    override fun getLibrary(category: String): Flow<List<SourceManga>> {
+        return database.mangaQueries.getLibrary()
+            .asFlow()
+            .mapToList(Dispatchers.Default)
+            .map { list -> list.map { it.toSourceManga() } }
+    }
+
+    override fun getContinueReading(): Flow<Pair<SourceManga, SourceChapter>?> {
+        return database.historyQueries.getContinueReading()
+            .asFlow()
+            .mapToOneOrNull(Dispatchers.Default)
+            .map { it?.toPair() }
+    }
+
+    override fun getMangaDetails(url: String): Flow<SourceManga?> {
+        val matchingDynamic = dynamicSources.values.firstOrNull { src ->
+            url.startsWith(src.baseUrl) || (url.length == 36 && url.contains("-")) // UUID or base URL match
+        }
+
+        if (matchingDynamic != null) {
+            return flow {
+                val cached = database.mangaQueries.getMangaByUrl(url).executeAsOneOrNull()?.toSourceManga()
+                if (cached != null) emit(cached)
+
+                try {
+                    val fresh = matchingDynamic.getMangaDetails(SourceManga(url = url, title = ""))
+                    insertOrUpdateMangaInternal(fresh, sourceId = matchingDynamic.id, forceFavorite = null)
+                    emit(fresh)
+                } catch (_: Exception) {
+                    if (cached == null) emit(null)
+                }
+            }
+        }
+
+        return database.mangaQueries.getMangaByUrl(url)
+            .asFlow()
+            .mapToOneOrNull(Dispatchers.Default)
+            .map { it?.toSourceManga() }
+    }
+
+    override fun getChapters(mangaUrl: String): Flow<List<SourceChapter>> {
+        val matchingDynamic = dynamicSources.values.firstOrNull { src ->
+            mangaUrl.startsWith(src.baseUrl) || (mangaUrl.length == 36 && mangaUrl.contains("-"))
+        }
+
+        if (matchingDynamic != null) {
+            return flow {
+                val cached = database.chapterQueries.getChaptersByMangaUrl(mangaUrl).executeAsList().map { it.toSourceChapter() }
+                if (cached.isNotEmpty()) emit(cached)
+
+                try {
+                    val fresh = matchingDynamic.getChapterList(SourceManga(url = mangaUrl, title = ""))
+                    val mangaId = database.mangaQueries.getMangaByUrl(mangaUrl).executeAsOneOrNull()?.id
+                        ?: insertOrUpdateMangaInternal(SourceManga(url = mangaUrl, title = ""), matchingDynamic.id, forceFavorite = null)
+
+                    for ((idx, ch) in fresh.withIndex()) {
+                        val existingCh = database.chapterQueries.getChapterByUrl(ch.url).executeAsOneOrNull()
+                        database.chapterQueries.insertOrUpdateChapter(
+                            id = existingCh?.id,
+                            mangaId = mangaId,
+                            url = ch.url,
+                            name = ch.name,
+                            scanlator = ch.scanlator,
+                            read = existingCh?.read ?: 0L,
+                            bookmark = existingCh?.bookmark ?: 0L,
+                            lastPageRead = existingCh?.last_page_read ?: 0L,
+                            chapterNumber = ch.chapterNumber.toDouble(),
+                            sourceOrder = idx.toLong(),
+                            dateFetch = currentTimeMillis(),
+                            dateUpload = ch.dateUpload,
+                            lastModifiedAt = currentTimeMillis()
+                        )
+                    }
+                    val updated = database.chapterQueries.getChaptersByMangaUrl(mangaUrl).executeAsList().map { it.toSourceChapter() }
+                    emit(updated)
+                } catch (_: Exception) {
+                    if (cached.isEmpty()) emit(emptyList())
+                }
+            }
+        }
+
+        return database.chapterQueries.getChaptersByMangaUrl(mangaUrl)
+            .asFlow()
+            .mapToList(Dispatchers.Default)
+            .map { list -> list.map { it.toSourceChapter() } }
+    }
+
+    override fun getPages(chapterUrl: String): Flow<List<SourcePage>> {
+        val matchingDynamic = dynamicSources.values.filterIsInstance<ComicSource>().firstOrNull { src ->
+            chapterUrl.startsWith(src.baseUrl) || (chapterUrl.length == 36 && chapterUrl.contains("-"))
+        }
+
+        if (matchingDynamic != null) {
+            return flow {
+                val pages = try {
+                    matchingDynamic.getPageList(SourceChapter(url = chapterUrl, name = ""))
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                emit(pages)
+            }
+        }
+
+        val pages = (1..6).map { i ->
+            SourcePage(index = i, url = "page_$i", imageUrl = "webtoon_panel_$i")
+        }
+        return flowOf(pages)
+    }
+
+    override fun getNovelContent(chapterUrl: String): Flow<NovelContent?> {
+        val matchingDynamic = dynamicSources.values.filterIsInstance<NovelSource>().firstOrNull { src ->
+            chapterUrl.startsWith(src.baseUrl)
+        }
+
+        if (matchingDynamic != null) {
+            return flow {
+                val content = try {
+                    matchingDynamic.getChapterContent(SourceChapter(url = chapterUrl, name = ""))
+                } catch (_: Exception) {
+                    null
+                }
+                emit(content)
+            }
+        }
+
+        return flowOf(
+            NovelContent(
+                chapterUrl = chapterUrl,
+                title = "The Wind Rises",
+                htmlBody = "<p>The morning light filtered through the leaves...</p>",
+                plainText = "The morning light filtered through the leaves, casting moving shadows on the stone path."
+            )
+        )
+    }
+
+    override fun getTrending(): Flow<List<SourceManga>> {
+        return database.mangaQueries.getLibrary()
+            .asFlow()
+            .mapToList(Dispatchers.Default)
+            .map { list -> list.take(3).map { it.toSourceManga() } }
+    }
+
+    override fun getSources(): Flow<List<MockSourceInfo>> {
+        val baseSources = listOf(
+            MockSourceInfo("1", "MangaDex", "Manga", listOf("EN", "JP")),
+            MockSourceInfo("2", "Comick", "Manga", listOf("EN", "KR")),
+            MockSourceInfo("3", "Asura Scans", "Manhwa", listOf("EN"))
+        )
+        val dynamicList = dynamicSources.values.map { src ->
+            val type = if (src is NovelSource && src !is ComicSource) "Novel" else "Manga"
+            MockSourceInfo(
+                id = src.id.toString(),
+                name = src.name,
+                type = type,
+                languages = listOf(src.lang.uppercase())
+            )
+        }
+        return flowOf(baseSources + dynamicList)
+    }
+
+    override fun getExtensions(): Flow<List<MockExtension>> {
+        return flowOf(
+            listOf(
+                MockExtension("1", "MangaDex", "v1.0.0", "EN", isInstalled = true, hasUpdate = false),
+                MockExtension("2", "Comick", "v1.3.1", "All", isInstalled = false, hasUpdate = false),
+                MockExtension("3", "Asura Scans", "v1.2.0", "EN", isInstalled = false, hasUpdate = false)
+            )
+        )
+    }
+
+    override fun getUpdates(): Flow<List<MockUpdateGroup>> {
+        return flowOf(emptyList())
+    }
+
+    override fun getDownloads(): Flow<List<MockDownloadItem>> {
+        return flowOf(emptyList())
+    }
+
+    override fun getStorageInfo(): Flow<MockStorageInfo> {
+        return flowOf(MockStorageInfo())
+    }
+
+    override fun searchManga(
+        query: String,
+        sourceId: String?,
+        filters: BrowseFilters
+    ): Flow<List<SourceManga>> {
+        val matchingDynamic = dynamicSources.values.firstOrNull { it.id.toString() == sourceId }
+        if (matchingDynamic != null) {
+            return flow {
+                val results = try {
+                    matchingDynamic.search(query, 1, emptyList()).mangas
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                emit(results)
+            }
+        }
+
+        return database.mangaQueries.getLibrary()
+            .asFlow()
+            .mapToList(Dispatchers.Default)
+            .map { list ->
+                list.map { it.toSourceManga() }
+                    .filter { it.title.contains(query, ignoreCase = true) }
+            }
+    }
+
+    override fun getSourceCatalogue(
+        sourceId: String,
+        page: Int,
+        query: String,
+        filters: BrowseFilters
+    ): Flow<List<SourceManga>> {
+        val matchingDynamic = dynamicSources.values.firstOrNull { it.id.toString() == sourceId }
+        if (matchingDynamic != null) {
+            return flow {
+                val results = try {
+                    if (query.isBlank()) {
+                        matchingDynamic.getPopular(page).mangas
+                    } else {
+                        matchingDynamic.search(query, page, emptyList()).mangas
+                    }
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                emit(results)
+            }
+        }
+        return flowOf(emptyList())
+    }
+
+    override fun registerSource(source: ContentSource) {
+        dynamicSources[source.id] = source
+    }
+
+    override fun unregisterSource(sourceId: Long) {
+        dynamicSources.remove(sourceId)
+    }
+
+    override fun getRegisteredSources(): List<ContentSource> = dynamicSources.values.toList()
+
+    override suspend fun toggleFavorite(manga: SourceManga, isFavorite: Boolean) {
+        withContext(Dispatchers.Default) {
+            insertOrUpdateMangaInternal(manga, sourceId = 0L, forceFavorite = isFavorite)
+        }
+    }
+
+    override suspend fun updateChapterProgress(chapterUrl: String, page: Int, isRead: Boolean) {
+        withContext(Dispatchers.Default) {
+            database.chapterQueries.updateChapterProgress(
+                read = if (isRead) 1L else 0L,
+                lastPageRead = page.toLong(),
+                lastModifiedAt = currentTimeMillis(),
+                url = chapterUrl
+            )
+            val chapter = database.chapterQueries.getChapterByUrl(chapterUrl).executeAsOneOrNull()
+            if (chapter != null) {
+                database.historyQueries.upsertHistory(
+                    chapterId = chapter.id,
+                    readAt = currentTimeMillis(),
+                    timeRead = 60L
+                )
+            }
+        }
+    }
+
+    override suspend fun recordHistory(chapterUrl: String) {
+        withContext(Dispatchers.Default) {
+            val chapter = database.chapterQueries.getChapterByUrl(chapterUrl).executeAsOneOrNull()
+            if (chapter != null) {
+                database.historyQueries.upsertHistory(
+                    chapterId = chapter.id,
+                    readAt = currentTimeMillis(),
+                    timeRead = 30L
+                )
+            }
+        }
+    }
+
+    private fun Mangas.toSourceManga(): SourceManga = SourceManga(
+        url = url,
+        title = title,
+        artist = artist,
+        author = author,
+        description = description,
+        genres = genres?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(),
+        status = try { MangaStatus.valueOf(status) } catch (_: Exception) { MangaStatus.UNKNOWN },
+        thumbnailUrl = thumbnail_url,
+        isNovel = is_novel == 1L
+    )
+
+    private fun Chapters.toSourceChapter(): SourceChapter = SourceChapter(
+        url = url,
+        name = name,
+        dateUpload = date_upload,
+        chapterNumber = chapter_number.toFloat(),
+        scanlator = scanlator
+    )
+
+    private fun GetContinueReading.toPair(): Pair<SourceManga, SourceChapter> {
+        val manga = SourceManga(
+            url = manga_url,
+            title = manga_title,
+            artist = manga_artist,
+            author = manga_author,
+            description = manga_description,
+            genres = manga_genres?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(),
+            status = try { MangaStatus.valueOf(manga_status) } catch (_: Exception) { MangaStatus.UNKNOWN },
+            thumbnailUrl = manga_thumbnail,
+            isNovel = manga_is_novel == 1L
+        )
+        val chapter = SourceChapter(
+            url = chapter_url,
+            name = chapter_name,
+            chapterNumber = chapter_number.toFloat(),
+            dateUpload = chapter_date_upload
+        )
+        return Pair(manga, chapter)
+    }
+}

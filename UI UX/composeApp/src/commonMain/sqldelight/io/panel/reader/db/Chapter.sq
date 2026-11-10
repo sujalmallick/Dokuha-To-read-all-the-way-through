@@ -1,0 +1,63 @@
+CREATE TABLE chapters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    manga_id INTEGER NOT NULL,
+    url TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    scanlator TEXT,
+    read INTEGER NOT NULL DEFAULT 0,
+    bookmark INTEGER NOT NULL DEFAULT 0,
+    last_page_read INTEGER NOT NULL DEFAULT 0,
+    chapter_number REAL NOT NULL DEFAULT -1.0,
+    source_order INTEGER NOT NULL DEFAULT 0,
+    date_fetch INTEGER NOT NULL DEFAULT 0,
+    date_upload INTEGER NOT NULL DEFAULT 0,
+    last_modified_at INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY(manga_id) REFERENCES mangas(id) ON DELETE CASCADE
+);
+
+CREATE INDEX chapters_manga_id_idx ON chapters(manga_id);
+CREATE INDEX chapters_url_idx ON chapters(url);
+
+getChaptersByMangaId:
+SELECT *
+FROM chapters
+WHERE manga_id = :mangaId
+ORDER BY chapter_number DESC, source_order DESC;
+
+getChaptersByMangaUrl:
+SELECT c.*
+FROM chapters c
+JOIN mangas m ON c.manga_id = m.id
+WHERE m.url = :mangaUrl
+ORDER BY c.chapter_number DESC, c.source_order DESC;
+
+getChapterByUrl:
+SELECT *
+FROM chapters
+WHERE url = :url
+LIMIT 1;
+
+insertOrUpdateChapter:
+INSERT OR REPLACE INTO chapters (
+    id, manga_id, url, name, scanlator, read, bookmark,
+    last_page_read, chapter_number, source_order, date_fetch,
+    date_upload, last_modified_at
+) VALUES (
+    :id, :mangaId, :url, :name, :scanlator, :read, :bookmark,
+    :lastPageRead, :chapterNumber, :sourceOrder, :dateFetch,
+    :dateUpload, :lastModifiedAt
+);
+
+updateChapterProgress:
+UPDATE chapters
+SET read = :read, last_page_read = :lastPageRead, last_modified_at = :lastModifiedAt
+WHERE url = :url;
+
+setChapterBookmark:
+UPDATE chapters
+SET bookmark = :bookmark
+WHERE url = :url;
+
+deleteChaptersByMangaId:
+DELETE FROM chapters
+WHERE manga_id = :mangaId;
