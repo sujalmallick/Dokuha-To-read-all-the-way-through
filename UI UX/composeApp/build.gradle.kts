@@ -14,6 +14,12 @@ kotlin {
         }
     }
     
+    jvm("desktop") {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
+    }
+    
     listOf(
         iosX64(),
         iosArm64(),
@@ -65,6 +71,14 @@ kotlin {
             implementation("io.insert-koin:koin-android:4.0.0")
             implementation(libs.quickjs)
             implementation(libs.ktor.client.okhttp)
+        }
+
+        val desktopMain by getting {
+            dependencies {
+                implementation(compose.desktop.currentOs)
+                implementation(libs.quickjs.jvm)
+                implementation(libs.ktor.client.okhttp)
+            }
         }
 
         iosMain.dependencies {
@@ -150,4 +164,15 @@ tasks.matching { it.name == "compileDebugUnitTestKotlinAndroid" }.configureEach 
 
 tasks.matching { it.name.contains("AarMetadata") }.configureEach {
     enabled = false
+}
+
+compose.desktop {
+    application {
+        mainClass = "MainKt"
+        nativeDistributions {
+            targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb)
+            packageName = "Dokuha"
+            packageVersion = "1.0.0"
+        }
+    }
 }
