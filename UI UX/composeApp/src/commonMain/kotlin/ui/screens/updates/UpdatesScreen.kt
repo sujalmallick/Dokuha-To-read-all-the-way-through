@@ -29,12 +29,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.Arrangement
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import core.source.SourceChapter
 import core.source.SourceManga
 import data.mock.FakePanelRepository
+import data.mock.HistoryGroup
 import data.mock.MockUpdateGroup
 import data.mock.PanelRepository
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -49,10 +51,12 @@ import ui.screens.browse.BrowseScreen
 import ui.screens.details.TitleDetailsScreen
 import ui.screens.library.LibraryScreen
 import ui.screens.more.MoreScreen
+import ui.screens.novelreader.NovelReaderScreen
 import ui.screens.webtoonreader.WebtoonReaderScreen
 import ui.theme.PanelBackground
 import ui.theme.PanelTheme
 import ui.theme.TextPrimary
+import ui.theme.TextSecondary
 
 class UpdatesScreen : Screen {
 
@@ -62,12 +66,18 @@ class UpdatesScreen : Screen {
         val repository: PanelRepository = koinInject()
 
         val updateGroups by repository.getUpdates().collectAsState(initial = emptyList())
+        val historyGroups by repository.getHistory().collectAsState(initial = emptyList())
 
         UpdatesScreenContent(
             updateGroups = updateGroups,
+            historyGroups = historyGroups,
             onOpenManga = { manga -> navigator.push(TitleDetailsScreen(manga.url)) },
             onResumeChapter = { manga, chapter ->
-                navigator.push(WebtoonReaderScreen(manga.url, chapter.url))
+                if (manga.isNovel) {
+                    navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name))
+                } else {
+                    navigator.push(WebtoonReaderScreen(manga.url, chapter.url))
+                }
             },
             onTabSelected = { tab ->
                 when (tab) {
@@ -84,6 +94,7 @@ class UpdatesScreen : Screen {
 @Composable
 fun UpdatesScreenContent(
     updateGroups: List<MockUpdateGroup>,
+    historyGroups: List<HistoryGroup> = emptyList(),
     onOpenManga: (SourceManga) -> Unit,
     onResumeChapter: (SourceManga, SourceChapter) -> Unit,
     onTabSelected: (PanelTab) -> Unit,
@@ -158,33 +169,123 @@ fun UpdatesScreenContent(
                 Spacer(modifier = Modifier.height(20.dp))
             }
 
-            // Date Grouped Sections ("Today", "Yesterday")
-            updateGroups.forEachIndexed { groupIndex, group ->
-                item {
-                    Text(
-                        text = group.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                }
+            if (selectedTab == "Updates") {
+                if (updateGroups.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 80.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "No new updates",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "Updates for followed library titles will appear here.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // Date Grouped Sections ("Today", "Yesterday")
+                    updateGroups.forEachIndexed { groupIndex, group ->
+                        item {
+                            Text(
+                                text = group.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                        }
 
-                itemsIndexed(group.items) { itemIndex, item ->
-                    val gradientIdx = (groupIndex * 3) + itemIndex
-                    UpdateItemCard(
-                        title = item.manga.title,
-                        chapter = item.chapter.name,
-                        gradientIndex = gradientIdx,
-                        onResume = { onResumeChapter(item.manga, item.chapter) },
-                        onClick = { onOpenManga(item.manga) },
-                        onDownloadClick = {}
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                }
+                        itemsIndexed(group.items) { itemIndex, item ->
+                            val gradientIdx = (groupIndex * 3) + itemIndex
+                            UpdateItemCard(
+                                title = item.manga.title,
+                                chapter = item.chapter.name,
+                                gradientIndex = gradientIdx,
+                                thumbnailUrl = item.manga.thumbnailUrl,
+                                onResume = { onResumeChapter(item.manga, item.chapter) },
+                                onClick = { onOpenManga(item.manga) },
+                                onDownloadClick = {}
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                        }
 
-                item {
-                    Spacer(modifier = Modifier.height(14.dp))
+                        item {
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
+                    }
+                }
+            } else {
+                // History Tab View
+                if (historyGroups.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 80.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "No reading history",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "Chapters and novels you read will appear here.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    historyGroups.forEachIndexed { groupIndex, group ->
+                        item {
+                            Text(
+                                text = group.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                        }
+
+                        itemsIndexed(group.items) { itemIndex, item ->
+                            val gradientIdx = (groupIndex * 3) + itemIndex
+                            UpdateItemCard(
+                                title = item.manga.title,
+                                chapter = item.chapter.name,
+                                gradientIndex = gradientIdx,
+                                thumbnailUrl = item.manga.thumbnailUrl,
+                                onResume = { onResumeChapter(item.manga, item.chapter) },
+                                onClick = { onOpenManga(item.manga) },
+                                onDownloadClick = {}
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                        }
+
+                        item {
+                            Spacer(modifier = Modifier.height(14.dp))
+                        }
+                    }
                 }
             }
         }

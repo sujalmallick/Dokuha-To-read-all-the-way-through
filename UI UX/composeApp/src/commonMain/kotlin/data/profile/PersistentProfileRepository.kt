@@ -25,12 +25,18 @@ class PersistentProfileRepository(
     companion object {
         private const val KEY_PROFILE_NAME = "profile_display_name"
         private const val KEY_AVATAR_COLOR = "profile_avatar_color_hex"
-        private const val DEFAULT_NAME = "Sujal"
-        private const val DEFAULT_AVATAR_COLOR = 0xFF007AFF
-        private const val DEFAULT_MEMBER_SINCE = "Reading since March 2026"
+        private const val DEFAULT_NAME = "Ritwik"
+        private const val DEFAULT_AVATAR_COLOR = 0xFF38BDF8
+        private const val DEFAULT_MEMBER_SINCE = "Member since November 2026"
     }
 
-    private val initialName = storage.getString(KEY_PROFILE_NAME, DEFAULT_NAME)
+    private val rawStoredName = storage.getString(KEY_PROFILE_NAME, "")
+    private val initialName = if (rawStoredName.isBlank() || rawStoredName == "Sujal") {
+        storage.putString(KEY_PROFILE_NAME, DEFAULT_NAME)
+        DEFAULT_NAME
+    } else {
+        rawStoredName
+    }
     private val initialColor = storage.getLong(KEY_AVATAR_COLOR, DEFAULT_AVATAR_COLOR)
 
     private val _profile = MutableStateFlow(
@@ -43,25 +49,25 @@ class PersistentProfileRepository(
     )
     override val profile: StateFlow<UserProfile> = _profile.asStateFlow()
 
-    // Stats, activity, and library summary are intentionally in-memory only (database-backed in future)
+    // Clean stats, activity, and library summary for real usage
     private val _stats = MutableStateFlow(
         ReadingStats(
-            chaptersRead = 482,
-            titlesCount = 37,
-            hoursRead = 142.5f
+            chaptersRead = 0,
+            titlesCount = 0,
+            hoursRead = 0.0f
         )
     )
     override val stats: StateFlow<ReadingStats> = _stats.asStateFlow()
 
     private val _weeklyActivity = MutableStateFlow(
         listOf(
-            DayReadingActivity("M", 45),
-            DayReadingActivity("T", 60),
-            DayReadingActivity("W", 30),
-            DayReadingActivity("T", 75),
-            DayReadingActivity("F", 90),
-            DayReadingActivity("S", 120),
-            DayReadingActivity("S", 40)
+            DayReadingActivity("M", 0),
+            DayReadingActivity("T", 0),
+            DayReadingActivity("W", 0),
+            DayReadingActivity("T", 0),
+            DayReadingActivity("F", 0),
+            DayReadingActivity("S", 0),
+            DayReadingActivity("S", 0)
         )
     )
     override val weeklyActivity: StateFlow<List<DayReadingActivity>> = _weeklyActivity.asStateFlow()
@@ -71,9 +77,9 @@ class PersistentProfileRepository(
 
     private val _librarySummary = MutableStateFlow(
         LibrarySummary(
-            readingCount = 14,
-            completedCount = 18,
-            planToReadCount = 5
+            readingCount = 0,
+            completedCount = 0,
+            planToReadCount = 0
         )
     )
     override val librarySummary: StateFlow<LibrarySummary> = _librarySummary.asStateFlow()

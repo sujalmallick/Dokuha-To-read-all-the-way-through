@@ -218,31 +218,31 @@ class ScreenshotsTest {
     @Test
     fun capture_11_profile_screen() {
         val profile = UserProfile(
-            name = "Sujal",
-            memberSince = "Reading since March 2026",
-            avatarColorHex = 0xFF007AFF,
-            initials = "S"
+            name = "Ritwik",
+            memberSince = "Member since November 2026",
+            avatarColorHex = 0xFF38BDF8,
+            initials = "R"
         )
         val stats = ReadingStats(
-            chaptersRead = 482,
-            titlesCount = 37,
-            hoursRead = 142.5f
+            chaptersRead = 0,
+            titlesCount = 0,
+            hoursRead = 0.0f
         )
         val weeklyActivity = listOf(
-            DayReadingActivity("M", 45),
-            DayReadingActivity("T", 90),
-            DayReadingActivity("W", 30),
-            DayReadingActivity("T", 120),
-            DayReadingActivity("F", 60),
-            DayReadingActivity("S", 150),
-            DayReadingActivity("S", 85)
+            DayReadingActivity("M", 0),
+            DayReadingActivity("T", 0),
+            DayReadingActivity("W", 0),
+            DayReadingActivity("T", 0),
+            DayReadingActivity("F", 0),
+            DayReadingActivity("S", 0),
+            DayReadingActivity("S", 0)
         )
         val trackers = listOf(
-            TrackerAccount(TrackerService.ANILIST, isConnected = true, username = "sujal_reads"),
+            TrackerAccount(TrackerService.ANILIST, isConnected = false, username = null),
             TrackerAccount(TrackerService.MY_ANIME_LIST, isConnected = false),
             TrackerAccount(TrackerService.KITSU, isConnected = false)
         )
-        val librarySummary = LibrarySummary(readingCount = 14, completedCount = 18, planToReadCount = 5)
+        val librarySummary = LibrarySummary(readingCount = 0, completedCount = 0, planToReadCount = 0)
 
         composeTestRule.setContent {
             PanelTheme {
@@ -264,10 +264,10 @@ class ScreenshotsTest {
     @Test
     fun capture_12_more_hub_screen() {
         val profile = UserProfile(
-            name = "Sujal",
-            memberSince = "Reading since March 2026",
-            avatarColorHex = 0xFF007AFF,
-            initials = "S"
+            name = "Ritwik",
+            memberSince = "Member since November 2026",
+            avatarColorHex = 0xFF38BDF8,
+            initials = "R"
         )
 
         composeTestRule.setContent {

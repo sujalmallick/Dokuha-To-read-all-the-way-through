@@ -900,6 +900,7 @@ fun UpdateItemCard(
     onResume: () -> Unit,
     onClick: () -> Unit,
     onDownloadClick: () -> Unit = {},
+    thumbnailUrl: String? = null,
     modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -962,12 +963,24 @@ fun UpdateItemCard(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = title.take(1),
-                    color = Color.White.copy(alpha = 0.35f),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                val isRemoteImage = !thumbnailUrl.isNullOrBlank() &&
+                    (thumbnailUrl.startsWith("http://", ignoreCase = true) || thumbnailUrl.startsWith("https://", ignoreCase = true))
+
+                if (isRemoteImage) {
+                    AsyncImage(
+                        model = thumbnailUrl,
+                        contentDescription = title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Text(
+                        text = title.take(1),
+                        color = Color.White.copy(alpha = 0.35f),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(12.dp))
