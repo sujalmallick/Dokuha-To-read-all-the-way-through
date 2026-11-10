@@ -9,6 +9,7 @@ import core.extensions.js.JsExtensionSource
 import core.source.ContentSource
 import core.storage.KeyValueStorage
 import data.mock.PanelRepository
+import data.settings.SettingsRepository
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
@@ -30,6 +31,7 @@ class ExtensionManager(
     private val storage: KeyValueStorage,
     private val panelRepository: PanelRepository? = null,
     private val httpClient: HttpClient? = null,
+    private val settingsRepository: SettingsRepository? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 ) {
     private val json = Json {
@@ -40,7 +42,7 @@ class ExtensionManager(
     private val _installedExtensions = MutableStateFlow<List<JsExtensionManifest>>(emptyList())
     val installedExtensions: StateFlow<List<JsExtensionManifest>> = _installedExtensions.asStateFlow()
 
-    private val _availableExtensions = MutableStateFlow<List<ExtensionCatalogItem>>(emptyList())
+    private val _availableExtensions = MutableStateFlow<List<ExtensionCatalogItem>>(SampleExtensions.DEMO_CATALOG_ITEMS)
     val availableExtensions: StateFlow<List<ExtensionCatalogItem>> = _availableExtensions.asStateFlow()
 
     private val _repoUrls = MutableStateFlow<List<String>>(emptyList())
@@ -51,6 +53,18 @@ class ExtensionManager(
     init {
         loadRepositories()
         restoreInstalledExtensions()
+        settingsRepository?.let { settings ->
+            coroutineScope.launch {
+                settings.extensionRepos.collect { repos ->
+                    val urls = repos.map { it.url }
+                    if (urls != _repoUrls.value) {
+                        _repoUrls.value = urls
+                        saveRepositories(urls)
+                        refreshCatalog()
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -78,37 +92,45 @@ class ExtensionManager(
      * Refreshes the extension catalog from all configured repository URLs.
      */
     suspend fun refreshCatalog() {
-        val client = httpClient ?: return
+        val client = httpClient
         val items = mutableListOf<ExtensionCatalogItem>()
 
-        for (repoUrl in _repoUrls.value) {
-            try {
-                val indexUrl = "$repoUrl/index.min.json"
-                val response = client.get(indexUrl)
-                val body = response.bodyAsText()
-                val parsed = json.decodeFromString<List<ExtensionCatalogItem>>(body)
-                items.addAll(parsed)
-            } catch (_: Exception) {
-                // Try fallback to index.json
+        if (client != null) {
+            for (repoUrl in _repoUrls.value) {
                 try {
-                    val indexUrl = "$repoUrl/index.json"
+                    val indexUrl = "$repoUrl/index.min.json"
                     val response = client.get(indexUrl)
                     val body = response.bodyAsText()
                     val parsed = json.decodeFromString<List<ExtensionCatalogItem>>(body)
                     items.addAll(parsed)
                 } catch (_: Exception) {
-                    // Skip unreachable repo
+                    // Try fallback to index.json
+                    try {
+                        val indexUrl = "$repoUrl/index.json"
+                        val response = client.get(indexUrl)
+                        val body = response.bodyAsText()
+                        val parsed = json.decodeFromString<List<ExtensionCatalogItem>>(body)
+                        items.addAll(parsed)
+                    } catch (_: Exception) {
+                        // Skip unreachable repo
+                    }
                 }
             }
         }
 
-        _availableExtensions.value = items
+        val allItems = (SampleExtensions.DEMO_CATALOG_ITEMS + items).distinctBy { it.id }
+        _availableExtensions.value = allItems
     }
 
     /**
      * Downloads and installs an extension from a repository.
      */
     suspend fun installExtension(catalogItem: ExtensionCatalogItem, repoBaseUrl: String): Boolean {
+        if (catalogItem.pkg.startsWith("demo://")) {
+            val demoScript = SampleExtensions.getDemoBundle(catalogItem.id) ?: return false
+            return installExtensionFromBundle(demoScript)
+        }
+
         val client = httpClient ?: return false
         val pkgUrl = if (catalogItem.pkg.startsWith("http://") || catalogItem.pkg.startsWith("https://")) {
             catalogItem.pkg

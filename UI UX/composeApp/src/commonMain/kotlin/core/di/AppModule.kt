@@ -17,7 +17,7 @@ val appModule = module {
     includes(platformStorageModule)
     single<HttpClient> { HttpClient() }
     single<PanelRepository> { FakePanelRepository() }
-    single<ExtensionManager> { ExtensionManager(storage = get(), panelRepository = get(), httpClient = getOrNull()) }
+    single<ExtensionManager> { ExtensionManager(storage = get(), panelRepository = get(), httpClient = getOrNull(), settingsRepository = getOrNull()) }
     single<TrackerRepository> { ProductionTrackerRepository(getOrNull()) }
     single<SettingsRepository> { PersistentSettingsRepository(get()) }
     single<ProfileRepository> { PersistentProfileRepository(get(), get()) }
