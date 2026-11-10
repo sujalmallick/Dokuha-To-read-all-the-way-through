@@ -29,6 +29,17 @@ data class MockUpdateGroup(
     val items: List<MockUpdateItem>
 )
 
+data class HistoryItem(
+    val manga: SourceManga,
+    val chapter: SourceChapter,
+    val readAt: Long
+)
+
+data class HistoryGroup(
+    val title: String,
+    val items: List<HistoryItem>
+)
+
 data class MockDownloadItem(
     val id: String,
     val manga: SourceManga,
@@ -89,6 +100,7 @@ interface PanelRepository {
     fun getSources(): Flow<List<MockSourceInfo>>
     fun getExtensions(): Flow<List<MockExtension>>
     fun getUpdates(): Flow<List<MockUpdateGroup>>
+    fun getHistory(): Flow<List<HistoryGroup>> = flowOf(emptyList())
     fun getDownloads(): Flow<List<MockDownloadItem>>
     fun getStorageInfo(): Flow<MockStorageInfo>
     fun searchManga(

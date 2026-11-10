@@ -13,6 +13,8 @@ import core.source.SourceChapter
 import core.source.SourceManga
 import core.source.SourcePage
 import data.mock.BrowseFilters
+import data.mock.HistoryGroup
+import data.mock.HistoryItem
 import data.mock.MockDownloadItem
 import data.mock.MockExtension
 import data.mock.MockSourceInfo
@@ -272,6 +274,50 @@ class SqlDelightPanelRepository(
 
     override fun getUpdates(): Flow<List<MockUpdateGroup>> {
         return flowOf(emptyList())
+    }
+
+    override fun getHistory(): Flow<List<HistoryGroup>> {
+        return database.historyQueries.getRecentHistory(limit = 100L)
+            .asFlow()
+            .mapToList(Dispatchers.Default)
+            .map { list ->
+                if (list.isEmpty()) return@map emptyList()
+
+                val now = currentTimeMillis()
+                val oneDay = 24 * 60 * 60 * 1000L
+                val twoDays = 48 * 60 * 60 * 1000L
+
+                val todayItems = mutableListOf<HistoryItem>()
+                val yesterdayItems = mutableListOf<HistoryItem>()
+                val earlierItems = mutableListOf<HistoryItem>()
+
+                for (row in list) {
+                    val manga = SourceManga(
+                        url = row.manga_url,
+                        title = row.manga_title,
+                        thumbnailUrl = row.manga_thumbnail,
+                        isNovel = row.manga_is_novel == 1L
+                    )
+                    val chapter = SourceChapter(
+                        url = row.chapter_url,
+                        name = row.chapter_name,
+                        chapterNumber = row.chapter_number.toFloat()
+                    )
+                    val item = HistoryItem(manga, chapter, row.read_at)
+                    val diff = now - row.read_at
+                    when {
+                        diff < oneDay -> todayItems.add(item)
+                        diff < twoDays -> yesterdayItems.add(item)
+                        else -> earlierItems.add(item)
+                    }
+                }
+
+                val groups = mutableListOf<HistoryGroup>()
+                if (todayItems.isNotEmpty()) groups.add(HistoryGroup("Today", todayItems))
+                if (yesterdayItems.isNotEmpty()) groups.add(HistoryGroup("Yesterday", yesterdayItems))
+                if (earlierItems.isNotEmpty()) groups.add(HistoryGroup("Earlier", earlierItems))
+                groups
+            }
     }
 
     override fun getDownloads(): Flow<List<MockDownloadItem>> {

@@ -22,7 +22,8 @@ SELECT
     m.id AS manga_id,
     m.url AS manga_url,
     m.title AS manga_title,
-    m.thumbnail_url AS manga_thumbnail
+    m.thumbnail_url AS manga_thumbnail,
+    m.is_novel AS manga_is_novel
 FROM history h
 JOIN chapters c ON h.chapter_id = c.id
 JOIN mangas m ON c.manga_id = m.id

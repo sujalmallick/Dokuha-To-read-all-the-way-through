@@ -110,4 +110,42 @@ class SqlDelightPanelRepositoryTest {
         assertEquals(ch1, continueReading.second.url)
         assertEquals(1.0f, continueReading.second.chapterNumber)
     }
+
+    @Test
+    fun testRecordHistoryAndGetHistory() = runBlocking {
+        val manga = SourceManga(
+            url = "manga/history-test",
+            title = "History Manga",
+            thumbnailUrl = "https://example.com/cover.jpg",
+            status = MangaStatus.ONGOING
+        )
+        repository.toggleFavorite(manga, isFavorite = true)
+
+        val ch1 = "manga/history-test/ch-1"
+        val mangaEntity = database.mangaQueries.getMangaByUrl(manga.url).executeAsOne()
+        database.chapterQueries.insertOrUpdateChapter(
+            id = null,
+            mangaId = mangaEntity.id,
+            url = ch1,
+            name = "Chapter 1: The Beginning",
+            scanlator = null,
+            read = 0L,
+            bookmark = 0L,
+            lastPageRead = 0L,
+            chapterNumber = 1.0,
+            sourceOrder = 0L,
+            dateFetch = 0L,
+            dateUpload = 0L,
+            lastModifiedAt = 0L
+        )
+
+        // Record history
+        repository.recordHistory(ch1)
+
+        val historyGroups = repository.getHistory().first()
+        assertTrue(historyGroups.isNotEmpty(), "History groups should not be empty")
+        val todayGroup = historyGroups.firstOrNull { it.title == "Today" }
+        assertNotNull(todayGroup, "Should have a Today group")
+        assertTrue(todayGroup.items.any { it.manga.url == manga.url && it.chapter.url == ch1 })
+    }
 }
