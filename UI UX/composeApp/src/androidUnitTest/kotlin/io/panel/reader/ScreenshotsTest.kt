@@ -15,6 +15,7 @@ import data.profile.TrackerAccount
 import data.profile.TrackerService
 import data.profile.UserProfile
 import data.settings.DefaultReadingMode
+import data.settings.FakeSettingsRepository
 import data.settings.NovelFont
 import data.settings.NovelReaderTheme
 import kotlinx.coroutines.flow.first
@@ -97,12 +98,16 @@ class ScreenshotsTest {
     @Test
     fun capture_04_webtoon_reader_screen() {
         val pages = runBlocking { repository.getPages("").first() }
+        val mangaSettingsRepo = FakeSettingsRepository().apply {
+            setDefaultReadingMode(DefaultReadingMode.RIGHT_TO_LEFT)
+        }
 
         composeTestRule.setContent {
             PanelTheme {
                 WebtoonReaderScreenContent(
-                    chapterTitle = "Episode 42",
+                    chapterTitle = "Chapter 42: Awakening",
                     pages = pages,
+                    settingsRepository = mangaSettingsRepo,
                     onBack = {}
                 )
             }

@@ -49,6 +49,35 @@ data class MockStorageInfo(
     val othersMb: Float = 136f
 )
 
+enum class BrowseSortOrder(val displayName: String) {
+    POPULARITY("Popularity"),
+    LATEST("Latest"),
+    ALPHABETICAL("A-Z")
+}
+
+data class BrowseFilters(
+    val genres: Set<String> = emptySet(),
+    val status: MangaStatus? = null,
+    val isNovel: Boolean? = null,
+    val sortBy: BrowseSortOrder = BrowseSortOrder.POPULARITY
+)
+
+val AvailableBrowseGenres = listOf(
+    "Action",
+    "Adventure",
+    "Cyberpunk",
+    "Dark Fantasy",
+    "Drama",
+    "Fantasy",
+    "Martial Arts",
+    "Mystery",
+    "Psychological",
+    "Reincarnation",
+    "Romance",
+    "Sci-Fi",
+    "Supernatural"
+)
+
 interface PanelRepository {
     fun getLibrary(category: String): Flow<List<SourceManga>>
     fun getContinueReading(): Flow<Pair<SourceManga, SourceChapter>?>
@@ -62,6 +91,17 @@ interface PanelRepository {
     fun getUpdates(): Flow<List<MockUpdateGroup>>
     fun getDownloads(): Flow<List<MockDownloadItem>>
     fun getStorageInfo(): Flow<MockStorageInfo>
+    fun searchManga(
+        query: String = "",
+        sourceId: String? = null,
+        filters: BrowseFilters = BrowseFilters()
+    ): Flow<List<SourceManga>>
+    fun getSourceCatalogue(
+        sourceId: String,
+        page: Int = 1,
+        query: String = "",
+        filters: BrowseFilters = BrowseFilters()
+    ): Flow<List<SourceManga>>
 }
 
 data class MockSourceInfo(
@@ -157,6 +197,59 @@ class FakePanelRepository : PanelRepository {
         genres = listOf("Mystery", "Psychological"),
         status = MangaStatus.ONGOING,
         thumbnailUrl = "silent_winter_cover"
+    )
+
+    private val tbate = SourceManga(
+        url = "novel/tbate",
+        title = "The Beginning After the End",
+        author = "TurtleMe",
+        genres = listOf("Action", "Fantasy", "Reincarnation"),
+        status = MangaStatus.ONGOING,
+        thumbnailUrl = "tbate_cover",
+        isNovel = true
+    )
+
+    private val shadowSlave = SourceManga(
+        url = "novel/shadow-slave",
+        title = "Shadow Slave",
+        author = "Guiltythree",
+        genres = listOf("Dark Fantasy", "Adventure", "Supernatural"),
+        status = MangaStatus.ONGOING,
+        thumbnailUrl = "shadow_slave_cover",
+        isNovel = true
+    )
+
+    private val omniscientReader = SourceManga(
+        url = "manga/orv",
+        title = "Omniscient Reader's Viewpoint",
+        author = "sing N song",
+        artist = "Sleepy-C",
+        genres = listOf("Action", "Fantasy", "Supernatural", "Psychological"),
+        status = MangaStatus.ONGOING,
+        thumbnailUrl = "orv_cover",
+        isNovel = false
+    )
+
+    private val allMangaList = listOf(
+        lastHorizon,
+        soloLeveling,
+        auroraBlade,
+        windBeneath,
+        shadowCrown,
+        neonRequiem,
+        frostbound,
+        velvetNight,
+        crimsonOath,
+        silentWinter,
+        tbate,
+        shadowSlave,
+        omniscientReader
+    )
+
+    private val sourceMangaMap = mapOf(
+        "1" to listOf(lastHorizon, soloLeveling, auroraBlade, velvetNight, silentWinter, tbate),
+        "2" to listOf(soloLeveling, windBeneath, shadowCrown, crimsonOath, neonRequiem, omniscientReader),
+        "3" to listOf(lastHorizon, windBeneath, frostbound, auroraBlade, shadowCrown, shadowSlave)
     )
 
     override fun getLibrary(category: String): Flow<List<SourceManga>> {
@@ -320,5 +413,93 @@ class FakePanelRepository : PanelRepository {
 
     override fun getStorageInfo(): Flow<MockStorageInfo> {
         return flowOf(MockStorageInfo())
+    }
+
+    override fun searchManga(
+        query: String,
+        sourceId: String?,
+        filters: BrowseFilters
+    ): Flow<List<SourceManga>> {
+        val baseList = if (!sourceId.isNullOrBlank()) {
+            sourceMangaMap[sourceId] ?: allMangaList
+        } else {
+            allMangaList
+        }
+
+        val trimmedQuery = query.trim()
+
+        var results = baseList.filter { manga ->
+            val matchesQuery = if (trimmedQuery.isEmpty()) {
+                true
+            } else {
+                manga.title.contains(trimmedQuery, ignoreCase = true) ||
+                    (manga.author?.contains(trimmedQuery, ignoreCase = true) == true) ||
+                    manga.genres.any { it.contains(trimmedQuery, ignoreCase = true) }
+            }
+
+            val matchesStatus = filters.status == null || manga.status == filters.status
+
+            val matchesNovel = filters.isNovel == null || manga.isNovel == filters.isNovel
+
+            val matchesGenres = filters.genres.isEmpty() || filters.genres.any { filterGenre ->
+                manga.genres.any { it.equals(filterGenre, ignoreCase = true) }
+            }
+
+            matchesQuery && matchesStatus && matchesNovel && matchesGenres
+        }
+
+        results = when (filters.sortBy) {
+            BrowseSortOrder.POPULARITY -> results
+            BrowseSortOrder.LATEST -> results.reversed()
+            BrowseSortOrder.ALPHABETICAL -> results.sortedBy { it.title.lowercase() }
+        }
+
+        return flowOf(results)
+    }
+
+    override fun getSourceCatalogue(
+        sourceId: String,
+        page: Int,
+        query: String,
+        filters: BrowseFilters
+    ): Flow<List<SourceManga>> {
+        val baseList = sourceMangaMap[sourceId] ?: allMangaList
+        val trimmedQuery = query.trim()
+
+        var results = baseList.filter { manga ->
+            val matchesQuery = if (trimmedQuery.isEmpty()) {
+                true
+            } else {
+                manga.title.contains(trimmedQuery, ignoreCase = true) ||
+                    (manga.author?.contains(trimmedQuery, ignoreCase = true) == true) ||
+                    manga.genres.any { it.contains(trimmedQuery, ignoreCase = true) }
+            }
+
+            val matchesStatus = filters.status == null || manga.status == filters.status
+
+            val matchesNovel = filters.isNovel == null || manga.isNovel == filters.isNovel
+
+            val matchesGenres = filters.genres.isEmpty() || filters.genres.any { filterGenre ->
+                manga.genres.any { it.equals(filterGenre, ignoreCase = true) }
+            }
+
+            matchesQuery && matchesStatus && matchesNovel && matchesGenres
+        }
+
+        results = when (filters.sortBy) {
+            BrowseSortOrder.POPULARITY -> results
+            BrowseSortOrder.LATEST -> results.reversed()
+            BrowseSortOrder.ALPHABETICAL -> results.sortedBy { it.title.lowercase() }
+        }
+
+        val pageSize = 4
+        val startIndex = ((page - 1) * pageSize).coerceAtLeast(0)
+        val pagedList = if (startIndex < results.size) {
+            results.drop(startIndex).take(pageSize)
+        } else {
+            emptyList()
+        }
+
+        return flowOf(pagedList)
     }
 }

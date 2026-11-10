@@ -7,6 +7,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -81,8 +82,11 @@ import ui.glass.glassSurface
 import ui.glass.rememberPanelGlassState
 import ui.theme.CapsuleShape
 import ui.theme.ElectricBlue
+import ui.theme.GlassBorder
+import ui.theme.GlassBorderStrong
 import ui.theme.PanelBackground
 import ui.theme.PanelTheme
+import ui.theme.TextMuted
 import ui.theme.TextPrimary
 import ui.theme.TextSecondary
 
@@ -319,9 +323,11 @@ fun WebtoonReaderScreenContent(
                             )
                     ) { pageIndex ->
                         if (pageIndex < displayPages.size) {
-                            WebtoonPanelSlice(
-                                sliceIndex = pageIndex,
-                                totalSlices = displayPages.size,
+                            MangaPageCanvas(
+                                pageIndex = pageIndex,
+                                totalPages = displayPages.size,
+                                chapterTitle = chapterTitle,
+                                isRtl = true,
                                 cropBorders = cropBorders,
                                 modifier = Modifier.fillMaxSize()
                             )
@@ -351,9 +357,11 @@ fun WebtoonReaderScreenContent(
                             )
                     ) { pageIndex ->
                         if (pageIndex < displayPages.size) {
-                            WebtoonPanelSlice(
-                                sliceIndex = pageIndex,
-                                totalSlices = displayPages.size,
+                            MangaPageCanvas(
+                                pageIndex = pageIndex,
+                                totalPages = displayPages.size,
+                                chapterTitle = chapterTitle,
+                                isRtl = false,
                                 cropBorders = cropBorders,
                                 modifier = Modifier.fillMaxSize()
                             )
@@ -443,77 +451,159 @@ fun WebtoonReaderScreenContent(
             exit = fadeOut() + slideOutVertically { -it },
             modifier = Modifier.align(Alignment.TopCenter)
         ) {
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Top Row: Back button, Chapter Title, Bookmark & Settings
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Back Button
+                    PanelCircleIconButton(
+                        icon = Icons.AutoMirrored.Filled.ArrowBack,
+                        size = 42.dp,
+                        iconSize = 20.dp,
+                        glassState = null,
+                        backgroundColor = Color(0xF50F1219),
+                        borderColor = GlassBorderStrong,
+                        onClick = onBack
+                    )
+
+                    // Chapter Title Capsule
+                    Box(
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .clip(CapsuleShape)
+                            .background(Color(0xF50F1219))
+                            .border(1.dp, GlassBorderStrong, CapsuleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = chapterTitle,
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
+                        )
+                    }
+
+                    // Bookmark & Settings Buttons
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PanelCircleIconButton(
+                            icon = Icons.Default.Tune,
+                            size = 42.dp,
+                            iconSize = 20.dp,
+                            glassState = null,
+                            backgroundColor = Color(0xF50F1219),
+                            borderColor = GlassBorderStrong,
+                            onClick = onOpenSettings
+                        )
+                        PanelCircleIconButton(
+                            icon = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                            size = 42.dp,
+                            iconSize = 20.dp,
+                            tint = if (isBookmarked) ElectricBlue else Color.White,
+                            glassState = null,
+                            backgroundColor = Color(0xF50F1219),
+                            borderColor = GlassBorderStrong,
+                            onClick = { isBookmarked = !isBookmarked }
+                        )
+                        PanelCircleIconButton(
+                            icon = Icons.Default.MoreVert,
+                            size = 42.dp,
+                            iconSize = 20.dp,
+                            glassState = null,
+                            backgroundColor = Color(0xF50F1219),
+                            borderColor = GlassBorderStrong,
+                            onClick = { /* Menu */ }
+                        )
+                    }
+                }
+
+                // In-Reader Liquid Glass Mode Switcher [ RTL Manga | LTR Comic | Webtoon ]
+                ReaderModeSwitcher(
+                    currentMode = readingMode,
+                    onSelectMode = { newMode ->
+                        repo.setDefaultReadingMode(newMode)
+                    },
+                    glassState = glassState
+                )
+            }
+        }
+
+        // LAYER 2.5: Educational 3-Zone Tap Hints (Subtle visual guidance when controls are shown)
+        AnimatedVisibility(
+            visible = areControlsVisible,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.Center)
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Back Button
-                PanelCircleIconButton(
-                    icon = Icons.AutoMirrored.Filled.ArrowBack,
-                    size = 42.dp,
-                    iconSize = 20.dp,
-                    glassState = glassState,
-                    hasDimming = true,
-                    onClick = onBack
-                )
-
-                // Chapter Title Capsule
+                // Left Zone
                 Box(
                     modifier = Modifier
-                        .padding(horizontal = 8.dp)
-                        .glassDimming(alpha = 0.35f, shape = CapsuleShape)
-                        .glassSurface(
-                            state = glassState,
-                            variant = GlassVariant.Clear,
-                            shape = CapsuleShape
-                        ),
-                    contentAlignment = Alignment.Center
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.Black.copy(alpha = 0.55f))
+                        .border(0.5.dp, GlassBorder, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
                 ) {
                     Text(
-                        text = chapterTitle,
-                        color = TextPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp)
+                        text = if (isRtl) "◀ Next (RTL)" else "◀ Prev",
+                        fontSize = 10.sp,
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontWeight = FontWeight.Medium
                     )
                 }
 
-                // Bookmark & Settings Buttons
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    PanelCircleIconButton(
-                        icon = Icons.Default.Tune,
-                        size = 42.dp,
-                        iconSize = 20.dp,
-                        glassState = glassState,
-                        hasDimming = true,
-                        onClick = onOpenSettings
+                // Center Zone
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.Black.copy(alpha = 0.55f))
+                        .border(0.5.dp, GlassBorder, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "◉ Menu",
+                        fontSize = 10.sp,
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontWeight = FontWeight.Medium
                     )
-                    PanelCircleIconButton(
-                        icon = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                        size = 42.dp,
-                        iconSize = 20.dp,
-                        tint = if (isBookmarked) ElectricBlue else TextPrimary,
-                        glassState = glassState,
-                        hasDimming = true,
-                        onClick = { isBookmarked = !isBookmarked }
-                    )
-                    PanelCircleIconButton(
-                        icon = Icons.Default.MoreVert,
-                        size = 42.dp,
-                        iconSize = 20.dp,
-                        glassState = glassState,
-                        hasDimming = true,
-                        onClick = { /* Menu */ }
+                }
+
+                // Right Zone
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.Black.copy(alpha = 0.55f))
+                        .border(0.5.dp, GlassBorder, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = if (isRtl) "Prev (RTL) ▶" else "Next ▶",
+                        fontSize = 10.sp,
+                        color = Color.White.copy(alpha = 0.85f),
+                        fontWeight = FontWeight.Medium
                     )
                 }
             }
         }
 
-        // LAYER 3: Bottom Floating Scrubber Capsule Bar matching option 2.png
+        // LAYER 3: Bottom Floating Scrubber Capsule Bar with Page Indicator & Step Buttons
         AnimatedVisibility(
             visible = areControlsVisible,
             enter = fadeIn() + slideInVertically { it },
@@ -521,68 +611,184 @@ fun WebtoonReaderScreenContent(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 24.dp)
+                .padding(horizontal = 20.dp, vertical = 20.dp)
         ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .glassDimming(alpha = 0.35f, shape = CapsuleShape)
-                    .glassSurface(
-                        state = glassState,
-                        variant = GlassVariant.Clear,
-                        shape = CapsuleShape
-                    )
+                    .clip(RoundedCornerShape(26.dp))
+                    .background(Color(0xF50F1219))
+                    .border(1.dp, GlassBorderStrong, RoundedCornerShape(26.dp))
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
                 ) {
-                    // Previous Chapter button
-                    PanelCircleIconButton(
-                        icon = Icons.AutoMirrored.Filled.NavigateBefore,
-                        size = 36.dp,
-                        iconSize = 20.dp,
-                        glassState = null,
-                        backgroundColor = Color.White.copy(alpha = 0.08f),
-                        borderColor = Color.White.copy(alpha = 0.12f),
-                        tint = if (hasPreviousChapter) TextPrimary else TextPrimary.copy(alpha = 0.3f),
-                        onClick = { if (hasPreviousChapter) onPreviousChapter() }
-                    )
+                    // Row 1: Direction-aware page indicator and step buttons
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Step previous page
+                        Row(
+                            modifier = Modifier
+                                .clip(CapsuleShape)
+                                .clickable { handlePrevious() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.NavigateBefore,
+                                contentDescription = "Previous Page",
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text("Prev", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Medium)
+                        }
 
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    // Reading progress slider
-                    PanelSlider(
-                        value = currentProgress,
-                        onValueChange = { targetFraction ->
-                            coroutineScope.launch {
-                                if (readingMode == DefaultReadingMode.WEBTOON) {
-                                    val targetIndex = (targetFraction * (displayPages.size - 1)).toInt().coerceIn(0, displayPages.size - 1)
-                                    listState.scrollToItem(targetIndex)
-                                } else {
-                                    val targetPage = (targetFraction * (displayPages.size - 1)).toInt().coerceIn(0, displayPages.size - 1)
-                                    pagerState.scrollToPage(targetPage)
-                                }
+                        // Page Indicator Badge
+                        Box(
+                            modifier = Modifier
+                                .clip(CapsuleShape)
+                                .background(Color.White.copy(alpha = 0.16f))
+                                .border(0.5.dp, GlassBorderStrong, CapsuleShape)
+                                .padding(horizontal = 14.dp, vertical = 4.dp)
+                        ) {
+                            val pageText = if (readingMode == DefaultReadingMode.WEBTOON) {
+                                "${(currentProgress * 100).toInt()}% • Continuous"
+                            } else {
+                                val curPage = (pagerState.currentPage + 1).coerceAtMost(displayPages.size)
+                                "Page $curPage / ${displayPages.size} • ${if (isRtl) "RTL Manga" else "LTR Comic"}"
                             }
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
+                            Text(
+                                text = pageText,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
 
-                    Spacer(modifier = Modifier.width(8.dp))
+                        // Step next page
+                        Row(
+                            modifier = Modifier
+                                .clip(CapsuleShape)
+                                .clickable { handleNext() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Next", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Medium)
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.NavigateNext,
+                                contentDescription = "Next Page",
+                                tint = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
 
-                    // Next Chapter button
-                    PanelCircleIconButton(
-                        icon = Icons.AutoMirrored.Filled.NavigateNext,
-                        size = 36.dp,
-                        iconSize = 20.dp,
-                        glassState = null,
-                        backgroundColor = Color.White.copy(alpha = 0.08f),
-                        borderColor = Color.White.copy(alpha = 0.12f),
-                        tint = if (hasNextChapter) TextPrimary else TextPrimary.copy(alpha = 0.3f),
-                        onClick = { if (hasNextChapter) onNextChapter() }
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    // Row 2: Chapter Prev | Scrubber Slider | Chapter Next
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        // Previous Chapter button
+                        PanelCircleIconButton(
+                            icon = Icons.AutoMirrored.Filled.NavigateBefore,
+                            size = 36.dp,
+                            iconSize = 20.dp,
+                            glassState = null,
+                            backgroundColor = Color.White.copy(alpha = 0.08f),
+                            borderColor = Color.White.copy(alpha = 0.12f),
+                            tint = if (hasPreviousChapter) TextPrimary else TextPrimary.copy(alpha = 0.3f),
+                            onClick = { if (hasPreviousChapter) onPreviousChapter() }
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Reading progress slider
+                        PanelSlider(
+                            value = currentProgress,
+                            onValueChange = { targetFraction ->
+                                coroutineScope.launch {
+                                    if (readingMode == DefaultReadingMode.WEBTOON) {
+                                        val targetIndex = (targetFraction * (displayPages.size - 1)).toInt().coerceIn(0, displayPages.size - 1)
+                                        listState.scrollToItem(targetIndex)
+                                    } else {
+                                        val targetPage = (targetFraction * (displayPages.size - 1)).toInt().coerceIn(0, displayPages.size - 1)
+                                        pagerState.scrollToPage(targetPage)
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        // Next Chapter button
+                        PanelCircleIconButton(
+                            icon = Icons.AutoMirrored.Filled.NavigateNext,
+                            size = 36.dp,
+                            iconSize = 20.dp,
+                            glassState = null,
+                            backgroundColor = Color.White.copy(alpha = 0.08f),
+                            borderColor = Color.White.copy(alpha = 0.12f),
+                            tint = if (hasNextChapter) TextPrimary else TextPrimary.copy(alpha = 0.3f),
+                            onClick = { if (hasNextChapter) onNextChapter() }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * In-Reader Mode Switcher segmented control allowing users to switch reading modes instantly.
+ */
+@Composable
+private fun ReaderModeSwitcher(
+    currentMode: DefaultReadingMode,
+    onSelectMode: (DefaultReadingMode) -> Unit,
+    glassState: PanelGlassState,
+    modifier: Modifier = Modifier
+) {
+    val modes = listOf(
+        Triple(DefaultReadingMode.RIGHT_TO_LEFT, "◂ RTL Manga", "Japanese Right-to-Left paging"),
+        Triple(DefaultReadingMode.LEFT_TO_RIGHT, "LTR Comic ▸", "Western Left-to-Right paging"),
+        Triple(DefaultReadingMode.WEBTOON, "▾ Webtoon", "Continuous vertical infinite scroll")
+    )
+
+    Box(
+        modifier = modifier
+            .clip(CapsuleShape)
+            .background(Color(0xEE0F1219))
+            .border(1.dp, GlassBorderStrong, CapsuleShape)
+            .padding(3.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            modes.forEach { (mode, label, _) ->
+                val isSelected = currentMode == mode
+                Box(
+                    modifier = Modifier
+                        .clip(CapsuleShape)
+                        .background(if (isSelected) Color.White else Color.Transparent)
+                        .clickable { onSelectMode(mode) }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = label,
+                        fontSize = 11.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isSelected) Color(0xFF090D15) else Color.White.copy(alpha = 0.75f)
                     )
                 }
             }
