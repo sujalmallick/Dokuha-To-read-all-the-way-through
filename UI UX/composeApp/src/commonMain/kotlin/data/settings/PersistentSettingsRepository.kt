@@ -297,11 +297,23 @@ class PersistentSettingsRepository(
         storage.putString(KEY_DOWNLOAD_LOCATION, location)
     }
 
-    // Sources & Extensions (Ship with ZERO default repos per user directive)
+    // Sources & Extensions (Default official Dokuha repository pre-seeded)
     private val _extensionRepos = MutableStateFlow<List<ExtensionRepo>>(
         runCatching {
             val raw = storage.getString(KEY_EXTENSION_REPOS, "")
-            if (raw.isBlank()) emptyList() else json.decodeFromString<List<ExtensionRepo>>(raw)
+            val list = if (raw.isBlank()) emptyList() else json.decodeFromString<List<ExtensionRepo>>(raw)
+            if (list.isEmpty()) {
+                val official = ExtensionRepo(
+                    id = "repo_official",
+                    name = "Dokuha Extensions (Official)",
+                    url = "https://raw.githubusercontent.com/RitwikGupta-0501/dokuha-extensions/main",
+                    isOfficial = true,
+                    fingerprint = ExtensionRepoValidator.computeFingerprint("https://raw.githubusercontent.com/RitwikGupta-0501/dokuha-extensions/main")
+                )
+                listOf(official)
+            } else {
+                list
+            }
         }.getOrDefault(emptyList())
     )
     override val extensionRepos: StateFlow<List<ExtensionRepo>> = _extensionRepos.asStateFlow()

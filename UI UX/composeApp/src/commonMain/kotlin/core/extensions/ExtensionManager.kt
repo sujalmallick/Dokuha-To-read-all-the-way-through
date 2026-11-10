@@ -60,10 +60,13 @@ class ExtensionManager(
                     if (urls != _repoUrls.value) {
                         _repoUrls.value = urls
                         saveRepositories(urls)
-                        refreshCatalog()
                     }
+                    refreshCatalog()
                 }
             }
+        }
+        coroutineScope.launch {
+            refreshCatalog()
         }
     }
 
@@ -257,9 +260,13 @@ class ExtensionManager(
     private fun loadRepositories() {
         val reposJson = storage.getString(KEY_REPO_URLS, "[]")
         val repos = try {
-            json.decodeFromString<List<String>>(reposJson)
+            json.decodeFromString<List<String>>(reposJson).toMutableList()
         } catch (_: Exception) {
-            emptyList()
+            mutableListOf()
+        }
+        if (!repos.contains(OFFICIAL_REPO_URL)) {
+            repos.add(OFFICIAL_REPO_URL)
+            saveRepositories(repos)
         }
         _repoUrls.value = repos
     }
@@ -330,6 +337,7 @@ class ExtensionManager(
     }
 
     companion object {
+        const val OFFICIAL_REPO_URL = "https://raw.githubusercontent.com/RitwikGupta-0501/dokuha-extensions/main"
         private const val KEY_INSTALLED_IDS = "dokuha_installed_ext_ids"
         private const val KEY_REPO_URLS = "dokuha_repo_urls"
     }
