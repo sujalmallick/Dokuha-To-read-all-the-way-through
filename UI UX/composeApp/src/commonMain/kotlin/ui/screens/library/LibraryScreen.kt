@@ -207,6 +207,36 @@ fun LibraryScreenContent(
                 }
             }
 
+            // Empty Library State
+            if (libraryItems.isEmpty() && continueReadingPair == null) {
+                item(span = { GridItemSpan(3) }) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 80.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                text = "Your library is empty",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Install an extension and favorite manga or novels to see them here.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary,
+                                modifier = Modifier.padding(horizontal = 32.dp)
+                            )
+                        }
+                    }
+                }
+            }
+
             // Library Grid Items (3 columns)
             itemsIndexed(libraryItems) { index, manga ->
                 val chapterSubtitle = when (manga.title) {

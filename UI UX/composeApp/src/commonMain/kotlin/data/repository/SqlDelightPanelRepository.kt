@@ -43,91 +43,28 @@ class SqlDelightPanelRepository(
     private val dynamicSources = mutableMapOf<Long, ContentSource>()
 
     init {
-        seedInitialDataIfEmpty()
+        purgeFakeStarterDataIfPresent()
     }
 
-    private fun seedInitialDataIfEmpty() {
-        val existing = database.mangaQueries.getLibrary().executeAsList()
-        if (existing.isEmpty()) {
-            val starterTitles = listOf(
-                SourceManga(
-                    url = "manga/solo-leveling",
-                    title = "Solo Leveling",
-                    description = "10 years ago, after 'the Gate' that connected the real world with the monster world opened, some ordinary people received powers.",
-                    genres = listOf("Action", "Fantasy", "Supernatural"),
-                    status = MangaStatus.COMPLETED,
-                    thumbnailUrl = "solo_leveling_cover"
-                ),
-                SourceManga(
-                    url = "manga/aurora-blade",
-                    title = "Aurora Blade",
-                    genres = listOf("Fantasy", "Action"),
-                    status = MangaStatus.ONGOING,
-                    thumbnailUrl = "aurora_cover"
-                ),
-                SourceManga(
-                    url = "manga/wind-beneath",
-                    title = "Wind Beneath",
-                    genres = listOf("Martial Arts", "Adventure"),
-                    status = MangaStatus.ONGOING,
-                    thumbnailUrl = "wind_cover"
-                ),
-                SourceManga(
-                    url = "manga/shadow-crown",
-                    title = "Shadow Crown",
-                    genres = listOf("Dark Fantasy", "Action"),
-                    status = MangaStatus.ONGOING,
-                    thumbnailUrl = "shadow_cover"
-                ),
-                SourceManga(
-                    url = "manga/neon-requiem",
-                    title = "Neon Requiem",
-                    genres = listOf("Sci-Fi", "Cyberpunk"),
-                    status = MangaStatus.ONGOING,
-                    thumbnailUrl = "neon_cover"
-                ),
-                SourceManga(
-                    url = "manga/the-last-horizon",
-                    title = "The Last Horizon",
-                    author = "A. V. Frost",
-                    artist = "Studio Horizon",
-                    description = "In a world where the sky has split, a young man follows the last light to uncover the truth behind a forgotten era...",
-                    genres = listOf("Action", "Fantasy", "Adventure"),
-                    status = MangaStatus.ONGOING,
-                    thumbnailUrl = "horizon_cover",
-                    isNovel = false
-                )
-            )
-
-            for (manga in starterTitles) {
-                insertOrUpdateMangaInternal(manga, sourceId = 0L, forceFavorite = true)
-            }
-
-            // Seed sample chapter and history for continue reading
-            val horizon = database.mangaQueries.getMangaByUrl("manga/the-last-horizon").executeAsOneOrNull()
-            if (horizon != null) {
-                database.chapterQueries.insertOrUpdateChapter(
-                    id = null,
-                    mangaId = horizon.id,
-                    url = "manga/the-last-horizon/ch-210",
-                    name = "Ch. 210",
-                    scanlator = null,
-                    read = 1L,
-                    bookmark = 0L,
-                    lastPageRead = 12L,
-                    chapterNumber = 210.0,
-                    sourceOrder = 0L,
-                    dateFetch = currentTimeMillis(),
-                    dateUpload = 1718409600000L,
-                    lastModifiedAt = currentTimeMillis()
-                )
-                val ch = database.chapterQueries.getChapterByUrl("manga/the-last-horizon/ch-210").executeAsOneOrNull()
-                if (ch != null) {
-                    database.historyQueries.upsertHistory(
-                        chapterId = ch.id,
-                        readAt = currentTimeMillis(),
-                        timeRead = 360L
-                    )
+    private fun purgeFakeStarterDataIfPresent() {
+        val fakeUrls = listOf(
+            "manga/solo-leveling",
+            "manga/aurora-blade",
+            "manga/wind-beneath",
+            "manga/shadow-crown",
+            "manga/neon-requiem",
+            "manga/the-last-horizon"
+        )
+        database.transaction {
+            for (fakeUrl in fakeUrls) {
+                val existing = database.mangaQueries.getMangaByUrl(fakeUrl).executeAsOneOrNull()
+                if (existing != null) {
+                    val chapters = database.chapterQueries.getChaptersByMangaId(existing.id).executeAsList()
+                    for (ch in chapters) {
+                        database.historyQueries.deleteHistoryByChapterId(ch.id)
+                    }
+                    database.chapterQueries.deleteChaptersByMangaId(existing.id)
+                    database.mangaQueries.deleteByUrl(fakeUrl)
                 }
             }
         }
@@ -316,11 +253,6 @@ class SqlDelightPanelRepository(
     }
 
     override fun getSources(): Flow<List<MockSourceInfo>> {
-        val baseSources = listOf(
-            MockSourceInfo("1", "MangaDex", "Manga", listOf("EN", "JP")),
-            MockSourceInfo("2", "Comick", "Manga", listOf("EN", "KR")),
-            MockSourceInfo("3", "Asura Scans", "Manhwa", listOf("EN"))
-        )
         val dynamicList = dynamicSources.values.map { src ->
             val type = if (src is NovelSource && src !is ComicSource) "Novel" else "Manga"
             MockSourceInfo(
@@ -331,18 +263,11 @@ class SqlDelightPanelRepository(
                 iconUrl = (src as? core.extensions.js.JsExtensionSource)?.manifest?.iconUrl
             )
         }
-        val allSources = (dynamicList + baseSources).distinctBy { it.name.lowercase() }
-        return flowOf(allSources)
+        return flowOf(dynamicList)
     }
 
     override fun getExtensions(): Flow<List<MockExtension>> {
-        return flowOf(
-            listOf(
-                MockExtension("1", "MangaDex", "v1.0.0", "EN", isInstalled = true, hasUpdate = false),
-                MockExtension("2", "Comick", "v1.3.1", "All", isInstalled = false, hasUpdate = false),
-                MockExtension("3", "Asura Scans", "v1.2.0", "EN", isInstalled = false, hasUpdate = false)
-            )
-        )
+        return flowOf(emptyList())
     }
 
     override fun getUpdates(): Flow<List<MockUpdateGroup>> {

@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Tune
@@ -75,6 +76,7 @@ import ui.screens.library.LibraryScreen
 import ui.screens.more.MoreScreen
 import ui.screens.updates.UpdatesScreen
 import ui.theme.CapsuleShape
+import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
 import ui.theme.PanelBackground
 import ui.theme.PanelTheme
@@ -388,58 +390,93 @@ fun BrowseScreenContent(
                 }
 
                 // Source Cards List (Liquid Glass Source Cards)
-                items(sources) { source ->
-                    val avatarColor = when (source.name) {
-                        "MangaDex" -> Color(0xFFFF6740)
-                        "Comick" -> Color(0xFF60A5FA)
-                        "Asura Scans" -> Color(0xFFA855F7)
-                        else -> Color.White
+                if (sources.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color.White.copy(alpha = 0.05f))
+                                .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+                                .clickable(onClick = onSeeAllSources)
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = "No Sources Installed",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "Tap to browse and install extensions",
+                                    fontSize = 13.sp,
+                                    color = ElectricBlue
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+                } else {
+                    items(sources) { source ->
+                        val avatarColor = when (source.name) {
+                            "MangaDex" -> Color(0xFFFF6740)
+                            "Comick" -> Color(0xFF60A5FA)
+                            "Asura Scans" -> Color(0xFFA855F7)
+                            else -> Color(0xFF38BDF8)
+                        }
+
+                        SourceCard(
+                            name = source.name,
+                            type = source.type,
+                            languages = source.languages,
+                            avatarColor = avatarColor,
+                            onClick = { onOpenSource(source) }
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+                }
+
+                // Trending Now Section Header (Only if there are trending titles)
+                if (trending.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Trending Now",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
                     }
 
-                    SourceCard(
-                        name = source.name,
-                        type = source.type,
-                        languages = source.languages,
-                        avatarColor = avatarColor,
-                        onClick = { onOpenSource(source) }
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                }
+                    // Trending Cards (3 in a row matching option 2.png)
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            trending.forEachIndexed { index, manga ->
+                                val chapterSubtitle = when (manga.title) {
+                                    "Velvet Night" -> "Ch. 34"
+                                    "Crimson Oath" -> "Ch. 21"
+                                    "Silent Winter" -> "Ch. 5"
+                                    else -> "Ch. 1"
+                                }
 
-                // Trending Now Section Header
-                item {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Trending Now",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                }
-
-                // Trending Cards (3 in a row matching option 2.png)
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        trending.forEachIndexed { index, manga ->
-                            val chapterSubtitle = when (manga.title) {
-                                "Velvet Night" -> "Ch. 34"
-                                "Crimson Oath" -> "Ch. 21"
-                                "Silent Winter" -> "Ch. 5"
-                                else -> "Ch. 1"
+                                MangaCoverCard(
+                                    title = manga.title,
+                                    subtitle = chapterSubtitle,
+                                    gradientIndex = index + 3,
+                                    thumbnailUrl = manga.thumbnailUrl,
+                                    onClick = { onOpenManga(manga) },
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
-
-                            MangaCoverCard(
-                                title = manga.title,
-                                subtitle = chapterSubtitle,
-                                gradientIndex = index + 3,
-                                thumbnailUrl = manga.thumbnailUrl,
-                                onClick = { onOpenManga(manga) },
-                                modifier = Modifier.weight(1f)
-                            )
                         }
                     }
                 }

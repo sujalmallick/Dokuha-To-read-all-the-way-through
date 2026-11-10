@@ -34,11 +34,9 @@ class SqlDelightPanelRepositoryTest {
     }
 
     @Test
-    fun testSeedInitialLibrary() = runBlocking {
+    fun testInitialLibraryIsEmptyForCleanUser() = runBlocking {
         val library = repository.getLibrary("All").first()
-        assertTrue(library.isNotEmpty(), "Library should be seeded with initial titles")
-        assertTrue(library.any { it.title == "Solo Leveling" })
-        assertTrue(library.any { it.title == "The Last Horizon" })
+        assertTrue(library.isEmpty(), "Clean user should start with an empty library without fake entries")
     }
 
     @Test

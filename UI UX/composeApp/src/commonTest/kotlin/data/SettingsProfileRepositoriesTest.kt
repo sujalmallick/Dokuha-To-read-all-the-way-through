@@ -120,8 +120,8 @@ class SettingsProfileRepositoriesTest {
         val repo = FakeProfileRepository()
 
         val initialProfile = repo.profile.value
-        assertEquals("Sujal", initialProfile.name)
-        assertEquals("S", initialProfile.initials)
+        assertEquals("Ritwik", initialProfile.name)
+        assertEquals("R", initialProfile.initials)
 
         repo.updateProfile("Jane Doe", 0xFFA855F7)
         val updatedProfile = repo.profile.value
@@ -129,9 +129,9 @@ class SettingsProfileRepositoriesTest {
         assertEquals("JD", updatedProfile.initials)
         assertEquals(0xFFA855F7, updatedProfile.avatarColorHex)
 
-        // Verify stats and library summary
-        assertEquals(482, repo.stats.value.chaptersRead)
-        assertEquals(14, repo.librarySummary.value.readingCount)
+        // Verify clean stats and library summary for test user
+        assertEquals(0, repo.stats.value.chaptersRead)
+        assertEquals(0, repo.librarySummary.value.readingCount)
         assertEquals(7, repo.weeklyActivity.value.size)
     }
 
