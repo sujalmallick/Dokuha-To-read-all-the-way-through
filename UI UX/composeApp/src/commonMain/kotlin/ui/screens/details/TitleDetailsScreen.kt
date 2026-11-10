@@ -72,6 +72,10 @@ import ui.theme.GlassBorder
 import ui.theme.PanelBackground
 import ui.theme.PanelTheme
 import ui.theme.TextPrimary
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import ui.theme.TextSecondary
 
 data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") : Screen {
@@ -80,13 +84,23 @@ data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") :
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repository: PanelRepository = koinInject()
+        val scope = rememberCoroutineScope()
 
         val manga by repository.getMangaDetails(mangaUrl).collectAsState(initial = null)
         val chapters by repository.getChapters(mangaUrl).collectAsState(initial = emptyList())
+        val library by repository.getLibrary("All").collectAsState(initial = emptyList())
+        val isInLibrary = library.any { it.url == mangaUrl }
 
         TitleDetailsScreenContent(
             manga = manga,
             chapters = chapters,
+            isInLibrary = isInLibrary,
+            onToggleLibrary = {
+                val currentManga = manga ?: SourceManga(url = mangaUrl, title = "Unknown")
+                scope.launch {
+                    repository.toggleFavorite(currentManga, !isInLibrary)
+                }
+            },
             onBack = { navigator.pop() },
             onReadChapter = { chapter ->
                 navigator.push(WebtoonReaderScreen(mangaUrl, chapter.url))
@@ -99,13 +113,14 @@ data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") :
 fun TitleDetailsScreenContent(
     manga: SourceManga?,
     chapters: List<SourceChapter>,
+    isInLibrary: Boolean = false,
+    onToggleLibrary: () -> Unit = {},
     onBack: () -> Unit,
     onReadChapter: (SourceChapter) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val glassState = rememberPanelGlassState()
     var isBookmarked by remember { mutableStateOf(false) }
-    var isInLibrary by remember { mutableStateOf(false) }
     var isDescriptionExpanded by remember { mutableStateOf(false) }
 
     val displayManga = manga ?: SourceManga(
@@ -136,6 +151,7 @@ fun TitleDetailsScreenContent(
                         .height(340.dp)
                 ) {
                     TitleHeroArtwork(
+                        thumbnailUrl = displayManga.thumbnailUrl,
                         modifier = Modifier.fillMaxSize()
                     )
 
@@ -215,7 +231,7 @@ fun TitleDetailsScreenContent(
                         ActionGlassButton(
                             icon = if (isInLibrary) Icons.Default.Check else Icons.Default.Add,
                             text = if (isInLibrary) "In Library" else "Add to Library",
-                            onClick = { isInLibrary = !isInLibrary },
+                            onClick = onToggleLibrary,
                             modifier = Modifier.weight(1f)
                         )
                         ActionGlassButton(
@@ -396,8 +412,24 @@ fun ActionGlassButton(
  * with dark hair, glowing cyan aura, and crimson cape.
  */
 @Composable
-fun TitleHeroArtwork(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
+fun TitleHeroArtwork(
+    thumbnailUrl: String? = null,
+    modifier: Modifier = Modifier
+) {
+    val isRemote = !thumbnailUrl.isNullOrBlank() &&
+        (thumbnailUrl.startsWith("http://", ignoreCase = true) || thumbnailUrl.startsWith("https://", ignoreCase = true))
+
+    if (isRemote) {
+        Box(modifier = modifier) {
+            AsyncImage(
+                model = thumbnailUrl,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    } else {
+        Canvas(modifier = modifier) {
         val width = size.width
         val height = size.height
 
@@ -533,6 +565,7 @@ fun TitleHeroArtwork(modifier: Modifier = Modifier) {
             radius = 9.dp.toPx(),
             center = Offset(width * 0.53f, height * 0.285f)
         )
+    }
     }
 }
 
