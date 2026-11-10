@@ -65,6 +65,7 @@ import ui.screens.browse.BrowseScreen
 import ui.screens.details.TitleDetailsScreen
 import ui.screens.more.MoreScreen
 import ui.screens.updates.UpdatesScreen
+import ui.screens.novelreader.NovelReaderScreen
 import ui.screens.webtoonreader.WebtoonReaderScreen
 import ui.theme.CapsuleShape
 import ui.theme.CoverGradients
@@ -91,7 +92,11 @@ class LibraryScreen : Screen {
                 navigator.push(TitleDetailsScreen(manga.url))
             },
             onResumeChapter = { manga, chapter ->
-                navigator.push(WebtoonReaderScreen(manga.url, chapter.url))
+                if (manga.isNovel) {
+                    navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name))
+                } else {
+                    navigator.push(WebtoonReaderScreen(manga.url, chapter.url))
+                }
             },
             onTabSelected = { tab ->
                 when (tab) {
