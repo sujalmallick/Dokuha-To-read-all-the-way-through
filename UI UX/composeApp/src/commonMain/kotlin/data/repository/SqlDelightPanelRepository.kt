@@ -324,13 +324,15 @@ class SqlDelightPanelRepository(
         val dynamicList = dynamicSources.values.map { src ->
             val type = if (src is NovelSource && src !is ComicSource) "Novel" else "Manga"
             MockSourceInfo(
-                id = src.id.toString(),
+                id = (src as? core.extensions.js.JsExtensionSource)?.manifest?.id ?: src.id.toString(),
                 name = src.name,
                 type = type,
-                languages = listOf(src.lang.uppercase())
+                languages = listOf(src.lang.uppercase()),
+                iconUrl = (src as? core.extensions.js.JsExtensionSource)?.manifest?.iconUrl
             )
         }
-        return flowOf(baseSources + dynamicList)
+        val allSources = (dynamicList + baseSources).distinctBy { it.name.lowercase() }
+        return flowOf(allSources)
     }
 
     override fun getExtensions(): Flow<List<MockExtension>> {
@@ -360,7 +362,11 @@ class SqlDelightPanelRepository(
         sourceId: String?,
         filters: BrowseFilters
     ): Flow<List<SourceManga>> {
-        val matchingDynamic = dynamicSources.values.firstOrNull { it.id.toString() == sourceId }
+        val matchingDynamic = dynamicSources.values.firstOrNull {
+            it.id.toString() == sourceId ||
+            it.name.equals(sourceId, ignoreCase = true) ||
+            (it as? core.extensions.js.JsExtensionSource)?.manifest?.id.equals(sourceId, ignoreCase = true)
+        }
         if (matchingDynamic != null) {
             return flow {
                 val results = try {
@@ -387,7 +393,11 @@ class SqlDelightPanelRepository(
         query: String,
         filters: BrowseFilters
     ): Flow<List<SourceManga>> {
-        val matchingDynamic = dynamicSources.values.firstOrNull { it.id.toString() == sourceId }
+        val matchingDynamic = dynamicSources.values.firstOrNull {
+            it.id.toString() == sourceId ||
+            it.name.equals(sourceId, ignoreCase = true) ||
+            (it as? core.extensions.js.JsExtensionSource)?.manifest?.id.equals(sourceId, ignoreCase = true)
+        }
         if (matchingDynamic != null) {
             return flow {
                 val results = try {
