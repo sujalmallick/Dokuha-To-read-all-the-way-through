@@ -19,15 +19,6 @@
   Built with Kotlin Multiplatform (KMP) and Compose Multiplatform (CMP) for buttery 60+ FPS performance on Android & iOS.
 </p>
 
----
-
-<p align="center">
-  <img src="UI UX/design/option_2.png" alt="Panel Master Design Concept" width="100%">
-</p>
-
-</div>
-
----
 
 ## ✨ Features & Architecture Highlights
 
