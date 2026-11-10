@@ -53,22 +53,27 @@ internal class LiquidNode(
   override fun createRenderEffect(): RenderEffect? = with(reusableScope) {
     if (size.isUnspecified) return null
 
-    liquidShader.updateLiquidUniforms()
-    val liquidEffect = createRuntimeShaderEffect(liquidShader, "content")
+    try {
+      liquidShader.updateLiquidUniforms()
+      val liquidEffect = createRuntimeShaderEffect(liquidShader, "content")
 
-    if (frostRadius < 1f) {
-      return liquidEffect.asComposeRenderEffect()
+      if (frostRadius < 1f) {
+        return liquidEffect.asComposeRenderEffect()
+      }
+
+      val blurEffect = cachedBlurEffect
+        ?.takeUnless { mutatedFields has Fields.Frost }
+        ?: createBlurEffect(
+          frostRadius,
+          frostRadius,
+          Shader.TileMode.CLAMP,
+        ).also { cachedBlurEffect = it }
+
+      return createChainEffect(liquidEffect, blurEffect).asComposeRenderEffect()
+    } catch (_: Throwable) {
+      // Graceful fallback to basic blur or null on unsupported/failing GPU drivers
+      return cachedBlurEffect?.asComposeRenderEffect()
     }
-
-    val blurEffect = cachedBlurEffect
-      ?.takeUnless { mutatedFields has Fields.Frost }
-      ?: createBlurEffect(
-        frostRadius,
-        frostRadius,
-        Shader.TileMode.CLAMP,
-      ).also { cachedBlurEffect = it }
-
-    return createChainEffect(liquidEffect, blurEffect).asComposeRenderEffect()
   }
 
   private fun RuntimeShader.updateLiquidUniforms() = with(reusableScope) {
@@ -77,7 +82,7 @@ internal class LiquidNode(
     setFloatUniform("refraction", refraction)
     setFloatUniform("curve", curve)
     setFloatUniform("edge", edge)
-    setColorUniform("tint", argbColor)
+    setFloatUniform("tint", colorComponents)
     setFloatUniform("saturation", saturation)
     setFloatUniform("dispersion", dispersion)
     setFloatUniform("contrast", contrast)

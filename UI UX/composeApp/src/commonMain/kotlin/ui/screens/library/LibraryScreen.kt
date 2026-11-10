@@ -218,6 +218,7 @@ fun LibraryScreenContent(
                     title = manga.title,
                     subtitle = chapterSubtitle,
                     gradientIndex = index,
+                    thumbnailUrl = manga.thumbnailUrl,
                     onClick = { onOpenManga(manga) }
                 )
             }

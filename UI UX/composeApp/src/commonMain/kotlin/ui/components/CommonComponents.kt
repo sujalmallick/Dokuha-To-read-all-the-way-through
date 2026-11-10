@@ -44,6 +44,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -260,7 +262,8 @@ fun MangaCoverCard(
     subtitle: String,
     gradientIndex: Int,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    thumbnailUrl: String? = null
 ) {
     Column(
         modifier = modifier
@@ -283,25 +286,37 @@ fun MangaCoverCard(
                 )
                 .border(1.dp, GlassBorderStrong, CoverImageShape)
         ) {
-            // Subtle atmosphere
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.radialGradient(
-                            colors = listOf(Color.White.copy(alpha = 0.08f), Color.Transparent),
-                            radius = 250f
+            val isRemoteImage = !thumbnailUrl.isNullOrBlank() &&
+                (thumbnailUrl.startsWith("http://", ignoreCase = true) || thumbnailUrl.startsWith("https://", ignoreCase = true))
+
+            if (isRemoteImage) {
+                AsyncImage(
+                    model = thumbnailUrl,
+                    contentDescription = title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                // Subtle atmosphere
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(Color.White.copy(alpha = 0.08f), Color.Transparent),
+                                radius = 250f
+                            )
                         )
-                    )
-            )
-            // Title initial watermark in center
-            Text(
-                text = title.take(1),
-                color = Color.White.copy(alpha = 0.14f),
-                fontSize = 40.sp,
-                fontWeight = FontWeight.Black,
-                modifier = Modifier.align(Alignment.Center)
-            )
+                )
+                // Title initial watermark in center
+                Text(
+                    text = title.take(1),
+                    color = Color.White.copy(alpha = 0.14f),
+                    fontSize = 40.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
         }
         Spacer(modifier = Modifier.height(6.dp))
         Text(

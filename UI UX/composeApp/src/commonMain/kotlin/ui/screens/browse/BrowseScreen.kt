@@ -349,6 +349,7 @@ fun BrowseScreenContent(
                                     title = manga.title,
                                     subtitle = manga.genres.firstOrNull() ?: (if (manga.isNovel) "Novel" else "Manga"),
                                     gradientIndex = index + 1,
+                                    thumbnailUrl = manga.thumbnailUrl,
                                     onClick = { onOpenManga(manga) },
                                     modifier = Modifier.weight(1f)
                                 )
@@ -435,6 +436,7 @@ fun BrowseScreenContent(
                                 title = manga.title,
                                 subtitle = chapterSubtitle,
                                 gradientIndex = index + 3,
+                                thumbnailUrl = manga.thumbnailUrl,
                                 onClick = { onOpenManga(manga) },
                                 modifier = Modifier.weight(1f)
                             )

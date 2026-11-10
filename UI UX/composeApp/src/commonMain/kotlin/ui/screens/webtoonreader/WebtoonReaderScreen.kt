@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -43,6 +44,12 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
+import coil3.request.ImageRequest
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -288,14 +295,21 @@ fun WebtoonReaderScreenContent(
                                 onNext = handleNext
                             )
                     ) {
-                        itemsIndexed(displayPages) { index, _ ->
+                        itemsIndexed(displayPages) { index, page ->
+                            val imageUrl = page.imageUrl ?: page.url
+                            val isRemote = !imageUrl.isBlank() &&
+                                (imageUrl.startsWith("http://", ignoreCase = true) || imageUrl.startsWith("https://", ignoreCase = true))
                             WebtoonPanelSlice(
                                 sliceIndex = index,
                                 totalSlices = displayPages.size,
                                 cropBorders = cropBorders,
+                                page = page,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(if (cropBorders) 540.dp else 520.dp)
+                                    .then(
+                                        if (isRemote) Modifier.wrapContentHeight()
+                                        else Modifier.height(if (cropBorders) 540.dp else 520.dp)
+                                    )
                             )
                         }
                         item {
@@ -329,6 +343,7 @@ fun WebtoonReaderScreenContent(
                                 chapterTitle = chapterTitle,
                                 isRtl = true,
                                 cropBorders = cropBorders,
+                                page = displayPages.getOrNull(pageIndex),
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
@@ -363,6 +378,7 @@ fun WebtoonReaderScreenContent(
                                 chapterTitle = chapterTitle,
                                 isRtl = false,
                                 cropBorders = cropBorders,
+                                page = displayPages.getOrNull(pageIndex),
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
@@ -394,6 +410,7 @@ fun WebtoonReaderScreenContent(
                                 sliceIndex = pageIndex,
                                 totalSlices = displayPages.size,
                                 cropBorders = cropBorders,
+                                page = displayPages.getOrNull(pageIndex),
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
@@ -906,9 +923,37 @@ fun WebtoonPanelSlice(
     sliceIndex: Int,
     totalSlices: Int,
     cropBorders: Boolean = false,
+    page: SourcePage? = null,
     modifier: Modifier = Modifier
 ) {
-    Canvas(modifier = modifier) {
+    val imageUrl = page?.imageUrl ?: page?.url
+    val isRemoteImage = !imageUrl.isNullOrBlank() &&
+        (imageUrl.startsWith("http://", ignoreCase = true) || imageUrl.startsWith("https://", ignoreCase = true))
+
+    if (isRemoteImage) {
+        val platformContext = LocalPlatformContext.current
+        val imageRequest = remember(imageUrl, page?.headers) {
+            ImageRequest.Builder(platformContext)
+                .data(imageUrl)
+                .apply {
+                    val headers = page?.headers
+                    if (!headers.isNullOrEmpty()) {
+                        val networkHeaders = NetworkHeaders.Builder().apply {
+                            headers.forEach { (k, v) -> add(k, v) }
+                        }.build()
+                        httpHeaders(networkHeaders)
+                    }
+                }
+                .build()
+        }
+        AsyncImage(
+            model = imageRequest,
+            contentDescription = "Slice ${sliceIndex + 1}",
+            contentScale = ContentScale.FillWidth,
+            modifier = modifier.fillMaxWidth()
+        )
+    } else {
+        Canvas(modifier = modifier) {
         val width = size.width
         val height = size.height
 
@@ -1002,6 +1047,7 @@ fun WebtoonPanelSlice(
             center = Offset(width - 32f, height - 32f)
         )
     }
+}
 }
 
 @Preview

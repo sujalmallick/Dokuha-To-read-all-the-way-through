@@ -47,6 +47,7 @@ kotlin {
             
             // Image Loading
             implementation(libs.coil.compose)
+            implementation(libs.coil.network.ktor3)
             
             // Voyager Navigation
             implementation(libs.voyager.navigator)
