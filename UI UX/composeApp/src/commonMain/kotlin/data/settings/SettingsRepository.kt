@@ -65,12 +65,16 @@ interface SettingsRepository {
     val brightness: StateFlow<Float>
     val cropBorders: StateFlow<Boolean>
     val keepScreenOn: StateFlow<Boolean>
+    val splitDoubleSpread: StateFlow<Boolean>
+    val dualPageOffset: StateFlow<Boolean>
 
     fun setDefaultReadingMode(mode: DefaultReadingMode)
     fun setSidePadding(padding: Float)
     fun setBrightness(brightness: Float)
     fun setCropBorders(enabled: Boolean)
     fun setKeepScreenOn(enabled: Boolean)
+    fun setSplitDoubleSpread(enabled: Boolean)
+    fun setDualPageOffset(enabled: Boolean)
 
     // Novel Reader
     val novelFont: StateFlow<NovelFont>
@@ -174,6 +178,12 @@ class FakeSettingsRepository : SettingsRepository {
     private val _keepScreenOn = MutableStateFlow(true)
     override val keepScreenOn: StateFlow<Boolean> = _keepScreenOn.asStateFlow()
 
+    private val _splitDoubleSpread = MutableStateFlow(true)
+    override val splitDoubleSpread: StateFlow<Boolean> = _splitDoubleSpread.asStateFlow()
+
+    private val _dualPageOffset = MutableStateFlow(false)
+    override val dualPageOffset: StateFlow<Boolean> = _dualPageOffset.asStateFlow()
+
     override fun setDefaultReadingMode(mode: DefaultReadingMode) {
         _defaultReadingMode.value = mode
     }
@@ -192,6 +202,14 @@ class FakeSettingsRepository : SettingsRepository {
 
     override fun setKeepScreenOn(enabled: Boolean) {
         _keepScreenOn.value = enabled
+    }
+
+    override fun setSplitDoubleSpread(enabled: Boolean) {
+        _splitDoubleSpread.value = enabled
+    }
+
+    override fun setDualPageOffset(enabled: Boolean) {
+        _dualPageOffset.value = enabled
     }
 
     // Novel Reader

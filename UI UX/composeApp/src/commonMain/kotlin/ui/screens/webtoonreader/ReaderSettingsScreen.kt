@@ -85,6 +85,8 @@ fun ReaderSettingsScreenContent(
     val brightness by repo.brightness.collectAsState()
     val sidePadding by repo.sidePadding.collectAsState()
     val cropBorders by repo.cropBorders.collectAsState()
+    val splitDoubleSpread by repo.splitDoubleSpread.collectAsState()
+    val dualPageOffset by repo.dualPageOffset.collectAsState()
 
     val sheetShape = RoundedCornerShape(28.dp)
     val readingModes = listOf(
@@ -282,6 +284,62 @@ fun ReaderSettingsScreenContent(
                             checked = cropBorders,
                             onCheckedChange = { repo.setCropBorders(it) }
                         )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Dual-Page Spread Toggle Switch (Tablets & Foldables)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Dual-page spread",
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "Facing pages on tablets & landscape",
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                        PanelSwitch(
+                            checked = splitDoubleSpread,
+                            onCheckedChange = { repo.setSplitDoubleSpread(it) }
+                        )
+                    }
+
+                    if (splitDoubleSpread) {
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Offset Cover Page Toggle Switch
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Offset cover page",
+                                    color = TextPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = "First page as standalone cover",
+                                    color = TextSecondary,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            PanelSwitch(
+                                checked = dualPageOffset,
+                                onCheckedChange = { repo.setDualPageOffset(it) }
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))

@@ -32,6 +32,8 @@ class PersistentSettingsRepository(
         private const val KEY_BRIGHTNESS = "setting_brightness"
         private const val KEY_CROP_BORDERS = "setting_crop_borders"
         private const val KEY_KEEP_SCREEN_ON = "setting_keep_screen_on"
+        private const val KEY_SPLIT_DOUBLE_SPREAD = "setting_split_double_spread"
+        private const val KEY_DUAL_PAGE_OFFSET = "setting_dual_page_offset"
 
         private const val KEY_NOVEL_FONT = "setting_novel_font"
         private const val KEY_NOVEL_FONT_SIZE = "setting_novel_font_size"
@@ -138,6 +140,16 @@ class PersistentSettingsRepository(
     )
     override val keepScreenOn: StateFlow<Boolean> = _keepScreenOn.asStateFlow()
 
+    private val _splitDoubleSpread = MutableStateFlow(
+        storage.getBoolean(KEY_SPLIT_DOUBLE_SPREAD, true)
+    )
+    override val splitDoubleSpread: StateFlow<Boolean> = _splitDoubleSpread.asStateFlow()
+
+    private val _dualPageOffset = MutableStateFlow(
+        storage.getBoolean(KEY_DUAL_PAGE_OFFSET, false)
+    )
+    override val dualPageOffset: StateFlow<Boolean> = _dualPageOffset.asStateFlow()
+
     override fun setDefaultReadingMode(mode: DefaultReadingMode) {
         _defaultReadingMode.value = mode
         storage.putString(KEY_DEFAULT_READING_MODE, mode.name)
@@ -163,6 +175,16 @@ class PersistentSettingsRepository(
     override fun setKeepScreenOn(enabled: Boolean) {
         _keepScreenOn.value = enabled
         storage.putBoolean(KEY_KEEP_SCREEN_ON, enabled)
+    }
+
+    override fun setSplitDoubleSpread(enabled: Boolean) {
+        _splitDoubleSpread.value = enabled
+        storage.putBoolean(KEY_SPLIT_DOUBLE_SPREAD, enabled)
+    }
+
+    override fun setDualPageOffset(enabled: Boolean) {
+        _dualPageOffset.value = enabled
+        storage.putBoolean(KEY_DUAL_PAGE_OFFSET, enabled)
     }
 
     // Novel Reader

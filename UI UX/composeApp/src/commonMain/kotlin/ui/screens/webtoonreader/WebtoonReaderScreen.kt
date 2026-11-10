@@ -30,6 +30,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -64,7 +65,10 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import core.source.SourcePage
+import data.download.DownloadManager
 import data.mock.PanelRepository
+import data.reader.DualPageEngine
+import data.reader.DualPageSpread
 import data.settings.DefaultReadingMode
 import data.settings.FakeSettingsRepository
 import data.settings.SettingsRepository
@@ -101,12 +105,16 @@ data class WebtoonReaderScreen(
         val navigator = LocalNavigator.currentOrThrow
         val repository: PanelRepository = koinInject()
         val settingsRepository: SettingsRepository = koinInject()
+        val downloadManager: DownloadManager = koinInject()
 
         var currentChapterUrl by remember(chapterUrl) { mutableStateOf(chapterUrl) }
         var currentChapterTitle by remember(chapterTitle) { mutableStateOf(chapterTitle) }
 
         val chapters by repository.getChapters(mangaUrl).collectAsState(initial = emptyList())
         val pages by repository.getPages(currentChapterUrl).collectAsState(initial = emptyList())
+        val isDownloaded = remember(currentChapterUrl) {
+            downloadManager.isChapterDownloaded(mangaUrl, currentChapterUrl)
+        }
 
         val currentChapterIndex = chapters.indexOfFirst { it.url == currentChapterUrl || it.name == currentChapterTitle }
         val hasPrevious = if (chapters.isNotEmpty() && currentChapterIndex >= 0) {
@@ -126,6 +134,7 @@ data class WebtoonReaderScreen(
             onBack = { navigator.pop() },
             settingsRepository = settingsRepository,
             onOpenSettings = { navigator.push(ReaderSettingsScreen()) },
+            isOfflineCached = isDownloaded,
             onPreviousChapter = {
                 if (chapters.isNotEmpty() && currentChapterIndex in 0 until chapters.lastIndex) {
                     val prevChapter = chapters[currentChapterIndex + 1]
@@ -160,6 +169,7 @@ fun WebtoonReaderScreenContent(
     onBack: () -> Unit,
     settingsRepository: SettingsRepository? = null,
     onOpenSettings: () -> Unit = {},
+    isOfflineCached: Boolean = false,
     onPreviousChapter: () -> Unit = {},
     onNextChapter: () -> Unit = {},
     hasPreviousChapter: Boolean = true,
@@ -176,6 +186,8 @@ fun WebtoonReaderScreenContent(
     val sidePadding by repo.sidePadding.collectAsState()
     val brightness by repo.brightness.collectAsState()
     val cropBorders by repo.cropBorders.collectAsState()
+    val splitDoubleSpread by repo.splitDoubleSpread.collectAsState()
+    val dualPageOffset by repo.dualPageOffset.collectAsState()
 
     var areControlsVisible by remember { mutableStateOf(true) }
     var isBookmarked by remember { mutableStateOf(false) }
@@ -184,59 +196,85 @@ fun WebtoonReaderScreenContent(
         SourcePage(index = it, url = "slice_$it")
     }
 
-    // In paginated modes, pageCount includes all pages plus 1 end-of-chapter transition card
-    val totalContentCount = displayPages.size + 1
-    val pagerState = rememberPagerState(pageCount = { totalContentCount })
-
     val isRtl = readingMode == DefaultReadingMode.RIGHT_TO_LEFT
-
-    // Derive scroll progression percentage 0f..1f
-    val currentProgress by remember(readingMode, displayPages.size) {
-        derivedStateOf {
-            if (readingMode == DefaultReadingMode.WEBTOON) {
-                val total = displayPages.size
-                if (total <= 1) 0f
-                else {
-                    val index = listState.firstVisibleItemIndex.toFloat()
-                    val offset = listState.firstVisibleItemScrollOffset.toFloat() / 1000f
-                    ((index + offset) / total.toFloat()).coerceIn(0f, 1f)
-                }
-            } else {
-                val total = displayPages.size
-                if (total <= 1) 0f
-                else {
-                    (pagerState.currentPage.toFloat() / (total - 1).coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
-                }
-            }
-        }
-    }
-
-    // Current page counter for indicator pill
-    val currentPageIndex by remember(readingMode, displayPages.size) {
-        derivedStateOf {
-            if (readingMode == DefaultReadingMode.WEBTOON) {
-                (listState.firstVisibleItemIndex + 1).coerceAtMost(displayPages.size)
-            } else {
-                (pagerState.currentPage + 1).coerceAtMost(displayPages.size)
-            }
-        }
-    }
-
-    val isAtEndOfChapter by remember(readingMode, displayPages.size) {
-        derivedStateOf {
-            if (readingMode == DefaultReadingMode.WEBTOON) {
-                listState.firstVisibleItemIndex >= displayPages.size
-            } else {
-                pagerState.currentPage >= displayPages.size
-            }
-        }
-    }
 
     BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(PanelBackground)
     ) {
+        val isLandscapeOrTablet = maxWidth >= 600.dp || (maxWidth > maxHeight && maxWidth >= 480.dp)
+        val isDualSpreadActive = isLandscapeOrTablet && splitDoubleSpread && (readingMode == DefaultReadingMode.RIGHT_TO_LEFT || readingMode == DefaultReadingMode.LEFT_TO_RIGHT)
+
+        val spreads = remember(displayPages.size, readingMode, dualPageOffset) {
+            DualPageEngine.calculateSpreads(
+                pageCount = displayPages.size,
+                isRtl = readingMode == DefaultReadingMode.RIGHT_TO_LEFT,
+                offsetCover = dualPageOffset
+            )
+        }
+
+        val totalContentCount = if (isDualSpreadActive) spreads.size + 1 else displayPages.size + 1
+        val pagerState = rememberPagerState(pageCount = { totalContentCount })
+
+        // Derive scroll progression percentage 0f..1f
+        val currentProgress by remember(readingMode, displayPages.size, isDualSpreadActive, spreads.size) {
+            derivedStateOf {
+                if (readingMode == DefaultReadingMode.WEBTOON) {
+                    val total = displayPages.size
+                    if (total <= 1) 0f
+                    else {
+                        val index = listState.firstVisibleItemIndex.toFloat()
+                        val offset = listState.firstVisibleItemScrollOffset.toFloat() / 1000f
+                        ((index + offset) / total.toFloat()).coerceIn(0f, 1f)
+                    }
+                } else if (isDualSpreadActive) {
+                    val total = spreads.size
+                    if (total <= 1) 0f
+                    else (pagerState.currentPage.toFloat() / (total - 1).coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+                } else {
+                    val total = displayPages.size
+                    if (total <= 1) 0f
+                    else {
+                        (pagerState.currentPage.toFloat() / (total - 1).coerceAtLeast(1).toFloat()).coerceIn(0f, 1f)
+                    }
+                }
+            }
+        }
+
+        // Current page counter for indicator pill
+        val currentPageIndex by remember(readingMode, displayPages.size) {
+            derivedStateOf {
+                if (readingMode == DefaultReadingMode.WEBTOON) {
+                    (listState.firstVisibleItemIndex + 1).coerceAtMost(displayPages.size)
+                } else {
+                    (pagerState.currentPage + 1).coerceAtMost(displayPages.size)
+                }
+            }
+        }
+
+        val currentDisplayPageLabel by remember(isDualSpreadActive, pagerState.currentPage, spreads, displayPages.size, currentPageIndex) {
+            derivedStateOf {
+                if (isDualSpreadActive && pagerState.currentPage < spreads.size) {
+                    DualPageEngine.getSpreadPageRangeLabel(spreads[pagerState.currentPage], displayPages.size)
+                } else {
+                    "$currentPageIndex / ${displayPages.size}"
+                }
+            }
+        }
+
+        val isAtEndOfChapter by remember(readingMode, displayPages.size, isDualSpreadActive, spreads.size) {
+            derivedStateOf {
+                if (readingMode == DefaultReadingMode.WEBTOON) {
+                    listState.firstVisibleItemIndex >= displayPages.size
+                } else if (isDualSpreadActive) {
+                    pagerState.currentPage >= spreads.size
+                } else {
+                    pagerState.currentPage >= displayPages.size
+                }
+            }
+        }
+
         val horizontalPadding = maxWidth * sidePadding.coerceIn(0f, 0.4f)
 
         val handlePrevious: () -> Unit = {
@@ -257,7 +295,8 @@ fun WebtoonReaderScreenContent(
                     val target = (listState.firstVisibleItemIndex + 1).coerceAtMost(displayPages.size)
                     listState.animateScrollToItem(target)
                 } else {
-                    val nextPage = (pagerState.currentPage + 1).coerceAtMost(totalContentCount - 1)
+                    val maxLimit = if (isDualSpreadActive) spreads.size else displayPages.size
+                    val nextPage = (pagerState.currentPage + 1).coerceAtMost(maxLimit)
                     pagerState.animateScrollToPage(nextPage)
                 }
             }
@@ -322,24 +361,46 @@ fun WebtoonReaderScreenContent(
                                 onNext = handleNext
                             )
                     ) { pageIndex ->
-                        if (pageIndex < displayPages.size) {
-                            MangaPageCanvas(
-                                pageIndex = pageIndex,
-                                totalPages = displayPages.size,
-                                chapterTitle = chapterTitle,
-                                isRtl = true,
-                                cropBorders = cropBorders,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                        if (isDualSpreadActive) {
+                            if (pageIndex < spreads.size) {
+                                DualPageSpreadCanvas(
+                                    spread = spreads[pageIndex],
+                                    totalPages = displayPages.size,
+                                    chapterTitle = chapterTitle,
+                                    isRtl = true,
+                                    cropBorders = cropBorders,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                WebtoonEndOfChapterCard(
+                                    chapterTitle = chapterTitle,
+                                    nextChapterTitle = nextChapterTitle,
+                                    hasNextChapter = hasNextChapter,
+                                    onNextChapter = onNextChapter,
+                                    glassState = glassState,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                         } else {
-                            WebtoonEndOfChapterCard(
-                                chapterTitle = chapterTitle,
-                                nextChapterTitle = nextChapterTitle,
-                                hasNextChapter = hasNextChapter,
-                                onNextChapter = onNextChapter,
-                                glassState = glassState,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                            if (pageIndex < displayPages.size) {
+                                MangaPageCanvas(
+                                    pageIndex = pageIndex,
+                                    totalPages = displayPages.size,
+                                    chapterTitle = chapterTitle,
+                                    isRtl = true,
+                                    cropBorders = cropBorders,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                WebtoonEndOfChapterCard(
+                                    chapterTitle = chapterTitle,
+                                    nextChapterTitle = nextChapterTitle,
+                                    hasNextChapter = hasNextChapter,
+                                    onNextChapter = onNextChapter,
+                                    glassState = glassState,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                         }
                     }
                 }
@@ -356,24 +417,46 @@ fun WebtoonReaderScreenContent(
                                 onNext = handleNext
                             )
                     ) { pageIndex ->
-                        if (pageIndex < displayPages.size) {
-                            MangaPageCanvas(
-                                pageIndex = pageIndex,
-                                totalPages = displayPages.size,
-                                chapterTitle = chapterTitle,
-                                isRtl = false,
-                                cropBorders = cropBorders,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                        if (isDualSpreadActive) {
+                            if (pageIndex < spreads.size) {
+                                DualPageSpreadCanvas(
+                                    spread = spreads[pageIndex],
+                                    totalPages = displayPages.size,
+                                    chapterTitle = chapterTitle,
+                                    isRtl = false,
+                                    cropBorders = cropBorders,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                WebtoonEndOfChapterCard(
+                                    chapterTitle = chapterTitle,
+                                    nextChapterTitle = nextChapterTitle,
+                                    hasNextChapter = hasNextChapter,
+                                    onNextChapter = onNextChapter,
+                                    glassState = glassState,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                         } else {
-                            WebtoonEndOfChapterCard(
-                                chapterTitle = chapterTitle,
-                                nextChapterTitle = nextChapterTitle,
-                                hasNextChapter = hasNextChapter,
-                                onNextChapter = onNextChapter,
-                                glassState = glassState,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                            if (pageIndex < displayPages.size) {
+                                MangaPageCanvas(
+                                    pageIndex = pageIndex,
+                                    totalPages = displayPages.size,
+                                    chapterTitle = chapterTitle,
+                                    isRtl = false,
+                                    cropBorders = cropBorders,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                WebtoonEndOfChapterCard(
+                                    chapterTitle = chapterTitle,
+                                    nextChapterTitle = nextChapterTitle,
+                                    hasNextChapter = hasNextChapter,
+                                    onNextChapter = onNextChapter,
+                                    glassState = glassState,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
                         }
                     }
                 }
@@ -436,7 +519,7 @@ fun WebtoonReaderScreenContent(
                     .padding(horizontal = 14.dp, vertical = 6.dp)
             ) {
                 Text(
-                    text = "$currentPageIndex / ${displayPages.size}",
+                    text = currentDisplayPageLabel,
                     color = TextPrimary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Medium
@@ -530,6 +613,7 @@ fun WebtoonReaderScreenContent(
                 // In-Reader Liquid Glass Mode Switcher [ RTL Manga | LTR Comic | Webtoon ]
                 ReaderModeSwitcher(
                     currentMode = readingMode,
+                    isDualSpread = isDualSpreadActive,
                     onSelectMode = { newMode ->
                         repo.setDefaultReadingMode(newMode)
                     },
@@ -658,6 +742,8 @@ fun WebtoonReaderScreenContent(
                         ) {
                             val pageText = if (readingMode == DefaultReadingMode.WEBTOON) {
                                 "${(currentProgress * 100).toInt()}% • Continuous"
+                            } else if (isDualSpreadActive) {
+                                "$currentDisplayPageLabel • Dual Spread"
                             } else {
                                 val curPage = (pagerState.currentPage + 1).coerceAtMost(displayPages.size)
                                 "Page $curPage / ${displayPages.size} • ${if (isRtl) "RTL Manga" else "LTR Comic"}"
@@ -755,11 +841,20 @@ private fun ReaderModeSwitcher(
     currentMode: DefaultReadingMode,
     onSelectMode: (DefaultReadingMode) -> Unit,
     glassState: PanelGlassState,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isDualSpread: Boolean = false
 ) {
     val modes = listOf(
-        Triple(DefaultReadingMode.RIGHT_TO_LEFT, "◂ RTL Manga", "Japanese Right-to-Left paging"),
-        Triple(DefaultReadingMode.LEFT_TO_RIGHT, "LTR Comic ▸", "Western Left-to-Right paging"),
+        Triple(
+            DefaultReadingMode.RIGHT_TO_LEFT,
+            if (isDualSpread) "◂ RTL (Dual)" else "◂ RTL Manga",
+            "Japanese Right-to-Left paging"
+        ),
+        Triple(
+            DefaultReadingMode.LEFT_TO_RIGHT,
+            if (isDualSpread) "LTR (Dual) ▸" else "LTR Comic ▸",
+            "Western Left-to-Right paging"
+        ),
         Triple(DefaultReadingMode.WEBTOON, "▾ Webtoon", "Continuous vertical infinite scroll")
     )
 
