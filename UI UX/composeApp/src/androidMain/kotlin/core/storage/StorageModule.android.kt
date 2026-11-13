@@ -1,5 +1,7 @@
 package core.storage
 
+import core.download.AndroidDownloadStorage
+import core.download.DownloadStorage
 import data.db.DatabaseDriverFactory
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.Module
@@ -9,4 +11,5 @@ actual val platformStorageModule: Module = module {
     single { DatabaseDriverFactory(androidContext()) }
     single<KeyValueStorage> { AndroidKeyValueStorage(androidContext()) }
     single<SecureStorage> { AndroidSecureStorage(androidContext()) }
+    single<DownloadStorage> { AndroidDownloadStorage(androidContext()) }
 }

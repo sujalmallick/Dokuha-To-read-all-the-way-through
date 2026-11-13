@@ -80,6 +80,8 @@ class DownloadsScreen : Screen {
             storageInfo = storageInfo,
             initialDownloads = initialDownloads,
             onOpenManga = { manga -> navigator.push(TitleDetailsScreen(manga.url)) },
+            onPauseToggle = { chapterUrl -> repository.toggleDownloadPause(chapterUrl) },
+            onCancelDownload = { chapterUrl -> repository.cancelDownload(chapterUrl) },
             onTabSelected = { tab ->
                 when (tab) {
                     PanelTab.LIBRARY -> navigator.push(LibraryScreen())
@@ -97,6 +99,8 @@ fun DownloadsScreenContent(
     storageInfo: MockStorageInfo,
     initialDownloads: List<MockDownloadItem>,
     onOpenManga: (SourceManga) -> Unit,
+    onPauseToggle: (String) -> Unit = {},
+    onCancelDownload: (String) -> Unit = {},
     onTabSelected: (PanelTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -104,10 +108,7 @@ fun DownloadsScreenContent(
 
     val downloadItems = remember(initialDownloads) {
         mutableStateListOf<MockDownloadItem>().apply {
-            addAll(
-                if (initialDownloads.isNotEmpty()) initialDownloads
-                else FakePanelRepository().getDownloads().let { emptyList() }
-            )
+            addAll(initialDownloads)
         }
     }
 
@@ -187,7 +188,7 @@ fun DownloadsScreenContent(
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
-            // "Downloading (3)" Section Header
+            // "Downloading (X)" Section Header
             item {
                 Text(
                     text = "Downloading (${downloadItems.size})",
@@ -198,26 +199,55 @@ fun DownloadsScreenContent(
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Download Queue Items (Liquid Glass cards)
-            itemsIndexed(downloadItems) { index, item ->
-                val downloadedMb = item.downloadedBytes / (1024 * 1024)
-                val totalMb = item.totalBytes / (1024 * 1024)
+            if (downloadItems.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 40.dp, bottom = 40.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "No active downloads",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Queued downloads and offline chapters will appear here.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                }
+            } else {
+                // Download Queue Items (Liquid Glass cards)
+                itemsIndexed(downloadItems) { index, item ->
+                    val downloadedMb = item.downloadedBytes / (1024 * 1024)
+                    val totalMb = item.totalBytes / (1024 * 1024)
 
-                DownloadQueueCard(
-                    title = item.manga.title,
-                    chapter = item.chapter.name,
-                    progress = item.progress,
-                    downloadedMb = downloadedMb,
-                    totalMb = totalMb,
-                    etaMinutes = item.etaMinutes,
-                    isPaused = item.isPaused,
-                    gradientIndex = index,
-                    onPauseToggle = {
-                        downloadItems[index] = item.copy(isPaused = !item.isPaused)
-                    },
-                    onClick = { onOpenManga(item.manga) }
-                )
-                Spacer(modifier = Modifier.height(10.dp))
+                    DownloadQueueCard(
+                        title = item.manga.title,
+                        chapter = item.chapter.name,
+                        progress = item.progress,
+                        downloadedMb = downloadedMb,
+                        totalMb = totalMb,
+                        etaMinutes = item.etaMinutes,
+                        isPaused = item.isPaused,
+                        gradientIndex = index,
+                        onPauseToggle = {
+                            onPauseToggle(item.id)
+                            downloadItems[index] = item.copy(isPaused = !item.isPaused)
+                        },
+                        onClick = { onOpenManga(item.manga) }
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
             }
         }
 

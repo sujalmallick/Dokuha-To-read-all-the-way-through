@@ -122,6 +122,11 @@ interface PanelRepository {
     suspend fun toggleFavorite(manga: SourceManga, isFavorite: Boolean) {}
     suspend fun updateChapterProgress(chapterUrl: String, page: Int, isRead: Boolean) {}
     suspend fun recordHistory(chapterUrl: String) {}
+
+    fun enqueueDownload(manga: SourceManga, chapter: SourceChapter) {}
+    fun toggleDownloadPause(chapterUrl: String) {}
+    fun cancelDownload(chapterUrl: String) {}
+    fun isChapterDownloaded(chapterUrl: String): Boolean = false
 }
 
 data class MockSourceInfo(
