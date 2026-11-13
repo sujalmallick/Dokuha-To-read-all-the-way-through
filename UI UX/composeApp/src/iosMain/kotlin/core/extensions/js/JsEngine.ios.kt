@@ -5,6 +5,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -19,6 +22,7 @@ import platform.JavaScriptCore.JSValue
 
 actual class JsEngine actual constructor() {
     private var context: JSContext? = JSContext()
+    private val mutex = Mutex()
     private val syncFunctions = mutableMapOf<String, (List<Any?>) -> Any?>()
     private val asyncFunctions = mutableMapOf<String, suspend (List<Any?>) -> Any?>()
     private val coroutineScope = CoroutineScope(Dispatchers.Default)
@@ -45,10 +49,14 @@ actual class JsEngine actual constructor() {
                             val parsedArgs = deserializeArgs(argsJson)
                             val result = fn(parsedArgs)
                             val encoded = Json.encodeToString(result?.toString() ?: "null")
-                            context?.evaluateScript("__dokuha_resolve_async('$reqId', $encoded);")
+                            mutex.withLock {
+                                context?.evaluateScript("__dokuha_resolve_async('$reqId', $encoded);")
+                            }
                         } catch (e: Exception) {
                             val errEncoded = Json.encodeToString(e.message ?: "Error")
-                            context?.evaluateScript("__dokuha_reject_async('$reqId', $errEncoded);")
+                            mutex.withLock {
+                                context?.evaluateScript("__dokuha_reject_async('$reqId', $errEncoded);")
+                            }
                         }
                     }
                 }
@@ -81,12 +89,15 @@ actual class JsEngine actual constructor() {
 
     actual suspend fun evaluate(script: String): String {
         val ctx = context ?: error("JsEngine is closed")
-        val res = ctx.evaluateScript(script)
-        val ex = ctx.exception
-        if (ex != null) {
-            val msg = ex.toString()
-            ctx.exception = null
-            error("JavaScript error: $msg")
+        val res = mutex.withLock {
+            val evaluated = ctx.evaluateScript(script)
+            val ex = ctx.exception
+            if (ex != null) {
+                val msg = ex.toString()
+                ctx.exception = null
+                error("JavaScript error: $msg")
+            }
+            evaluated
         }
         if (res != null && res.hasProperty("then")) {
             val deferred = CompletableDeferred<String>()
@@ -106,55 +117,67 @@ actual class JsEngine actual constructor() {
         val ctx = context ?: error("JsEngine is closed")
         syncFunctions[name] = block
         val escapedName = name.replace("'", "\\'")
-        ctx.evaluateScript(
-            """
-            globalThis['$escapedName'] = function(...args) {
-                const serialized = JSON.stringify(args);
-                const res = __dokuha_native_dispatcher('$escapedName', serialized);
-                try {
-                    return JSON.parse(res);
-                } catch (_) {
-                    return res;
-                }
-            };
-            """.trimIndent()
-        )
+        runBlocking {
+            mutex.withLock {
+                ctx.evaluateScript(
+                    """
+                    globalThis['$escapedName'] = function(...args) {
+                        const serialized = JSON.stringify(args);
+                        const res = __dokuha_native_dispatcher('$escapedName', serialized);
+                        try {
+                            return JSON.parse(res);
+                        } catch (_) {
+                            return res;
+                        }
+                    };
+                    """.trimIndent()
+                )
+            }
+        }
     }
 
     actual fun setGlobalAsyncFunction(name: String, block: suspend (List<Any?>) -> Any?) {
         val ctx = context ?: error("JsEngine is closed")
         asyncFunctions[name] = block
         val escapedName = name.replace("'", "\\'")
-        ctx.evaluateScript(
-            """
-            globalThis.__dokuha_pending = globalThis.__dokuha_pending || {};
-            globalThis.__dokuha_resolve_async = function(id, res) {
-                if (globalThis.__dokuha_pending[id]) {
-                    globalThis.__dokuha_pending[id].resolve(res);
-                    delete globalThis.__dokuha_pending[id];
-                }
-            };
-            globalThis.__dokuha_reject_async = function(id, err) {
-                if (globalThis.__dokuha_pending[id]) {
-                    globalThis.__dokuha_pending[id].reject(new Error(err));
-                    delete globalThis.__dokuha_pending[id];
-                }
-            };
-            globalThis['$escapedName'] = function(...args) {
-                return new Promise(function(resolve, reject) {
-                    const id = Math.random().toString(36).substring(2);
-                    globalThis.__dokuha_pending[id] = { resolve: resolve, reject: reject };
-                    __dokuha_native_async_dispatcher('$escapedName', id, JSON.stringify(args));
-                });
-            };
-            """.trimIndent()
-        )
+        runBlocking {
+            mutex.withLock {
+                ctx.evaluateScript(
+                    """
+                    globalThis.__dokuha_pending = globalThis.__dokuha_pending || {};
+                    globalThis.__dokuha_resolve_async = function(id, res) {
+                        if (globalThis.__dokuha_pending[id]) {
+                            globalThis.__dokuha_pending[id].resolve(res);
+                            delete globalThis.__dokuha_pending[id];
+                        }
+                    };
+                    globalThis.__dokuha_reject_async = function(id, err) {
+                        if (globalThis.__dokuha_pending[id]) {
+                            globalThis.__dokuha_pending[id].reject(new Error(err));
+                            delete globalThis.__dokuha_pending[id];
+                        }
+                    };
+                    globalThis['$escapedName'] = function(...args) {
+                        return new Promise(function(resolve, reject) {
+                            const id = Math.random().toString(36).substring(2);
+                            globalThis.__dokuha_pending[id] = { resolve: resolve, reject: reject };
+                            __dokuha_native_async_dispatcher('$escapedName', id, JSON.stringify(args));
+                        });
+                    };
+                    """.trimIndent()
+                )
+            }
+        }
     }
 
     actual fun setGlobalVariable(name: String, jsonValue: String) {
         val ctx = context ?: error("JsEngine is closed")
         val escapedName = name.replace("'", "\\'")
-        ctx.evaluateScript("globalThis['$escapedName'] = $jsonValue;")
+        runBlocking {
+            mutex.withLock {
+                ctx.evaluateScript("globalThis['$escapedName'] = $jsonValue;")
+            }
+        }
     }
 
     actual suspend fun callFunction(functionName: String, vararg args: Any?): String {
@@ -189,11 +212,14 @@ actual class JsEngine actual constructor() {
             })()
         """.trimIndent()
 
-        val promiseVal = ctx.evaluateScript(script)
-        if (ctx.exception != null) {
-            val err = ctx.exception.toString()
-            ctx.exception = null
-            error("JavaScript error: $err")
+        val promiseVal = mutex.withLock {
+            val evaluated = ctx.evaluateScript(script)
+            if (ctx.exception != null) {
+                val err = ctx.exception.toString()
+                ctx.exception = null
+                error("JavaScript error in $functionName: $err")
+            }
+            evaluated
         }
 
         if (promiseVal != null && promiseVal.hasProperty("then")) {
