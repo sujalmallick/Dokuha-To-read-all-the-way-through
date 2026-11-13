@@ -76,10 +76,11 @@ actual class JsEngine actual constructor() {
     private suspend fun runAsyncScript(qjs: QuickJs, script: String): String {
         lastEvalResult = null
         lastEvalError = null
+        val cleanScript = script.trim().trimEnd(';')
         val asyncRunner = """
             (async () => {
                 try {
-                    let res = await ($script);
+                    let res = await ($cleanScript);
                     const serialized = (typeof res === 'object' && res !== null) ? JSON.stringify(res) : (res === undefined ? 'undefined' : String(res));
                     await __dokuha_finish(true, serialized);
                 } catch (e) {
