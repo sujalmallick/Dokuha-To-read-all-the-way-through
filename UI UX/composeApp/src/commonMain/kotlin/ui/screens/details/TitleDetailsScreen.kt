@@ -29,7 +29,9 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -84,6 +86,7 @@ data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") :
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
+        val uriHandler = LocalUriHandler.current
         val repository: PanelRepository = koinInject()
         val scope = rememberCoroutineScope()
 
@@ -104,10 +107,22 @@ data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") :
             },
             onBack = { navigator.pop() },
             onReadChapter = { chapter ->
-                if (manga?.isNovel == true) {
+                if (chapter.url.startsWith("http://", ignoreCase = true) || chapter.url.startsWith("https://", ignoreCase = true)) {
+                    uriHandler.openUri(chapter.url)
+                } else if (manga?.isNovel == true) {
                     navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name))
                 } else {
-                    navigator.push(WebtoonReaderScreen(mangaUrl, chapter.url))
+                    navigator.push(WebtoonReaderScreen(mangaUrl, chapter.url, chapter.name))
+                }
+            },
+            onDownloadChapter = { chapter ->
+                val currentManga = manga ?: SourceManga(url = mangaUrl, title = "Unknown")
+                repository.enqueueDownload(currentManga, chapter)
+            },
+            onDownloadAll = {
+                val currentManga = manga ?: SourceManga(url = mangaUrl, title = "Unknown")
+                chapters.forEach { ch ->
+                    repository.enqueueDownload(currentManga, ch)
                 }
             }
         )
@@ -122,6 +137,8 @@ fun TitleDetailsScreenContent(
     onToggleLibrary: () -> Unit = {},
     onBack: () -> Unit,
     onReadChapter: (SourceChapter) -> Unit,
+    onDownloadChapter: (SourceChapter) -> Unit = {},
+    onDownloadAll: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val glassState = rememberPanelGlassState()
@@ -220,7 +237,8 @@ fun TitleDetailsScreenContent(
                         icon = Icons.Default.PlayArrow,
                         onClick = {
                             if (chapters.isNotEmpty()) {
-                                onReadChapter(chapters.first())
+                                val firstChapter = chapters.lastOrNull { !it.url.startsWith("http", ignoreCase = true) } ?: chapters.last()
+                                onReadChapter(firstChapter)
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -242,7 +260,7 @@ fun TitleDetailsScreenContent(
                         ActionGlassButton(
                             icon = Icons.Default.FileDownload,
                             text = "Download",
-                            onClick = { /* Download */ },
+                            onClick = onDownloadAll,
                             modifier = Modifier.weight(1f)
                         )
                         ActionGlassButton(
@@ -296,7 +314,7 @@ fun TitleDetailsScreenContent(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Chapters (${chapters.size.takeIf { it > 0 } ?: 210})",
+                            text = "Chapters (${chapters.size})",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
@@ -304,6 +322,32 @@ fun TitleDetailsScreenContent(
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
+                }
+            }
+
+            if (chapters.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 40.dp, horizontal = 20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = TextSecondary.copy(alpha = 0.5f),
+                                modifier = Modifier.size(36.dp)
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Text(
+                                text = "No chapters available for this title",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                    }
                 }
             }
 
@@ -323,7 +367,7 @@ fun TitleDetailsScreenContent(
                         date = dateStr,
                         isRead = chapter.name == "Ch. 208" || chapter.name == "Ch. 207",
                         onClick = { onReadChapter(chapter) },
-                        onDownloadClick = {},
+                        onDownloadClick = { onDownloadChapter(chapter) },
                         onOptionsClick = {}
                     )
                 }

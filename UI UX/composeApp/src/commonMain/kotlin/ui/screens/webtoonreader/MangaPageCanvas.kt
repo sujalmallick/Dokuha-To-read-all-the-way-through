@@ -102,12 +102,11 @@ fun MangaPageCanvas(
                 .data(imageUrl)
                 .apply {
                     val headers = page?.headers
-                    if (!headers.isNullOrEmpty()) {
-                        val networkHeaders = NetworkHeaders.Builder().apply {
-                            headers.forEach { (k, v) -> add(k, v) }
-                        }.build()
-                        httpHeaders(networkHeaders)
-                    }
+                    val networkHeaders = NetworkHeaders.Builder().apply {
+                        add("User-Agent", "Dokuha/1.0.0 (https://github.com/RitwikGupta-0501/dokuha)")
+                        headers?.forEach { (k, v) -> add(k, v) }
+                    }.build()
+                    httpHeaders(networkHeaders)
                 }
                 .build()
         }
