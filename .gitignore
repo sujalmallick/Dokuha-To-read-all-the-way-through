@@ -21,3 +21,4 @@ GoogleService-Info.plist
 
 # OS-specific
 Thumbs.db
+.agents/
