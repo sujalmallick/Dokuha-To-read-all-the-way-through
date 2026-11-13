@@ -1,6 +1,8 @@
 package core.extensions.js
 
 import core.extensions.Sha256
+import core.storage.KeyValueStorage
+import core.storage.SecureStorage
 import io.ktor.client.HttpClient
 import io.ktor.client.request.headers
 import io.ktor.client.request.request
@@ -10,6 +12,12 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 
 data class JsHttpResponse(
     val status: Int,
@@ -24,11 +32,91 @@ data class JsHttpResponse(
 class JsBridge(
     private val httpClient: HttpClient? = null,
     private val antiBotResolver: AntiBotResolver? = null,
+    private val storage: KeyValueStorage? = null,
+    private val secureStorage: SecureStorage? = null,
     val diagnosticLogs: MutableList<String> = mutableListOf()
 ) {
     private val cookieJar = mutableMapOf<String, String>()
+    private val inMemoryStorage = mutableMapOf<String, String>()
+    private val inMemorySecureStorage = mutableMapOf<String, String>()
+    private val json = Json { ignoreUnknownKeys = true }
     private var currentUserAgent: String =
         "Dokuha/1.0.0 (https://github.com/RitwikGupta-0501/dokuha)"
+
+    /**
+     * Registers host functions into a JsEngine instance for this bridge.
+     */
+    fun registerFunctions(engine: JsEngine, sourceId: Long = 0L) {
+        engine.setGlobalFunction("__dokuha_log") { args ->
+            val lvl = args.getOrNull(0)?.toString() ?: "LOG"
+            val msg = args.getOrNull(1)?.toString() ?: ""
+            log(lvl, msg)
+            null
+        }
+        engine.setGlobalFunction("__dokuha_btoa") { args ->
+            val str = args.getOrNull(0)?.toString() ?: ""
+            btoa(str)
+        }
+        engine.setGlobalFunction("__dokuha_atob") { args ->
+            val str = args.getOrNull(0)?.toString() ?: ""
+            atob(str)
+        }
+        engine.setGlobalFunction("__dokuha_sha256") { args ->
+            val str = args.getOrNull(0)?.toString() ?: ""
+            sha256(str)
+        }
+        engine.setGlobalFunction("__dokuha_storage_get") { args ->
+            val key = args.getOrNull(0)?.toString() ?: ""
+            storage?.getString(key, "") ?: inMemoryStorage[key] ?: ""
+        }
+        engine.setGlobalFunction("__dokuha_storage_set") { args ->
+            val key = args.getOrNull(0)?.toString() ?: ""
+            val value = args.getOrNull(1)?.toString() ?: ""
+            if (storage != null) {
+                storage.putString(key, value)
+            } else {
+                inMemoryStorage[key] = value
+            }
+            null
+        }
+        engine.setGlobalFunction("__dokuha_secure_get") { args ->
+            val key = args.getOrNull(0)?.toString() ?: ""
+            secureStorage?.getSecret(key) ?: inMemorySecureStorage[key] ?: ""
+        }
+        engine.setGlobalFunction("__dokuha_secure_set") { args ->
+            val key = args.getOrNull(0)?.toString() ?: ""
+            val value = args.getOrNull(1)?.toString() ?: ""
+            if (secureStorage != null) {
+                secureStorage.putSecret(key, value)
+            } else {
+                inMemorySecureStorage[key] = value
+            }
+            null
+        }
+        engine.setGlobalAsyncFunction("__dokuha_fetch") { args ->
+            val url = args.getOrNull(0)?.toString() ?: ""
+            val method = args.getOrNull(1)?.toString() ?: "GET"
+            val headersJson = args.getOrNull(2)?.toString() ?: "{}"
+            val body = args.getOrNull(3)?.toString()
+            val headersMap = try {
+                if (headersJson.isNotEmpty() && headersJson != "{}") {
+                    val elem = json.parseToJsonElement(headersJson).jsonObject
+                    elem.mapValues { it.value.jsonPrimitive.content }
+                } else emptyMap()
+            } catch (_: Exception) {
+                emptyMap()
+            }
+            val res = fetch(url, method, headersMap, body)
+            buildJsonObject {
+                put("status", res.status)
+                put("ok", res.ok)
+                putJsonObject("headers") {
+                    res.headers.forEach { (k, v) -> put(k, v) }
+                }
+                put("body", res.body)
+            }.toString()
+        }
+    }
 
     /**
      * Executes an HTTP request on behalf of the JavaScript extension.
@@ -172,13 +260,14 @@ class JsBridge(
 
     /**
      * JavaScript preamble injected into the JS runtime environment to wire up
-     * Cheerio DOM parsing, dokuha.fetch, crypto, encoding, and console logging.
+     * DOM parsing, dokuha.fetch, crypto, encoding, CommonJS require, and ecosystem shims.
      */
-    fun getPreambleScript(): String = """
+    fun getPreambleScript(sourceId: Long = 0L): String = """
 (function() {
     if (typeof globalThis.dokuha === 'undefined') {
         globalThis.dokuha = {};
     }
+    globalThis.__dokuha_source_id = "$sourceId";
 
     // Console redirection
     const _log = (lvl, ...args) => {
@@ -191,7 +280,8 @@ class JsBridge(
         log: (...args) => _log('LOG', ...args),
         warn: (...args) => _log('WARN', ...args),
         error: (...args) => _log('ERROR', ...args),
-        info: (...args) => _log('INFO', ...args)
+        info: (...args) => _log('INFO', ...args),
+        debug: (...args) => _log('DEBUG', ...args)
     };
 
     // Encoding & Crypto
@@ -206,17 +296,74 @@ class JsBridge(
     }
     globalThis.crypto.sha256 = (str) => globalThis.__dokuha_sha256(str);
 
+    // Fetch Standard Headers Polyfill
+    class Headers {
+        constructor(init = {}) {
+            this._map = {};
+            if (init instanceof Headers) {
+                for (const [k, v] of init.entries()) this.set(k, v);
+            } else if (Array.isArray(init)) {
+                for (const [k, v] of init) this.set(k, v);
+            } else if (typeof init === 'object' && init !== null) {
+                for (const k of Object.keys(init)) this.set(k, init[k]);
+            }
+        }
+        get(name) {
+            const key = String(name).toLowerCase();
+            return this._map[key] !== undefined ? this._map[key] : null;
+        }
+        has(name) {
+            return String(name).toLowerCase() in this._map;
+        }
+        set(name, value) {
+            this._map[String(name).toLowerCase()] = String(value);
+        }
+        append(name, value) {
+            const key = String(name).toLowerCase();
+            if (this._map[key] !== undefined) {
+                this._map[key] += ', ' + String(value);
+            } else {
+                this._map[key] = String(value);
+            }
+        }
+        delete(name) {
+            delete this._map[String(name).toLowerCase()];
+        }
+        entries() {
+            return Object.entries(this._map);
+        }
+        keys() {
+            return Object.keys(this._map);
+        }
+        values() {
+            return Object.values(this._map);
+        }
+    }
+    globalThis.Headers = Headers;
+
+    // Storage Key Sandboxing Helper
+    const _getStorageKey = (k) => {
+        const srcId = globalThis.__dokuha_source_id || "$sourceId";
+        return "ext_" + srcId + "_" + k;
+    };
+
     // Dokuha Fetch Bridge
     globalThis.dokuha.fetch = async (url, options = {}) => {
         const method = options.method || 'GET';
-        const headers = options.headers || {};
+        let headersObj = {};
+        if (options.headers instanceof Headers) {
+            for (const [k, v] of options.headers.entries()) headersObj[k] = v;
+        } else if (options.headers && typeof options.headers === 'object') {
+            headersObj = options.headers;
+        }
         const body = (typeof options.body === 'object' && options.body !== null) ? JSON.stringify(options.body) : (options.body != null ? String(options.body) : null);
-        const resStr = await globalThis.__dokuha_fetch(url, method, JSON.stringify(headers), body);
+        const resStr = await globalThis.__dokuha_fetch(url, method, JSON.stringify(headersObj), body);
         const res = JSON.parse(resStr);
         return {
             status: res.status,
+            statusCode: res.status,
             ok: res.ok,
-            headers: res.headers,
+            headers: new Headers(res.headers),
             body: res.body,
             text: async () => res.body,
             json: async () => JSON.parse(res.body)
@@ -343,7 +490,7 @@ class JsBridge(
             }
 
             while (true) {
-                const attrMatch = rem.match(/^\[([a-zA-Z0-9_:-]+)(?:\s*([*^$]?=)\s*(?:"([^"]*)"|'([^']*)'|([^\]]+)))?\]/);
+                const attrMatch = rem.match(/^\[([a-zA-Z0-9_:-]+)(?:\s*([*^${'$'}?]=)\s*(?:"([^"]*)"|'([^']*)'|([^\]]+)))?\]/);
                 if (!attrMatch) break;
                 const aName = attrMatch[1].toLowerCase();
                 const op = attrMatch[2];
@@ -354,7 +501,7 @@ class JsBridge(
                     if (op === '=' && nodeVal !== aVal) return false;
                     if (op === '*=' && !nodeVal.includes(aVal)) return false;
                     if (op === '^=' && !nodeVal.startsWith(aVal)) return false;
-                    if (op === '$=' && !nodeVal.endsWith(aVal)) return false;
+                    if (op === '${'$'}=' && !nodeVal.endsWith(aVal)) return false;
                 }
                 rem = rem.slice(attrMatch[0].length);
             }
@@ -505,6 +652,396 @@ class JsBridge(
         const tokens = tokenize(htmlString);
         const root = buildTree(tokens);
         return wrap(root);
+    };
+
+    // Mangayomi & Universal DOM Element / Document Classes
+    function resolveRelativeUrl(url, baseUrl) {
+        if (!url || url.startsWith("http://") || url.startsWith("https://")) return url;
+        if (url.startsWith("//")) return "https:" + url;
+        if (!baseUrl) return url;
+        const cleanBase = baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl;
+        if (url.startsWith('/')) return cleanBase + url;
+        return cleanBase + '/' + url;
+    }
+
+    class Element {
+        constructor(cheerioEl, cheerioRoot, baseUrl = "") {
+            this._el = cheerioEl;
+            this._root = cheerioRoot;
+            this._baseUrl = baseUrl;
+        }
+
+        select(selector) {
+            const elements = [];
+            const found = this._el.find(selector);
+            found.each((_, node) => {
+                elements.push(new Element(this._root(node), this._root, this._baseUrl));
+            });
+            return elements;
+        }
+
+        selectFirst(selector) {
+            const found = this._el.find(selector).first();
+            return found.length > 0 ? new Element(found, this._root, this._baseUrl) : null;
+        }
+
+        xpath(xpathQuery) {
+            const css = xpathQuery.replace(/\/\//g, ' ').replace(/\//g, ' > ').replace(/@([a-zA-Z-]+)/g, '[$1]');
+            return this.select(css);
+        }
+
+        xpathFirst(xpathQuery) {
+            const items = this.xpath(xpathQuery);
+            return items.length > 0 ? items[0] : null;
+        }
+
+        attr(name) {
+            const val = this._el.attr(name);
+            return val !== undefined ? val : null;
+        }
+
+        get text() {
+            return (this._el.text() || "").trim();
+        }
+
+        get innerHtml() {
+            return this._el.html() || "";
+        }
+
+        get outerHtml() {
+            return this._el.html() || "";
+        }
+
+        get getSrc() {
+            const src = this._el.attr("src") || 
+                        this._el.attr("data-src") || 
+                        this._el.attr("data-lazy-src") || 
+                        this._el.attr("data-original") || 
+                        this._el.attr("data-cfsrc") || "";
+            return resolveRelativeUrl(src.trim(), this._baseUrl);
+        }
+
+        get getHref() {
+            const href = this._el.attr("href") || "";
+            return resolveRelativeUrl(href.trim(), this._baseUrl);
+        }
+
+        get getDataSrc() {
+            const src = this._el.attr("data-src") || this._el.attr("data-original") || this.getSrc;
+            return resolveRelativeUrl(src.trim(), this._baseUrl);
+        }
+
+        get getImg() {
+            const img = this.selectFirst("img");
+            return img ? img.getSrc : this.getSrc;
+        }
+
+        get children() {
+            const elements = [];
+            const kids = this._el.nodes ? (this._el.nodes[0]?.children || []) : [];
+            for (const child of kids) {
+                if (child.tag !== '#text') {
+                    elements.push(new Element(this._root(child), this._root, this._baseUrl));
+                }
+            }
+            return elements;
+        }
+
+        get nextElementSibling() {
+            const parent = this._el.nodes ? this._el.nodes[0]?.parent : null;
+            if (!parent || !parent.children) return null;
+            const idx = parent.children.indexOf(this._el.nodes[0]);
+            if (idx !== -1) {
+                for (let i = idx + 1; i < parent.children.length; i++) {
+                    if (parent.children[i].tag !== '#text') {
+                        return new Element(this._root(parent.children[i]), this._root, this._baseUrl);
+                    }
+                }
+            }
+            return null;
+        }
+
+        get previousElementSibling() {
+            const parent = this._el.nodes ? this._el.nodes[0]?.parent : null;
+            if (!parent || !parent.children) return null;
+            const idx = parent.children.indexOf(this._el.nodes[0]);
+            if (idx > 0) {
+                for (let i = idx - 1; i >= 0; i--) {
+                    if (parent.children[i].tag !== '#text') {
+                        return new Element(this._root(parent.children[i]), this._root, this._baseUrl);
+                    }
+                }
+            }
+            return null;
+        }
+    }
+
+    class Document {
+        constructor(htmlString) {
+            this._root = globalThis.dokuha.parseHtml(htmlString);
+            this._rawHtml = htmlString;
+            this._baseUrl = (globalThis.__mangayomi_source_meta && globalThis.__mangayomi_source_meta.baseUrl) || "";
+        }
+
+        select(selector) {
+            const elements = [];
+            this._root(selector).each((_, node) => {
+                elements.push(new Element(this._root(node), this._root, this._baseUrl));
+            });
+            return elements;
+        }
+
+        selectFirst(selector) {
+            const found = this._root(selector).first();
+            return found.length > 0 ? new Element(found, this._root, this._baseUrl) : null;
+        }
+
+        xpath(xpathQuery) {
+            const css = xpathQuery.replace(/\/\//g, ' ').replace(/\//g, ' > ').replace(/@([a-zA-Z-]+)/g, '[$1]');
+            return this.select(css);
+        }
+
+        xpathFirst(xpathQuery) {
+            const items = this.xpath(xpathQuery);
+            return items.length > 0 ? items[0] : null;
+        }
+
+        getElementById(id) {
+            return this.selectFirst('#' + id);
+        }
+
+        getElementsByClassName(cls) {
+            return this.select('.' + cls);
+        }
+
+        get text() {
+            return (this._root.text() || "").trim();
+        }
+
+        get body() {
+            return this.selectFirst("body");
+        }
+
+        get outerHtml() {
+            return this._rawHtml;
+        }
+    }
+
+    globalThis.Document = Document;
+    globalThis.Element = Element;
+
+    // CommonJS Module Emulation (LNReader Support)
+    globalThis.module = { exports: {} };
+    globalThis.exports = globalThis.module.exports;
+
+    const _moduleRegistry = {};
+    globalThis.dokuha.registerModule = function(id, exportsObj) {
+        _moduleRegistry[id] = exportsObj;
+    };
+
+    // Register standard LNReader @libs
+    globalThis.dokuha.registerModule('@libs/fetch', {
+        fetchApi: async (url, init = {}) => globalThis.dokuha.fetch(url, init),
+        fetchText: async (url, init = {}) => {
+            const res = await globalThis.dokuha.fetch(url, init);
+            return res.body;
+        },
+        fetchFile: async (url, init = {}) => {
+            const res = await globalThis.dokuha.fetch(url, init);
+            return res.body;
+        }
+    });
+
+    globalThis.dokuha.registerModule('@libs/storage', {
+        storage: {
+            get: (key) => {
+                const val = globalThis.__dokuha_storage_get(_getStorageKey(key));
+                try { return val ? JSON.parse(val) : null; } catch (_) { return val; }
+            },
+            set: (key, val) => {
+                globalThis.__dokuha_storage_set(_getStorageKey(key), JSON.stringify(val));
+            }
+        }
+    });
+
+    globalThis.dokuha.registerModule('@libs/novelStatus', {
+        NovelStatus: {
+            Ongoing: 'Ongoing',
+            Completed: 'Completed',
+            Unknown: 'Unknown'
+        }
+    });
+
+    globalThis.cheerio = {
+        load: function(html) {
+            return globalThis.dokuha.parseHtml(html);
+        }
+    };
+
+    globalThis.require = function(id) {
+        if (_moduleRegistry[id]) {
+            return _moduleRegistry[id];
+        }
+        if (id === 'cheerio') return globalThis.cheerio;
+        if (id === 'htmlparser2') return { parseDOM: globalThis.dokuha.parseHtml };
+        if (id === 'dayjs') {
+            const dayjsFn = function(d) {
+                return {
+                    format: function(fmt) { return String(d || ''); },
+                    valueOf: function() { return Date.now(); }
+                };
+            };
+            return dayjsFn;
+        }
+        if (id === 'urlencode') return {
+            encode: (s) => encodeURIComponent(s),
+            decode: (s) => decodeURIComponent(s)
+        };
+        if (id.startsWith('@libs/')) {
+            const sub = id.substring(6);
+            if (globalThis.dokuha.libs && globalThis.dokuha.libs[sub]) {
+                return globalThis.dokuha.libs[sub];
+            }
+        }
+        throw new Error("[Dokuha CommonJS] Cannot resolve module: " + id);
+    };
+
+    // Mangayomi Host Environment Shims
+    globalThis.MProvider = class MProvider {
+        constructor() {
+            this.source = globalThis.__mangayomi_source_meta || {};
+        }
+        getHeaders(url) { return {}; }
+    };
+
+    globalThis.Client = class Client {
+        async get(url, headers = {}) {
+            const res = await globalThis.dokuha.fetch(url, { method: 'GET', headers });
+            return {
+                statusCode: res.status,
+                body: res.body,
+                headers: res.headers,
+                isRedirect: false,
+                reasonPhrase: res.ok ? "OK" : "Error"
+            };
+        }
+        async post(url, headers = {}, body = null) {
+            const res = await globalThis.dokuha.fetch(url, { method: 'POST', headers, body });
+            return {
+                statusCode: res.status,
+                body: res.body,
+                headers: res.headers,
+                isRedirect: false,
+                reasonPhrase: res.ok ? "OK" : "Error"
+            };
+        }
+    };
+
+    // String Prototype Helpers (Kotlin style)
+    String.prototype.substringAfter = function(p) {
+        const idx = this.indexOf(p);
+        return idx === -1 ? this.toString() : this.substring(idx + p.length);
+    };
+    String.prototype.substringAfterLast = function(p) {
+        const idx = this.lastIndexOf(p);
+        return idx === -1 ? this.toString() : this.substring(idx + p.length);
+    };
+    String.prototype.substringBefore = function(p) {
+        const idx = this.indexOf(p);
+        return idx === -1 ? this.toString() : this.substring(0, idx);
+    };
+    String.prototype.substringBeforeLast = function(p) {
+        const idx = this.lastIndexOf(p);
+        return idx === -1 ? this.toString() : this.substring(0, idx);
+    };
+    String.prototype.substringBetween = function(left, right) {
+        const start = this.indexOf(left);
+        if (start === -1) return "";
+        const end = this.indexOf(right, start + left.length);
+        if (end === -1) return "";
+        return this.substring(start + left.length, end);
+    };
+
+    // SharedPreferences Shim (Sandboxed per Extension)
+    globalThis.SharedPreferences = class SharedPreferences {
+        get(key) {
+            const val = globalThis.__dokuha_storage_get(_getStorageKey(key));
+            return val !== "" ? val : null;
+        }
+        getString(key, def) {
+            const val = globalThis.__dokuha_storage_get(_getStorageKey(key));
+            return val !== "" ? val : def;
+        }
+        setString(key, val) {
+            globalThis.__dokuha_storage_set(_getStorageKey(key), String(val));
+        }
+    };
+
+    // Paperback v0.8 & v0.9 Host Environment Shims
+    globalThis.Sources = {};
+    globalThis.window = globalThis;
+    globalThis.window.Sources = globalThis.Sources;
+
+    // Paperback v0.8 App Factory Object
+    globalThis.App = {
+        createRequestManager: (info) => ({
+            requestsPerSecond: info?.requestsPerSecond || 5,
+            schedule: async (req) => {
+                const res = await globalThis.dokuha.fetch(req.url, {
+                    method: req.method || 'GET',
+                    headers: req.headers || {},
+                    body: req.data
+                });
+                return {
+                    status: res.status,
+                    headers: res.headers,
+                    data: res.body,
+                    cookies: []
+                };
+            }
+        }),
+        createSourceStateManager: () => ({
+            store: async (k, v) => globalThis.__dokuha_storage_set(_getStorageKey(k), JSON.stringify(v)),
+            retrieve: async (k) => {
+                const v = globalThis.__dokuha_storage_get(_getStorageKey(k));
+                return v ? JSON.parse(v) : null;
+            },
+            keychain: {
+                store: async (k, v) => globalThis.__dokuha_secure_set(_getStorageKey(k), JSON.stringify(v)),
+                retrieve: async (k) => {
+                    const v = globalThis.__dokuha_secure_get(_getStorageKey(k));
+                    return v ? JSON.parse(v) : null;
+                }
+            }
+        }),
+        createRequest: (obj) => obj,
+        createSourceManga: (obj) => obj,
+        createChapter: (obj) => obj,
+        createChapterDetails: (obj) => obj,
+        createHomeSection: (obj) => obj,
+        createPagedResults: (obj) => obj
+    };
+
+    // Paperback v0.9 Application Namespace
+    globalThis.Application = {
+        scheduleRequest: async (req) => {
+            const res = await globalThis.dokuha.fetch(req.url, {
+                method: req.method || 'GET',
+                headers: req.headers || {},
+                body: req.data
+            });
+            return [{ status: res.status, headers: res.headers }, res.body];
+        },
+        getState: (k) => {
+            const v = globalThis.__dokuha_storage_get(_getStorageKey(k));
+            return v ? JSON.parse(v) : undefined;
+        },
+        setState: (v, k) => globalThis.__dokuha_storage_set(_getStorageKey(k), JSON.stringify(v)),
+        getSecureState: (k) => {
+            const v = globalThis.__dokuha_secure_get(_getStorageKey(k));
+            return v ? JSON.parse(v) : undefined;
+        },
+        setSecureState: (v, k) => globalThis.__dokuha_secure_set(_getStorageKey(k), JSON.stringify(v))
     };
 })();
     """.trimIndent()

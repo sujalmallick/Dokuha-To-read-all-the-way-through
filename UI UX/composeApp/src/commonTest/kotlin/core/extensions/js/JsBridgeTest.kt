@@ -142,4 +142,174 @@ class JsBridgeTest {
         assertTrue(response.body.contains("Welcome to target site"))
         assertEquals(2, attempts, "Request should have been retried after solving challenge")
     }
+
+    @Test
+    fun testHeadersPolyfill() = runBlocking {
+        val bridge = JsBridge()
+        val engine = JsEngine()
+        bridge.registerFunctions(engine)
+        engine.evaluate(bridge.getPreambleScript())
+
+        val res = engine.evaluate("""
+            (() => {
+                const h = new Headers({ "Content-Type": "application/json", "Authorization": "Bearer token123" });
+                h.set("user-agent", "CustomUA");
+                h.append("accept", "text/html");
+                h.append("accept", "application/xhtml+xml");
+                
+                return JSON.stringify({
+                    hasCT: h.has("content-type"),
+                    getCT: h.get("CONTENT-TYPE"),
+                    getUA: h.get("User-Agent"),
+                    getAccept: h.get("accept"),
+                    hasMissing: h.has("non-existent")
+                });
+            })()
+        """.trimIndent())
+
+        assertTrue(res.contains("\"hasCT\":true"))
+        assertTrue(res.contains("\"getCT\":\"application/json\""))
+        assertTrue(res.contains("\"getUA\":\"CustomUA\""))
+        assertTrue(res.contains("\"getAccept\":\"text/html, application/xhtml+xml\""))
+        assertTrue(res.contains("\"hasMissing\":false"))
+
+        engine.close()
+    }
+
+    @Test
+    fun testDocumentAndElementDomEmulation() = runBlocking {
+        val bridge = JsBridge()
+        val engine = JsEngine()
+        bridge.registerFunctions(engine, sourceId = 42L)
+        engine.evaluate(bridge.getPreambleScript(sourceId = 42L))
+
+        val html = """
+            <html>
+                <body>
+                    <div id="content" class="chapter-list">
+                        <a href="/manga/one-piece/ch-1" class="ch-link" data-src="https://cdn.example.com/cover.jpg">Chapter 1</a>
+                        <a href="/manga/one-piece/ch-2" class="ch-link">Chapter 2</a>
+                    </div>
+                </body>
+            </html>
+        """.trimIndent()
+
+        engine.setGlobalVariable("testHtml", "\"${html.replace("\n", "").replace("\"", "\\\"")}\"")
+        val result = engine.evaluate("""
+            (() => {
+                const doc = new Document(testHtml);
+                const first = doc.selectFirst('a.ch-link');
+                const all = doc.select('a.ch-link');
+                const byId = doc.getElementById('content');
+                
+                return JSON.stringify({
+                    firstText: first ? first.text : "",
+                    firstHref: first ? first.getHref : "",
+                    firstSrc: first ? first.getSrc : "",
+                    allCount: all.length,
+                    hasId: byId !== null
+                });
+            })()
+        """.trimIndent())
+
+        assertTrue(result.contains("\"firstText\":\"Chapter 1\""))
+        assertTrue(result.contains("\"firstHref\":\"/manga/one-piece/ch-1\""))
+        assertTrue(result.contains("\"firstSrc\":\"https://cdn.example.com/cover.jpg\""))
+        assertTrue(result.contains("\"allCount\":2"))
+        assertTrue(result.contains("\"hasId\":true"))
+
+        engine.close()
+    }
+
+    @Test
+    fun testStringPrototypeHelpers() = runBlocking {
+        val bridge = JsBridge()
+        val engine = JsEngine()
+        engine.evaluate(bridge.getPreambleScript())
+
+        val res = engine.evaluate("""
+            (() => {
+                const s = "manga/action/solo-leveling/chapter-10";
+                return JSON.stringify({
+                    after: s.substringAfter("action/"),
+                    before: s.substringBefore("/chapter"),
+                    afterLast: s.substringAfterLast("/"),
+                    between: s.substringBetween("manga/", "/solo")
+                });
+            })()
+        """.trimIndent())
+
+        assertTrue(res.contains("\"after\":\"solo-leveling/chapter-10\""))
+        assertTrue(res.contains("\"before\":\"manga/action/solo-leveling\""))
+        assertTrue(res.contains("\"afterLast\":\"chapter-10\""))
+        assertTrue(res.contains("\"between\":\"action\""))
+
+        engine.close()
+    }
+
+    @Test
+    fun testCommonJsModuleRegistryAndRequire() = runBlocking {
+        val bridge = JsBridge()
+        val engine = JsEngine()
+        bridge.registerFunctions(engine, sourceId = 101L)
+        engine.evaluate(bridge.getPreambleScript(sourceId = 101L))
+
+        val res = engine.evaluate("""
+            (() => {
+                const urlencode = require('urlencode');
+                const cheerio = require('cheerio');
+                const novelStatus = require('@libs/novelStatus');
+                
+                const encoded = urlencode.encode("solo leveling");
+                const $ = cheerio.load("<div class='item'>Title</div>");
+                
+                return JSON.stringify({
+                    encoded: encoded,
+                    text: $('.item').text(),
+                    status: novelStatus.NovelStatus.Ongoing
+                });
+            })()
+        """.trimIndent())
+
+        assertTrue(res.contains("\"encoded\":\"solo%20leveling\""))
+        assertTrue(res.contains("\"text\":\"Title\""))
+        assertTrue(res.contains("\"status\":\"Ongoing\""))
+
+        engine.close()
+    }
+
+    @Test
+    fun testSandboxedSharedPreferencesAndStateManagers() = runBlocking {
+        val bridge = JsBridge()
+        val engine = JsEngine()
+        bridge.registerFunctions(engine, sourceId = 555L)
+        engine.evaluate(bridge.getPreambleScript(sourceId = 555L))
+
+        val res = engine.evaluate("""
+            (async () => {
+                const sp = new SharedPreferences();
+                sp.setString("theme", "liquid-glass");
+                const themeVal = sp.getString("theme", "default");
+                
+                const sm = App.createSourceStateManager();
+                await sm.store("user_token", { token: "abc123xyz" });
+                const tokenObj = await sm.retrieve("user_token");
+                
+                Application.setState({ readingMode: "webtoon" }, "settings");
+                const appState = Application.getState("settings");
+                
+                return JSON.stringify({
+                    theme: themeVal,
+                    token: tokenObj ? tokenObj.token : null,
+                    readingMode: appState ? appState.readingMode : null
+                });
+            })()
+        """.trimIndent())
+
+        assertTrue(res.contains("\"theme\":\"liquid-glass\""))
+        assertTrue(res.contains("\"token\":\"abc123xyz\""))
+        assertTrue(res.contains("\"readingMode\":\"webtoon\""))
+
+        engine.close()
+    }
 }
