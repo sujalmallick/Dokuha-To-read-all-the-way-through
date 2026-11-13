@@ -220,4 +220,106 @@ class SqlDelightPanelRepositoryTest {
         val emptySources = repository.getSources().first()
         assertTrue(emptySources.isEmpty(), "Should be empty after unregistering")
     }
+
+    @Test
+    fun testCompositeUniqueConstraintsAllowSharedRelativeChapterSlugs() = runBlocking {
+        // Insert Manga 1
+        database.mangaQueries.insertOrUpdateManga(
+            id = 101L,
+            sourceId = 1L,
+            url = "manga-one",
+            title = "Manga One",
+            artist = null,
+            author = null,
+            description = null,
+            genres = null,
+            status = "ONGOING",
+            thumbnailUrl = null,
+            favorite = 0L,
+            lastUpdate = 0L,
+            nextUpdate = 0L,
+            initialized = 1L,
+            viewerFlags = 0L,
+            chapterFlags = 0L,
+            coverLastModified = 0L,
+            dateAdded = 0L,
+            isNovel = 0L
+        )
+
+        // Insert Manga 2 from different source but same relative url "manga-one"
+        database.mangaQueries.insertOrUpdateManga(
+            id = 102L,
+            sourceId = 2L,
+            url = "manga-one",
+            title = "Manga One from Source 2",
+            artist = null,
+            author = null,
+            description = null,
+            genres = null,
+            status = "ONGOING",
+            thumbnailUrl = null,
+            favorite = 0L,
+            lastUpdate = 0L,
+            nextUpdate = 0L,
+            initialized = 1L,
+            viewerFlags = 0L,
+            chapterFlags = 0L,
+            coverLastModified = 0L,
+            dateAdded = 0L,
+            isNovel = 0L
+        )
+
+        // Both manga records must coexist cleanly due to UNIQUE(source_id, url)
+        val m1 = database.mangaQueries.getMangaBySourceAndUrl(1L, "manga-one").executeAsOneOrNull()
+        val m2 = database.mangaQueries.getMangaBySourceAndUrl(2L, "manga-one").executeAsOneOrNull()
+        assertNotNull(m1)
+        assertNotNull(m2)
+        assertEquals(101L, m1.id)
+        assertEquals(102L, m2.id)
+
+        // Insert identical relative slug "/chapter-1" for Manga 1
+        database.chapterQueries.insertOrUpdateChapter(
+            id = null,
+            mangaId = 101L,
+            url = "/chapter-1",
+            name = "Chapter 1 for Manga 1",
+            scanlator = "Scan 1",
+            read = 0L,
+            bookmark = 0L,
+            lastPageRead = 0L,
+            chapterNumber = 1.0,
+            sourceOrder = 0L,
+            dateFetch = 0L,
+            dateUpload = 0L,
+            lastModifiedAt = 0L
+        )
+
+        // Insert identical relative slug "/chapter-1" for Manga 2
+        database.chapterQueries.insertOrUpdateChapter(
+            id = null,
+            mangaId = 102L,
+            url = "/chapter-1",
+            name = "Chapter 1 for Manga 2",
+            scanlator = "Scan 2",
+            read = 0L,
+            bookmark = 0L,
+            lastPageRead = 0L,
+            chapterNumber = 1.0,
+            sourceOrder = 0L,
+            dateFetch = 0L,
+            dateUpload = 0L,
+            lastModifiedAt = 0L
+        )
+
+        // Verify both chapters exist independently without collision due to UNIQUE(manga_id, url)
+        val ch1 = database.chapterQueries.getChapterByMangaIdAndUrl(101L, "/chapter-1").executeAsOneOrNull()
+        val ch2 = database.chapterQueries.getChapterByMangaIdAndUrl(102L, "/chapter-1").executeAsOneOrNull()
+
+        assertNotNull(ch1)
+        assertNotNull(ch2)
+        assertEquals("Chapter 1 for Manga 1", ch1.name)
+        assertEquals("Chapter 1 for Manga 2", ch2.name)
+        assertEquals(101L, ch1.manga_id)
+        assertEquals(102L, ch2.manga_id)
+    }
 }
