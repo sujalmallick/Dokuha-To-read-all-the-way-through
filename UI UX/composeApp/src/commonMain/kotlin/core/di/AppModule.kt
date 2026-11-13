@@ -12,6 +12,8 @@ import data.settings.SettingsRepository
 import data.tracker.ProductionTrackerRepository
 import data.tracker.TrackerRepository
 import core.extensions.ExtensionManager
+import core.extensions.js.AntiBotChallengeManager
+import core.extensions.js.AntiBotResolver
 import io.panel.reader.db.PanelDatabase
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.defaultRequest
@@ -30,6 +32,8 @@ val appModule = module {
     }
     single { PanelDatabase(get<DatabaseDriverFactory>().createDriver()) }
     single { DownloadManager(downloadStorage = get(), httpClient = getOrNull()) }
+    single { AntiBotChallengeManager() }
+    single<AntiBotResolver> { get<AntiBotChallengeManager>() }
     single<PanelRepository> { SqlDelightPanelRepository(database = get(), downloadManager = getOrNull(), downloadStorage = getOrNull()) }
     single<ExtensionManager> { ExtensionManager(storage = get(), panelRepository = get(), httpClient = getOrNull(), settingsRepository = getOrNull(), antiBotResolver = getOrNull()) }
     single<TrackerRepository> { ProductionTrackerRepository(getOrNull()) }

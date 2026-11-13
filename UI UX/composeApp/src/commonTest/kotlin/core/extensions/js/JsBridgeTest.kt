@@ -9,6 +9,7 @@ import io.ktor.http.headersOf
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class JsBridgeTest {
@@ -311,5 +312,37 @@ class JsBridgeTest {
         assertTrue(res.contains("\"readingMode\":\"webtoon\""))
 
         engine.close()
+    }
+
+    @Test
+    fun testRfc6265DotBoundedCookieIsolation() {
+        val bridge = JsBridge()
+
+        // Same domain matches
+        assertTrue(bridge.isDomainMatch("asuracomic.net", "asuracomic.net"))
+        assertTrue(bridge.isDomainMatch(".asuracomic.net", "asuracomic.net"))
+
+        // Subdomain matches parent domain
+        assertTrue(bridge.isDomainMatch("asuracomic.net", "api.asuracomic.net"))
+        assertTrue(bridge.isDomainMatch(".asuracomic.net", "m.asuracomic.net"))
+
+        // Lookalike or spoofed domains must NOT match (RFC 6265 dot-bounded isolation)
+        assertFalse(bridge.isDomainMatch("asuracomic.net", "evil-asuracomic.net"))
+        assertFalse(bridge.isDomainMatch("mangadex.org", "fakemangadex.org"))
+        assertFalse(bridge.isDomainMatch("kodjodev.com", "notkodjodev.com"))
+    }
+
+    @Test
+    fun testCloudflareTurnstileMarkerDetection() {
+        val bridge = JsBridge()
+
+        assertTrue(bridge.isCloudflareChallenge("<div class=\"cf-turnstile\"></div>"))
+        assertTrue(bridge.isCloudflareChallenge("<script src=\"https://challenges.cloudflare.com/turnstile/v0/api.js\"></script>"))
+        assertTrue(bridge.isCloudflareChallenge("<div id=\"cf-chl-widget-container\"></div>"))
+        assertTrue(bridge.isCloudflareChallenge("<html><title>Just a moment...</title></html>"))
+        assertTrue(bridge.isCloudflareChallenge("Ray ID: 7abc123 Cloudflare"))
+
+        // Normal HTML must not trigger challenge
+        assertFalse(bridge.isCloudflareChallenge("<html><head><title>Chapter 10 - Asura Scans</title></head><body><h1>Content</h1></body></html>"))
     }
 }

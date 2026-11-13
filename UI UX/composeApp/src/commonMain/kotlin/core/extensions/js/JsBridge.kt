@@ -136,7 +136,10 @@ class JsBridge(
         }
 
         val domain = extractDomain(url)
-        val relevantCookies = cookieJar.filter { domain.endsWith(it.key.substringBefore(':')) || it.key == domain }
+        val relevantCookies = cookieJar.filter {
+            val cookieDomain = it.key.substringBefore(':')
+            isDomainMatch(cookieDomain, domain)
+        }
         if (relevantCookies.isNotEmpty() && !mergedHeaders.containsKey("Cookie")) {
             mergedHeaders["Cookie"] = relevantCookies.values.joinToString("; ")
         }
@@ -156,7 +159,10 @@ class JsBridge(
                     currentUserAgent = result.userAgent
                     mergedHeaders["User-Agent"] = result.userAgent
                 }
-                val updatedCookies = cookieJar.filter { domain.endsWith(it.key.substringBefore(':')) || it.key == domain }
+                val updatedCookies = cookieJar.filter {
+                    val cookieDomain = it.key.substringBefore(':')
+                    isDomainMatch(cookieDomain, domain)
+                }
                 mergedHeaders["Cookie"] = updatedCookies.values.joinToString("; ")
                 response = performRequest(client, url, method, mergedHeaders, body, timeoutMs)
             } else {
@@ -232,12 +238,23 @@ class JsBridge(
         }
     }
 
+    fun isDomainMatch(cookieDomain: String, requestDomain: String): Boolean {
+        val cDom = cookieDomain.removePrefix(".").lowercase()
+        val rDom = requestDomain.lowercase()
+        return cDom == rDom || rDom.endsWith(".$cDom")
+    }
+
     fun isCloudflareChallenge(html: String): Boolean {
         val lower = html.lowercase()
         return (lower.contains("cf-chl-bypass") ||
             lower.contains("just a moment...") ||
             (lower.contains("cloudflare") && lower.contains("ray id")) ||
-            lower.contains("challenge-running"))
+            lower.contains("challenge-running") ||
+            lower.contains("cf-turnstile") ||
+            lower.contains("challenges.cloudflare.com") ||
+            lower.contains("cf-chl-widget") ||
+            lower.contains("turnstile.render") ||
+            lower.contains("cf_chl_prog"))
     }
 
     fun btoa(str: String): String {
