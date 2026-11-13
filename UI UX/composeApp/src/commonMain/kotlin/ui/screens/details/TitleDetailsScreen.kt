@@ -31,7 +31,6 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -86,7 +85,6 @@ data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") :
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val uriHandler = LocalUriHandler.current
         val repository: PanelRepository = koinInject()
         val scope = rememberCoroutineScope()
 
@@ -107,9 +105,7 @@ data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") :
             },
             onBack = { navigator.pop() },
             onReadChapter = { chapter ->
-                if (chapter.url.startsWith("http://", ignoreCase = true) || chapter.url.startsWith("https://", ignoreCase = true)) {
-                    uriHandler.openUri(chapter.url)
-                } else if (manga?.isNovel == true) {
+                if (manga?.isNovel == true) {
                     navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name))
                 } else {
                     navigator.push(WebtoonReaderScreen(mangaUrl, chapter.url, chapter.name))
@@ -237,7 +233,7 @@ fun TitleDetailsScreenContent(
                         icon = Icons.Default.PlayArrow,
                         onClick = {
                             if (chapters.isNotEmpty()) {
-                                val firstChapter = chapters.lastOrNull { !it.url.startsWith("http", ignoreCase = true) } ?: chapters.last()
+                                val firstChapter = chapters.lastOrNull() ?: chapters.first()
                                 onReadChapter(firstChapter)
                             }
                         },

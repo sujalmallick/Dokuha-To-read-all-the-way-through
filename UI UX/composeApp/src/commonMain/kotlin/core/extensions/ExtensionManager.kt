@@ -255,7 +255,8 @@ class ExtensionManager(
                         version = manifest.version,
                         isNovel = manifest.type == ExtensionType.NOVEL,
                         isNsfw = manifest.isNsfw,
-                        script = manifest.script
+                        script = manifest.script,
+                        iconUrl = manifest.iconUrl
                     )
                     val adapter = MangayomiSourceAdapter(mManifest, enginePool, bridge)
                     activeSources[manifest.id] = adapter
@@ -268,7 +269,8 @@ class ExtensionManager(
                         site = manifest.baseUrl,
                         lang = manifest.lang,
                         version = manifest.version,
-                        script = manifest.script
+                        script = manifest.script,
+                        iconUrl = manifest.iconUrl
                     )
                     val adapter = LNReaderSourceAdapter(lnManifest, enginePool, bridge)
                     activeSources[manifest.id] = adapter
@@ -282,7 +284,8 @@ class ExtensionManager(
                         language = manifest.lang,
                         version = manifest.version,
                         contentRating = if (manifest.isNsfw) "ADULT" else "EVERYONE",
-                        script = manifest.script
+                        script = manifest.script,
+                        iconUrl = manifest.iconUrl
                     )
                     val adapter = PaperbackSourceAdapter(pbManifest, enginePool, bridge)
                     activeSources[manifest.id] = adapter
@@ -301,7 +304,8 @@ class ExtensionManager(
                                 version = manifest.version,
                                 isNovel = manifest.type == ExtensionType.NOVEL,
                                 isNsfw = manifest.isNsfw,
-                                script = manifest.script
+                                script = manifest.script,
+                                iconUrl = manifest.iconUrl
                             )
                             val adapter = MangayomiSourceAdapter(mManifest, enginePool, bridge)
                             activeSources[manifest.id] = adapter
@@ -314,7 +318,8 @@ class ExtensionManager(
                                 site = manifest.baseUrl,
                                 lang = manifest.lang,
                                 version = manifest.version,
-                                script = manifest.script
+                                script = manifest.script,
+                                iconUrl = manifest.iconUrl
                             )
                             val adapter = LNReaderSourceAdapter(lnManifest, enginePool, bridge)
                             activeSources[manifest.id] = adapter
@@ -328,7 +333,8 @@ class ExtensionManager(
                                 language = manifest.lang,
                                 version = manifest.version,
                                 contentRating = if (manifest.isNsfw) "ADULT" else "EVERYONE",
-                                script = manifest.script
+                                script = manifest.script,
+                                iconUrl = manifest.iconUrl
                             )
                             val adapter = PaperbackSourceAdapter(pbManifest, enginePool, bridge, isV9 = false)
                             activeSources[manifest.id] = adapter

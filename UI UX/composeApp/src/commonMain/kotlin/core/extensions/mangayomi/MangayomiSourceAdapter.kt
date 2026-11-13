@@ -18,7 +18,8 @@ data class MangayomiManifest(
     val version: String,
     val isNovel: Boolean = false,
     val isNsfw: Boolean = false,
-    val script: String
+    val script: String,
+    val iconUrl: String? = null
 ) {
     fun toJson(): String = buildJsonObject {
         put("id", id)

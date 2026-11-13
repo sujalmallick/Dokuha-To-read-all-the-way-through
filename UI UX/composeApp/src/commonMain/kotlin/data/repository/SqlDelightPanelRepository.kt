@@ -265,9 +265,18 @@ class SqlDelightPanelRepository(
             )
         }
 
-        val matchingDynamic = _dynamicSources.value.values.filterIsInstance<NovelSource>().firstOrNull { src ->
-            chapterUrl.startsWith(src.baseUrl)
+        val chapterRecord = database.chapterQueries.getChapterByUrl(chapterUrl).executeAsOneOrNull()
+        val sourceFromDb = chapterRecord?.let { ch ->
+            database.mangaQueries.getMangaById(ch.manga_id).executeAsOneOrNull()?.let { manga ->
+                _dynamicSources.value[manga.source_id]
+            }
         }
+
+        val matchingDynamic = (sourceFromDb as? NovelSource)
+            ?: _dynamicSources.value.values.filterIsInstance<NovelSource>().firstOrNull { src ->
+                chapterUrl.startsWith(src.baseUrl)
+            }
+            ?: _dynamicSources.value.values.filterIsInstance<NovelSource>().firstOrNull()
 
         if (matchingDynamic != null) {
             return flow {
@@ -320,12 +329,19 @@ class SqlDelightPanelRepository(
         return _dynamicSources.map { map ->
             map.values.map { src ->
                 val type = if (src is NovelSource && src !is ComicSource) "Novel" else "Manga"
+                val iconUrl = when (src) {
+                    is core.extensions.js.JsExtensionSource -> src.manifest.iconUrl
+                    is core.extensions.mangayomi.MangayomiSourceAdapter -> src.manifest.iconUrl
+                    is core.extensions.lnreader.LNReaderSourceAdapter -> src.manifest.iconUrl
+                    is core.extensions.paperback.PaperbackSourceAdapter -> src.manifest.iconUrl
+                    else -> null
+                }
                 MockSourceInfo(
                     id = (src as? core.extensions.js.JsExtensionSource)?.manifest?.id ?: src.id.toString(),
                     name = src.name,
                     type = type,
                     languages = listOf(src.lang.uppercase()),
-                    iconUrl = (src as? core.extensions.js.JsExtensionSource)?.manifest?.iconUrl
+                    iconUrl = iconUrl
                 )
             }
         }
@@ -509,7 +525,9 @@ class SqlDelightPanelRepository(
 
     override suspend fun toggleFavorite(manga: SourceManga, isFavorite: Boolean) {
         withContext(Dispatchers.Default) {
-            insertOrUpdateMangaInternal(manga, sourceId = 0L, forceFavorite = isFavorite)
+            val existing = database.mangaQueries.getMangaByUrl(manga.url).executeAsOneOrNull()
+            val preservedSourceId = existing?.source_id ?: 0L
+            insertOrUpdateMangaInternal(manga, sourceId = preservedSourceId, forceFavorite = isFavorite)
         }
     }
 

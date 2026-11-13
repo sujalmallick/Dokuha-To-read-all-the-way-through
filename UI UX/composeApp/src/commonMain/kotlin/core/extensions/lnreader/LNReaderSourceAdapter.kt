@@ -14,7 +14,8 @@ data class LNReaderManifest(
     val site: String,
     val lang: String,
     val version: String,
-    val script: String
+    val script: String,
+    val iconUrl: String? = null
 )
 
 /**

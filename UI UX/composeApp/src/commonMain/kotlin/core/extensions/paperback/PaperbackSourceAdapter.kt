@@ -15,7 +15,8 @@ data class PaperbackManifest(
     val language: String = "en",
     val version: String,
     val contentRating: String = "EVERYONE",
-    val script: String
+    val script: String,
+    val iconUrl: String? = null
 )
 
 /**
