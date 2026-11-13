@@ -2,6 +2,7 @@ package ui.screens.extensions
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -52,6 +53,7 @@ import ui.screens.updates.UpdatesScreen
 import ui.theme.PanelBackground
 import ui.theme.PanelTheme
 import ui.theme.TextPrimary
+import ui.theme.TextSecondary
 
 import androidx.compose.runtime.rememberCoroutineScope
 import core.extensions.ExtensionManager
@@ -66,46 +68,41 @@ class ExtensionsScreen : Screen {
         val extensionManager: ExtensionManager = koinInject()
         val coroutineScope = rememberCoroutineScope()
 
-        val mockExtensions by repository.getExtensions().collectAsState(initial = emptyList())
         val installedExts by extensionManager.installedExtensions.collectAsState(initial = emptyList())
         val availableCatalog by extensionManager.availableExtensions.collectAsState(initial = emptyList())
 
-        val effectiveExtensions = remember(mockExtensions, installedExts, availableCatalog) {
-            if (installedExts.isNotEmpty() || availableCatalog.isNotEmpty()) {
-                val installedIds = installedExts.map { it.id }.toSet()
-                val list = mutableListOf<MockExtension>()
-                for (inst in installedExts) {
+        val effectiveExtensions = remember(installedExts, availableCatalog) {
+            val installedIds = installedExts.map { it.id }.toSet()
+            val list = mutableListOf<MockExtension>()
+            for (inst in installedExts) {
+                list.add(
+                    MockExtension(
+                        id = inst.id,
+                        name = inst.name,
+                        version = inst.version,
+                        lang = inst.lang.uppercase(),
+                        isInstalled = true,
+                        hasUpdate = false,
+                        iconUrl = inst.iconUrl
+                    )
+                )
+            }
+            for (avail in availableCatalog) {
+                if (!installedIds.contains(avail.id)) {
                     list.add(
                         MockExtension(
-                            id = inst.id,
-                            name = inst.name,
-                            version = inst.version,
-                            lang = inst.lang.uppercase(),
-                            isInstalled = true,
+                            id = avail.id,
+                            name = avail.name,
+                            version = avail.version,
+                            lang = avail.lang.uppercase(),
+                            isInstalled = false,
                             hasUpdate = false,
-                            iconUrl = inst.iconUrl
+                            iconUrl = avail.iconUrl
                         )
                     )
                 }
-                for (avail in availableCatalog) {
-                    if (!installedIds.contains(avail.id)) {
-                        list.add(
-                            MockExtension(
-                                id = avail.id,
-                                name = avail.name,
-                                version = avail.version,
-                                lang = avail.lang.uppercase(),
-                                isInstalled = false,
-                                hasUpdate = false,
-                                iconUrl = avail.iconUrl
-                            )
-                        )
-                    }
-                }
-                list
-            } else {
-                mockExtensions
             }
+            list
         }
 
         ExtensionsScreenContent(
@@ -149,10 +146,7 @@ fun ExtensionsScreenContent(
     // State list for interactive updates
     val extensionsList = remember(initialExtensions) {
         mutableStateListOf<MockExtension>().apply {
-            addAll(
-                if (initialExtensions.isNotEmpty()) initialExtensions
-                else FakePanelRepository().getExtensions().let { emptyList() }
-            )
+            addAll(initialExtensions)
         }
     }
 
@@ -225,34 +219,70 @@ fun ExtensionsScreenContent(
             }
 
             // Extensions Items List (Quiet non-glass content layer)
-            items(filteredExtensions) { ext ->
-                val avatarColor = when (ext.name) {
-                    "MangaDex" -> Color(0xFFFF6740)
-                    "Comick" -> Color(0xFF60A5FA)
-                    "Asura Scans" -> Color(0xFFA855F7)
-                    "WebNovel" -> Color(0xFFEC4899)
-                    else -> Color(0xFF38BDF8)
-                }
-
-                ExtensionItemCard(
-                    name = ext.name,
-                    version = ext.version,
-                    isInstalled = ext.isInstalled,
-                    hasUpdate = ext.hasUpdate,
-                    avatarColor = avatarColor,
-                    onActionClick = {
-                        val index = extensionsList.indexOfFirst { it.id == ext.id }
-                        if (index != -1) {
-                            val current = extensionsList[index]
-                            extensionsList[index] = current.copy(
-                                isInstalled = !current.isInstalled,
-                                hasUpdate = false
+            if (filteredExtensions.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 48.dp, bottom = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            val (title, subtitle) = when (selectedFilter) {
+                                "Installed" -> "No Extensions Installed" to "Browse the Available tab to install sources."
+                                "Available" -> "No Extensions Available" to "Add an extension repository URL in Settings to discover sources."
+                                else -> "All Up to Date" to "All installed extensions are at their latest version."
+                            }
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 32.dp)
                             )
                         }
-                        onActionClick(ext)
                     }
-                )
-                Spacer(modifier = Modifier.height(10.dp))
+                }
+            } else {
+                items(filteredExtensions) { ext ->
+                    val avatarColor = when (ext.name) {
+                        "MangaDex" -> Color(0xFFFF6740)
+                        "Comick" -> Color(0xFF60A5FA)
+                        "Asura Scans" -> Color(0xFFA855F7)
+                        "WebNovel" -> Color(0xFFEC4899)
+                        else -> Color(0xFF38BDF8)
+                    }
+
+                    ExtensionItemCard(
+                        name = ext.name,
+                        version = ext.version,
+                        isInstalled = ext.isInstalled,
+                        hasUpdate = ext.hasUpdate,
+                        avatarColor = avatarColor,
+                        onActionClick = {
+                            val index = extensionsList.indexOfFirst { it.id == ext.id }
+                            if (index != -1) {
+                                val current = extensionsList[index]
+                                extensionsList[index] = current.copy(
+                                    isInstalled = !current.isInstalled,
+                                    hasUpdate = false
+                                )
+                            }
+                            onActionClick(ext)
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
             }
         }
 

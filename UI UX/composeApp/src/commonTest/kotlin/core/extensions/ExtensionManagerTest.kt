@@ -136,4 +136,20 @@ class ExtensionManagerTest {
         assertEquals(1, searchResults.size)
         assertEquals("Persisted Title", searchResults[0].title)
     }
+
+    @Test
+    fun testEmptyStateWithNoPreSeededRepositoriesOrFallbacks() = runBlocking {
+        val storage = InMemoryKeyValueStorage()
+        val manager = ExtensionManager(storage = storage)
+
+        // Verify zero pre-seeded repos
+        assertEquals(0, manager.repoUrls.value.size)
+
+        // Verify zero available extensions without repos
+        assertEquals(0, manager.availableExtensions.value.size)
+
+        // Refreshing catalog with 0 repos leaves available extensions empty
+        manager.refreshCatalog()
+        assertEquals(0, manager.availableExtensions.value.size)
+    }
 }

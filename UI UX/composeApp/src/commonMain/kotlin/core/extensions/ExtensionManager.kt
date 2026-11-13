@@ -1,5 +1,6 @@
 package core.extensions
 
+import core.extensions.js.AntiBotResolver
 import core.extensions.js.ExtensionCatalogItem
 import core.extensions.js.ExtensionType
 import core.extensions.js.JsBridge
@@ -32,6 +33,7 @@ class ExtensionManager(
     private val panelRepository: PanelRepository? = null,
     private val httpClient: HttpClient? = null,
     private val settingsRepository: SettingsRepository? = null,
+    private val antiBotResolver: AntiBotResolver? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 ) {
     private val json = Json {
@@ -42,7 +44,7 @@ class ExtensionManager(
     private val _installedExtensions = MutableStateFlow<List<JsExtensionManifest>>(emptyList())
     val installedExtensions: StateFlow<List<JsExtensionManifest>> = _installedExtensions.asStateFlow()
 
-    private val _availableExtensions = MutableStateFlow<List<ExtensionCatalogItem>>(SampleExtensions.DEMO_CATALOG_ITEMS)
+    private val _availableExtensions = MutableStateFlow<List<ExtensionCatalogItem>>(emptyList())
     val availableExtensions: StateFlow<List<ExtensionCatalogItem>> = _availableExtensions.asStateFlow()
 
     private val _repoUrls = MutableStateFlow<List<String>>(emptyList())
@@ -121,7 +123,7 @@ class ExtensionManager(
             }
         }
 
-        val allItems = (SampleExtensions.DEMO_CATALOG_ITEMS + items).distinctBy { it.id }
+        val allItems = items.distinctBy { it.id }
         _availableExtensions.value = allItems
     }
 
@@ -205,7 +207,7 @@ class ExtensionManager(
     private suspend fun registerAndActivateSource(manifest: JsExtensionManifest) {
         try {
             val engine = JsEngine()
-            val bridge = JsBridge(httpClient = httpClient)
+            val bridge = JsBridge(httpClient = httpClient, antiBotResolver = antiBotResolver)
             val source = JsExtensionSource(manifest = manifest, engine = engine, bridge = bridge)
 
             source.initialize()
@@ -263,10 +265,6 @@ class ExtensionManager(
             json.decodeFromString<List<String>>(reposJson).toMutableList()
         } catch (_: Exception) {
             mutableListOf()
-        }
-        if (!repos.contains(OFFICIAL_REPO_URL)) {
-            repos.add(OFFICIAL_REPO_URL)
-            saveRepositories(repos)
         }
         _repoUrls.value = repos
     }
@@ -337,7 +335,6 @@ class ExtensionManager(
     }
 
     companion object {
-        const val OFFICIAL_REPO_URL = "https://raw.githubusercontent.com/RitwikGupta-0501/dokuha-extensions/main"
         private const val KEY_INSTALLED_IDS = "dokuha_installed_ext_ids"
         private const val KEY_REPO_URLS = "dokuha_repo_urls"
     }
