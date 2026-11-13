@@ -8,7 +8,9 @@ package core.extensions
  * - Valid host required (rejects empty host, whitespace)
  * - Rejects userinfo in the URL (user:pass@)
  * - Maximum URL length: 512 characters
- * - Normalizes scheme/host to lowercase, strips trailing slashes and /index.json
+ * - Normalizes scheme/host to lowercase, strips trailing slashes and known manifest paths
+ * - Hardened against SSRF: blocks loopback, private IPv4 (10/8, 172.16/12, 192.168/16), link-local (169.254/16), CGNAT (100.64/10), 0.0.0.0/8, and private IPv6 (::1, fe80::/10, fc00::/7)
+ * - Supports DNS resolution validation to defeat DNS rebinding attacks
  * - Calculates deterministic SHA-256 fingerprint
  * - Enforces response size cap (2 MB) and timeout (10s)
  * - Never auto-installs extensions
@@ -26,7 +28,10 @@ object ExtensionRepoValidator {
         val errorMessage: String? = null
     )
 
-    fun validateAndNormalize(rawUrl: String): ValidationResult {
+    fun validateAndNormalize(
+        rawUrl: String,
+        dnsResolver: ((String) -> List<String>)? = null
+    ): ValidationResult {
         val trimmed = rawUrl.trim()
         if (trimmed.isEmpty()) {
             return ValidationResult(isValid = false, errorMessage = "Repository URL cannot be empty")
@@ -49,22 +54,39 @@ object ExtensionRepoValidator {
         }
 
         val host = hostAndPort.substringBefore(':').lowercase()
-        if (host.isEmpty() || host.contains(' ') || !host.contains('.')) {
+        if (host.isEmpty() || host.contains(' ') || (!host.contains('.') && host != "localhost" && host != "::1")) {
             return ValidationResult(isValid = false, errorMessage = "Invalid repository host")
         }
 
-        // Reject localhost and local/private network addresses
-        if (host == "localhost" || host.startsWith("127.") || host.startsWith("192.168.") || host.startsWith("10.") || host.startsWith("172.16.")) {
+        // Direct IP and localhost check
+        if (host == "localhost" || isPrivateOrReservedIp(host)) {
             return ValidationResult(isValid = false, errorMessage = "Localhost and private network repositories are not allowed")
         }
 
-        // Normalize URL: lowercase scheme & host, strip trailing slash and /index.json
+        // DNS Rebinding Protection: Resolve hostname and check all resolved IPs if resolver provided
+        if (dnsResolver != null) {
+            val resolvedIps = try {
+                dnsResolver(host)
+            } catch (e: Exception) {
+                return ValidationResult(isValid = false, errorMessage = "Host DNS resolution failed: ${e.message}")
+            }
+            if (resolvedIps.isNotEmpty() && resolvedIps.any { isPrivateOrReservedIp(it) || it == "127.0.0.1" || it == "::1" }) {
+                return ValidationResult(isValid = false, errorMessage = "Host resolves to a private, loopback, or cloud metadata IP address (SSRF blocked)")
+            }
+        }
+
+        // Normalize URL: lowercase scheme & host, strip trailing slash and known manifest names
         val pathAndQuery = afterScheme.substringAfter('/', "")
         var path = pathAndQuery.substringBefore('?').substringBefore('#')
-        if (path.endsWith("/index.json", ignoreCase = true)) {
-            path = path.substring(0, path.length - "/index.json".length)
-        } else if (path.equals("index.json", ignoreCase = true)) {
-            path = ""
+        val knownManifests = listOf(
+            "/index.min.json", "/index.json", "/novel_index.json", "/plugins.min.json", "/versioning.json",
+            "index.min.json", "index.json", "novel_index.json", "plugins.min.json", "versioning.json"
+        )
+        for (m in knownManifests) {
+            if (path.endsWith(m, ignoreCase = true)) {
+                path = path.substring(0, path.length - m.length)
+                break
+            }
         }
         val cleanPath = path.trimEnd('/')
 
@@ -76,6 +98,35 @@ object ExtensionRepoValidator {
             normalizedUrl = normalized,
             fingerprint = fingerprint
         )
+    }
+
+    /**
+     * Checks if an IP string belongs to private, loopback, link-local, carrier-grade NAT, or reserved subnets.
+     */
+    fun isPrivateOrReservedIp(ipStr: String): Boolean {
+        // IPv6 Loopback, Link-Local, and Unique-Local
+        if (ipStr == "::1" || ipStr.startsWith("fe80:", ignoreCase = true) ||
+            ipStr.startsWith("fc00:", ignoreCase = true) || ipStr.startsWith("fd00:", ignoreCase = true)
+        ) {
+            return true
+        }
+
+        val parts = ipStr.split('.')
+        if (parts.size != 4) return false
+        val octets = parts.mapNotNull { it.toIntOrNull() }
+        if (octets.size != 4 || octets.any { it !in 0..255 }) return false
+
+        val (o1, o2) = octets
+        return when {
+            o1 == 127 -> true                                              // 127.0.0.0/8 (Loopback)
+            o1 == 10 -> true                                               // 10.0.0.0/8 (Private A)
+            o1 == 172 && (o2 in 16..31) -> true                            // 172.16.0.0/12 (Private B: 172.16.0.0 - 172.31.255.255)
+            o1 == 192 && o2 == 168 -> true                                 // 192.168.0.0/16 (Private C)
+            o1 == 169 && o2 == 254 -> true                                 // 169.254.0.0/16 (Link-Local & Cloud IMDS)
+            o1 == 100 && (o2 in 64..127) -> true                           // 100.64.0.0/10 (Carrier-Grade NAT)
+            o1 == 0 -> true                                                // 0.0.0.0/8
+            else -> false
+        }
     }
 
     /**

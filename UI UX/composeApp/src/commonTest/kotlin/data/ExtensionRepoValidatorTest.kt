@@ -143,4 +143,49 @@ class ExtensionRepoValidatorTest {
         settingsRepo.removeExtensionRepo(repo.id)
         assertEquals(0, settingsRepo.extensionRepos.value.size)
     }
+
+    @Test
+    fun `hardened SSRF validation rejects Docker IMDS CGNAT and IPv6 subnets`() {
+        // Docker overlay (172.17.0.1, 172.31.255.255)
+        assertFalse(ExtensionRepoValidator.validateAndNormalize("https://172.17.0.1/repo").isValid)
+        assertFalse(ExtensionRepoValidator.validateAndNormalize("https://172.31.255.255/repo").isValid)
+
+        // Cloud IMDS Link-Local (169.254.169.254)
+        assertFalse(ExtensionRepoValidator.validateAndNormalize("https://169.254.169.254/latest/meta-data").isValid)
+
+        // Carrier-Grade NAT (100.64.0.1)
+        assertFalse(ExtensionRepoValidator.validateAndNormalize("https://100.64.0.1/repo").isValid)
+
+        // IPv6 Loopback and Link-Local
+        assertFalse(ExtensionRepoValidator.validateAndNormalize("https://[::1]/repo").isValid)
+        assertTrue(ExtensionRepoValidator.isPrivateOrReservedIp("::1"))
+        assertTrue(ExtensionRepoValidator.isPrivateOrReservedIp("fe80::1"))
+        assertTrue(ExtensionRepoValidator.isPrivateOrReservedIp("fc00::1"))
+        assertTrue(ExtensionRepoValidator.isPrivateOrReservedIp("fd00::1"))
+
+        // Public IPs should pass isPrivateOrReservedIp
+        assertFalse(ExtensionRepoValidator.isPrivateOrReservedIp("8.8.8.8"))
+        assertFalse(ExtensionRepoValidator.isPrivateOrReservedIp("172.32.0.1"))
+    }
+
+    @Test
+    fun `url normalization strips all multi ecosystem manifest filenames`() {
+        assertEquals("https://example.com/repo", ExtensionRepoValidator.validateAndNormalize("https://example.com/repo/novel_index.json").normalizedUrl)
+        assertEquals("https://example.com/repo", ExtensionRepoValidator.validateAndNormalize("https://example.com/repo/plugins.min.json").normalizedUrl)
+        assertEquals("https://example.com/repo", ExtensionRepoValidator.validateAndNormalize("https://example.com/repo/versioning.json").normalizedUrl)
+        assertEquals("https://example.com", ExtensionRepoValidator.validateAndNormalize("https://example.com/plugins.min.json").normalizedUrl)
+    }
+
+    @Test
+    fun `dns rebinding protection rejects domains resolving to private ips`() {
+        val rebindingResolver: (String) -> List<String> = { _ ->
+            listOf("169.254.169.254")
+        }
+        val result = ExtensionRepoValidator.validateAndNormalize(
+            "https://rebinding.malicious.com/repo",
+            dnsResolver = rebindingResolver
+        )
+        assertFalse(result.isValid)
+        assertTrue(result.errorMessage?.contains("SSRF blocked") == true)
+    }
 }

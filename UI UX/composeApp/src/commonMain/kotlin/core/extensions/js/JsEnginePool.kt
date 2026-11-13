@@ -105,6 +105,13 @@ class JsEnginePool(
         activeEngines.size
     }
 
+    suspend fun evict(sourceId: Long) = lock.withLock {
+        val entry = activeEngines.remove(sourceId)
+        try {
+            entry?.engine?.close()
+        } catch (_: Exception) {}
+    }
+
     suspend fun close() = lock.withLock {
         activeEngines.values.forEach {
             try {

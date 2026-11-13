@@ -1,5 +1,6 @@
 package core.extensions.js
 
+import core.extensions.model.ExtensionEcosystem
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -19,7 +20,8 @@ data class JsExtensionManifest(
     val type: ExtensionType,
     val iconUrl: String? = null,
     val isNsfw: Boolean = false,
-    val script: String
+    val script: String,
+    val ecosystem: ExtensionEcosystem = ExtensionEcosystem.CUSTOM
 )
 
 @Serializable
@@ -33,5 +35,6 @@ data class ExtensionCatalogItem(
     val iconUrl: String? = null,
     val isNsfw: Boolean = false,
     val pkg: String,
-    val sha256: String
+    val sha256: String = "",
+    val ecosystem: ExtensionEcosystem = ExtensionEcosystem.CUSTOM
 )

@@ -1,12 +1,13 @@
 package core.extensions
 
-import core.extensions.js.AntiBotResolver
-import core.extensions.js.ExtensionCatalogItem
-import core.extensions.js.ExtensionType
-import core.extensions.js.JsBridge
-import core.extensions.js.JsEngine
-import core.extensions.js.JsExtensionManifest
-import core.extensions.js.JsExtensionSource
+import core.extensions.js.*
+import core.extensions.lnreader.LNReaderManifest
+import core.extensions.lnreader.LNReaderSourceAdapter
+import core.extensions.mangayomi.MangayomiManifest
+import core.extensions.mangayomi.MangayomiSourceAdapter
+import core.extensions.model.ExtensionEcosystem
+import core.extensions.paperback.PaperbackManifest
+import core.extensions.paperback.PaperbackSourceAdapter
 import core.source.ContentSource
 import core.storage.KeyValueStorage
 import data.mock.PanelRepository
@@ -25,8 +26,9 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /**
- * Manages the lifecycle of JavaScript extensions: installing, updating,
- * persisting bundles to storage, and dynamically registering sources into PanelRepository.
+ * Manages the lifecycle of extensions across all supported ecosystems (Mangayomi, LNReader,
+ * Paperback, and Dokuha native): indexing repositories, downloading scripts, validating SHA-256
+ * checksums, persisting bundles, pooled sandbox activation, and registering dynamic sources into PanelRepository.
  */
 class ExtensionManager(
     private val storage: KeyValueStorage,
@@ -34,12 +36,16 @@ class ExtensionManager(
     private val httpClient: HttpClient? = null,
     private val settingsRepository: SettingsRepository? = null,
     private val antiBotResolver: AntiBotResolver? = null,
+    private val enginePool: JsEnginePool = JsEnginePool(),
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
     }
+
+    private val catalogParser = ExtensionCatalogParser(json)
+    private val bridge = JsBridge(httpClient = httpClient, antiBotResolver = antiBotResolver)
 
     private val _installedExtensions = MutableStateFlow<List<JsExtensionManifest>>(emptyList())
     val installedExtensions: StateFlow<List<JsExtensionManifest>> = _installedExtensions.asStateFlow()
@@ -50,7 +56,7 @@ class ExtensionManager(
     private val _repoUrls = MutableStateFlow<List<String>>(emptyList())
     val repoUrls: StateFlow<List<String>> = _repoUrls.asStateFlow()
 
-    private val activeSources = mutableMapOf<String, JsExtensionSource>()
+    private val activeSources = mutableMapOf<String, ContentSource>()
 
     init {
         loadRepositories()
@@ -94,30 +100,35 @@ class ExtensionManager(
     }
 
     /**
-     * Refreshes the extension catalog from all configured repository URLs.
+     * Refreshes the extension catalog from all configured repository URLs across all ecosystems.
      */
     suspend fun refreshCatalog() {
         val client = httpClient
         val items = mutableListOf<ExtensionCatalogItem>()
 
         if (client != null) {
+            val candidateEndpoints = listOf(
+                "index.min.json",
+                "index.json",
+                "novel_index.json",
+                "plugins.min.json",
+                "versioning.json"
+            )
+
             for (repoUrl in _repoUrls.value) {
-                try {
-                    val indexUrl = "$repoUrl/index.min.json"
-                    val response = client.get(indexUrl)
-                    val body = response.bodyAsText()
-                    val parsed = json.decodeFromString<List<ExtensionCatalogItem>>(body)
-                    items.addAll(parsed)
-                } catch (_: Exception) {
-                    // Try fallback to index.json
+                for (endpoint in candidateEndpoints) {
                     try {
-                        val indexUrl = "$repoUrl/index.json"
-                        val response = client.get(indexUrl)
+                        val fullUrl = "${repoUrl.trimEnd('/')}/$endpoint"
+                        val response = client.get(fullUrl)
                         val body = response.bodyAsText()
-                        val parsed = json.decodeFromString<List<ExtensionCatalogItem>>(body)
-                        items.addAll(parsed)
+                        if (body.isNotBlank()) {
+                            val parsed = catalogParser.parseCatalog(body, repoUrl)
+                            if (parsed.isNotEmpty()) {
+                                items.addAll(parsed)
+                            }
+                        }
                     } catch (_: Exception) {
-                        // Skip unreachable repo
+                        // Skip unreachable endpoint or 404
                     }
                 }
             }
@@ -128,7 +139,7 @@ class ExtensionManager(
     }
 
     /**
-     * Downloads and installs an extension from a repository.
+     * Downloads, validates, and installs an extension from a repository.
      */
     suspend fun installExtension(catalogItem: ExtensionCatalogItem, repoBaseUrl: String): Boolean {
         if (catalogItem.pkg.startsWith("demo://")) {
@@ -156,7 +167,27 @@ class ExtensionManager(
                 }
             }
 
-            installExtensionFromBundle(script)
+            val manifest = JsExtensionManifest(
+                id = catalogItem.id,
+                name = catalogItem.name,
+                version = catalogItem.version,
+                lang = catalogItem.lang,
+                baseUrl = catalogItem.baseUrl,
+                type = catalogItem.type,
+                iconUrl = catalogItem.iconUrl,
+                isNsfw = catalogItem.isNsfw,
+                script = script,
+                ecosystem = catalogItem.ecosystem
+            )
+
+            saveManifest(manifest)
+            registerAndActivateSource(manifest)
+
+            val updated = _installedExtensions.value.filter { it.id != manifest.id }.toMutableList()
+            updated.add(manifest)
+            _installedExtensions.value = updated
+
+            true
         } catch (e: Exception) {
             println("[ExtensionManager] Failed to install extension ${catalogItem.id}: ${e.message}")
             false
@@ -189,7 +220,14 @@ class ExtensionManager(
         val source = activeSources.remove(extensionId)
         if (source != null) {
             panelRepository?.unregisterSource(source.id)
-            source.close()
+            if (source is AutoCloseable) {
+                try {
+                    source.close()
+                } catch (_: Exception) {}
+            }
+            coroutineScope.launch {
+                enginePool.evict(source.id)
+            }
         }
 
         storage.remove(storageManifestKey(extensionId))
@@ -206,14 +244,106 @@ class ExtensionManager(
 
     private suspend fun registerAndActivateSource(manifest: JsExtensionManifest) {
         try {
-            val engine = JsEngine()
-            val bridge = JsBridge(httpClient = httpClient, antiBotResolver = antiBotResolver)
-            val source = JsExtensionSource(manifest = manifest, engine = engine, bridge = bridge)
-
-            source.initialize()
-
-            activeSources[manifest.id] = source
-            panelRepository?.registerSource(source)
+            when (manifest.ecosystem) {
+                ExtensionEcosystem.MANGAYOMI -> {
+                    val numericId = manifest.id.toLongOrNull() ?: ((manifest.id.hashCode().toLong() and 0x7FFFFFFF) + 10_000L)
+                    val mManifest = MangayomiManifest(
+                        id = numericId,
+                        name = manifest.name,
+                        baseUrl = manifest.baseUrl,
+                        lang = manifest.lang,
+                        version = manifest.version,
+                        isNovel = manifest.type == ExtensionType.NOVEL,
+                        isNsfw = manifest.isNsfw,
+                        script = manifest.script
+                    )
+                    val adapter = MangayomiSourceAdapter(mManifest, enginePool, bridge)
+                    activeSources[manifest.id] = adapter
+                    panelRepository?.registerSource(adapter)
+                }
+                ExtensionEcosystem.LNREADER -> {
+                    val lnManifest = LNReaderManifest(
+                        id = manifest.id,
+                        name = manifest.name,
+                        site = manifest.baseUrl,
+                        lang = manifest.lang,
+                        version = manifest.version,
+                        script = manifest.script
+                    )
+                    val adapter = LNReaderSourceAdapter(lnManifest, enginePool, bridge)
+                    activeSources[manifest.id] = adapter
+                    panelRepository?.registerSource(adapter)
+                }
+                ExtensionEcosystem.PAPERBACK -> {
+                    val pbManifest = PaperbackManifest(
+                        id = manifest.id,
+                        name = manifest.name,
+                        websiteBaseURL = manifest.baseUrl,
+                        language = manifest.lang,
+                        version = manifest.version,
+                        contentRating = if (manifest.isNsfw) "ADULT" else "EVERYONE",
+                        script = manifest.script
+                    )
+                    val adapter = PaperbackSourceAdapter(pbManifest, enginePool, bridge)
+                    activeSources[manifest.id] = adapter
+                    panelRepository?.registerSource(adapter)
+                }
+                ExtensionEcosystem.CUSTOM -> {
+                    // Auto-detect based on script tokens
+                    when {
+                        manifest.script.contains("DefaultExtension") || manifest.script.contains("MProvider") -> {
+                            val numericId = manifest.id.toLongOrNull() ?: ((manifest.id.hashCode().toLong() and 0x7FFFFFFF) + 10_000L)
+                            val mManifest = MangayomiManifest(
+                                id = numericId,
+                                name = manifest.name,
+                                baseUrl = manifest.baseUrl,
+                                lang = manifest.lang,
+                                version = manifest.version,
+                                isNovel = manifest.type == ExtensionType.NOVEL,
+                                isNsfw = manifest.isNsfw,
+                                script = manifest.script
+                            )
+                            val adapter = MangayomiSourceAdapter(mManifest, enginePool, bridge)
+                            activeSources[manifest.id] = adapter
+                            panelRepository?.registerSource(adapter)
+                        }
+                        manifest.script.contains("module.exports") -> {
+                            val lnManifest = LNReaderManifest(
+                                id = manifest.id,
+                                name = manifest.name,
+                                site = manifest.baseUrl,
+                                lang = manifest.lang,
+                                version = manifest.version,
+                                script = manifest.script
+                            )
+                            val adapter = LNReaderSourceAdapter(lnManifest, enginePool, bridge)
+                            activeSources[manifest.id] = adapter
+                            panelRepository?.registerSource(adapter)
+                        }
+                        manifest.script.contains("globalThis.Sources") || manifest.script.contains("Sources[") -> {
+                            val pbManifest = PaperbackManifest(
+                                id = manifest.id,
+                                name = manifest.name,
+                                websiteBaseURL = manifest.baseUrl,
+                                language = manifest.lang,
+                                version = manifest.version,
+                                contentRating = if (manifest.isNsfw) "ADULT" else "EVERYONE",
+                                script = manifest.script
+                            )
+                            val adapter = PaperbackSourceAdapter(pbManifest, enginePool, bridge, isV9 = false)
+                            activeSources[manifest.id] = adapter
+                            panelRepository?.registerSource(adapter)
+                        }
+                        else -> {
+                            val engine = JsEngine()
+                            val source = JsExtensionSource(manifest = manifest, engine = engine, bridge = bridge)
+                            source.initialize()
+                            activeSources[manifest.id] = source
+                            panelRepository?.registerSource(source)
+                        }
+                    }
+                }
+            }
         } catch (e: Exception) {
             println("[ExtensionManager] Failed to initialize source ${manifest.id}: ${e.message}")
         }
@@ -319,7 +449,8 @@ class ExtensionManager(
         val baseUrl: String,
         val type: String,
         val iconUrl: String? = null,
-        val isNsfw: Boolean = false
+        val isNsfw: Boolean = false,
+        val ecosystem: ExtensionEcosystem = ExtensionEcosystem.CUSTOM
     ) {
         fun toManifest(script: String): JsExtensionManifest = JsExtensionManifest(
             id = id,
@@ -330,7 +461,8 @@ class ExtensionManager(
             type = try { ExtensionType.valueOf(type.uppercase()) } catch (_: Exception) { ExtensionType.COMIC },
             iconUrl = iconUrl,
             isNsfw = isNsfw,
-            script = script
+            script = script,
+            ecosystem = ecosystem
         )
     }
 
