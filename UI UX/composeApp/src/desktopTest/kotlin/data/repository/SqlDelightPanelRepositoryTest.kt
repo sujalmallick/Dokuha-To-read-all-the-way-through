@@ -148,4 +148,76 @@ class SqlDelightPanelRepositoryTest {
         assertNotNull(todayGroup, "Should have a Today group")
         assertTrue(todayGroup.items.any { it.manga.url == manga.url && it.chapter.url == ch1 })
     }
+
+    @Test
+    fun testDynamicSourceReactiveFlowsAndGlobalSearch() = runBlocking {
+        // Initially no sources
+        val initialSources = repository.getSources().first()
+        assertTrue(initialSources.isEmpty(), "Should have no sources initially")
+
+        val dummySource = object : core.source.ComicSource {
+            override val id: Long = 999L
+            override val name: String = "Dynamic Test Source"
+            override val baseUrl: String = "https://dynamic.example.com"
+            override val lang: String = "en"
+            override val isNsfw: Boolean = false
+
+            override suspend fun getPopular(page: Int): core.source.MangasPage = core.source.MangasPage(
+                mangas = listOf(
+                    SourceManga(url = "m1", title = "Dynamic Popular Title", isNovel = false)
+                ),
+                hasNextPage = false
+            )
+
+            override suspend fun getLatestUpdates(page: Int): core.source.MangasPage = core.source.MangasPage(
+                mangas = listOf(
+                    SourceManga(url = "m2", title = "Dynamic Latest Title", isNovel = false)
+                ),
+                hasNextPage = false
+            )
+
+            override suspend fun search(query: String, page: Int, filters: List<core.source.SourceFilter>): core.source.MangasPage = core.source.MangasPage(
+                mangas = listOf(
+                    SourceManga(url = "m1", title = "Dynamic Popular Title", isNovel = false)
+                ).filter { it.title.contains(query, ignoreCase = true) },
+                hasNextPage = false
+            )
+
+            override suspend fun getMangaDetails(manga: SourceManga): SourceManga = manga
+            override suspend fun getChapterList(manga: SourceManga): List<core.source.SourceChapter> = emptyList()
+            override suspend fun getPageList(chapter: core.source.SourceChapter): List<core.source.SourcePage> = emptyList()
+        }
+
+        // Register dynamic source
+        repository.registerSource(dummySource)
+
+        // Verify getSources reactive emission
+        val updatedSources = repository.getSources().first()
+        assertEquals(1, updatedSources.size)
+        assertEquals("Dynamic Test Source", updatedSources.first().name)
+
+        // Global search with sourceId = null queries dynamic source
+        val searchResults = repository.searchManga(query = "Dynamic", sourceId = null).first()
+        assertEquals(1, searchResults.size)
+        assertEquals("Dynamic Popular Title", searchResults.first().title)
+
+        // Get catalogue for popular
+        val popular = repository.getSourceCatalogue(sourceId = "999", page = 1).first()
+        assertEquals(1, popular.size)
+        assertEquals("Dynamic Popular Title", popular.first().title)
+
+        // Get catalogue for latest
+        val latest = repository.getSourceCatalogue(
+            sourceId = "999",
+            page = 1,
+            filters = data.mock.BrowseFilters(sortBy = data.mock.BrowseSortOrder.LATEST)
+        ).first()
+        assertEquals(1, latest.size)
+        assertEquals("Dynamic Latest Title", latest.first().title)
+
+        // Unregister source
+        repository.unregisterSource(999L)
+        val emptySources = repository.getSources().first()
+        assertTrue(emptySources.isEmpty(), "Should be empty after unregistering")
+    }
 }

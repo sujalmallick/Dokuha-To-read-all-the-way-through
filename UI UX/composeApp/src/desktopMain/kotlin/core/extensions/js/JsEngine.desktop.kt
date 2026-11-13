@@ -77,18 +77,7 @@ actual class JsEngine actual constructor() {
         val asyncRunner = """
             (async () => {
                 try {
-                    let res = ($script);
-                    if (res && typeof res.then === 'function') {
-                        let done = false;
-                        let val = null;
-                        let err = null;
-                        res.then(v => { done = true; val = v; }, e => { done = true; err = e; });
-                        while (!done) {
-                            await __dokuha_yield();
-                        }
-                        if (err) throw err;
-                        res = val;
-                    }
+                    let res = await ($script);
                     const serialized = (typeof res === 'object' && res !== null) ? JSON.stringify(res) : (res === undefined ? 'undefined' : String(res));
                     await __dokuha_finish(true, serialized);
                 } catch (e) {
@@ -167,18 +156,7 @@ actual class JsEngine actual constructor() {
                     if (typeof fn !== 'function') {
                         throw new Error('$functionName is not a function');
                     }
-                    let res = fn.call(parent, $argsJs);
-                    if (res && typeof res.then === 'function') {
-                        let done = false;
-                        let val = null;
-                        let err = null;
-                        res.then(v => { done = true; val = v; }, e => { done = true; err = e; });
-                        while (!done) {
-                            await __dokuha_yield();
-                        }
-                        if (err) throw err;
-                        res = val;
-                    }
+                    let res = await fn.call(parent, $argsJs);
                     const serialized = (typeof res === 'object' && res !== null) ? JSON.stringify(res) : (res === undefined ? 'undefined' : String(res));
                     await __dokuha_finish(true, serialized);
                 } catch (e) {
