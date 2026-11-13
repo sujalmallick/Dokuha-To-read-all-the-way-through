@@ -2,42 +2,34 @@ package ui.screens.extensions
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
-import data.mock.FakePanelRepository
+import core.extensions.ExtensionManager
 import data.mock.MockExtension
 import data.mock.PanelRepository
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.ExtensionItemCard
@@ -50,14 +42,7 @@ import ui.screens.browse.BrowseScreen
 import ui.screens.library.LibraryScreen
 import ui.screens.more.MoreScreen
 import ui.screens.updates.UpdatesScreen
-import ui.theme.PanelBackground
-import ui.theme.PanelTheme
-import ui.theme.TextPrimary
-import ui.theme.TextSecondary
-
-import androidx.compose.runtime.rememberCoroutineScope
-import core.extensions.ExtensionManager
-import kotlinx.coroutines.launch
+import ui.theme.*
 
 class ExtensionsScreen : Screen {
 
@@ -120,6 +105,15 @@ class ExtensionsScreen : Screen {
                     }
                 }
             },
+            onAddRepository = { url ->
+                val result = extensionManager.addRepository(url)
+                result.isValid
+            },
+            onRefresh = {
+                coroutineScope.launch {
+                    extensionManager.refreshCatalog()
+                }
+            },
             onTabSelected = { tab ->
                 when (tab) {
                     PanelTab.LIBRARY -> navigator.push(LibraryScreen())
@@ -137,11 +131,18 @@ fun ExtensionsScreenContent(
     initialExtensions: List<MockExtension>,
     onTabSelected: (PanelTab) -> Unit,
     onActionClick: (MockExtension) -> Unit = {},
+    onAddRepository: (String) -> Boolean = { true },
+    onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val glassState = rememberPanelGlassState()
-    var selectedFilter by remember { mutableStateOf("Installed") }
+    val hasInstalled = initialExtensions.any { it.isInstalled }
+    var selectedFilter by remember { mutableStateOf(if (hasInstalled) "Installed" else "Available") }
     val filters = listOf("Installed", "Available", "Updates")
+
+    var showAddDialog by remember { mutableStateOf(false) }
+    var newRepoUrl by remember { mutableStateOf("") }
+    var addError by remember { mutableStateOf<String?>(null) }
 
     // State list for interactive updates
     val extensionsList = remember(initialExtensions) {
@@ -182,7 +183,7 @@ fun ExtensionsScreenContent(
             )
         }
 
-        // LAYER 1: Scrollable Content Layer (marked with glassSource)
+        // LAYER 1: Scrollable Content Layer
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -197,13 +198,36 @@ fun ExtensionsScreenContent(
             // Header Bar & Glass Segmented Control
             item {
                 Column(modifier = Modifier.statusBarsPadding()) {
-                    Text(
-                        text = "Extensions",
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary,
-                        letterSpacing = (-0.5).sp
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Extensions",
+                            style = MaterialTheme.typography.headlineLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary,
+                            letterSpacing = (-0.5).sp
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            IconButton(onClick = onRefresh) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Refresh Catalog",
+                                    tint = TextSecondary
+                                )
+                            }
+                            IconButton(onClick = { showAddDialog = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Add Repository",
+                                    tint = ElectricBlue
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(16.dp))
 
                     // Unified Glass Segmented Control with sliding glass lens indicator
@@ -218,7 +242,7 @@ fun ExtensionsScreenContent(
                 Spacer(modifier = Modifier.height(20.dp))
             }
 
-            // Extensions Items List (Quiet non-glass content layer)
+            // Extensions Items List
             if (filteredExtensions.isEmpty()) {
                 item {
                     Box(
@@ -233,7 +257,7 @@ fun ExtensionsScreenContent(
                         ) {
                             val (title, subtitle) = when (selectedFilter) {
                                 "Installed" -> "No Extensions Installed" to "Browse the Available tab to install sources."
-                                "Available" -> "No Extensions Available" to "Add an extension repository URL in Settings to discover sources."
+                                "Available" -> "No Extensions Available" to "Add a repository URL to discover and install community sources."
                                 else -> "All Up to Date" to "All installed extensions are at their latest version."
                             }
                             Text(
@@ -247,9 +271,22 @@ fun ExtensionsScreenContent(
                                 text = subtitle,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = TextSecondary,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                textAlign = TextAlign.Center,
                                 modifier = Modifier.padding(horizontal = 32.dp)
                             )
+
+                            if (selectedFilter == "Available") {
+                                Spacer(modifier = Modifier.height(20.dp))
+                                Button(
+                                    onClick = { showAddDialog = true },
+                                    colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Add Repository", color = Color.White)
+                                }
+                            }
                         }
                     }
                 }
@@ -286,6 +323,85 @@ fun ExtensionsScreenContent(
             }
         }
 
+        // Add Repository Dialog
+        if (showAddDialog) {
+            Dialog(onDismissRequest = { showAddDialog = false; addError = null }) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFF161A22))
+                        .padding(20.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Text(
+                            text = "Add Extension Repository",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+
+                        Text(
+                            text = "Enter a repository URL or choose a popular preset below:",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+
+                        // Quick presets
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            QuickPresetChip("Mangayomi (Manga & Novels)") {
+                                newRepoUrl = "https://kodjodevf.github.io/mangayomi-extensions"
+                            }
+                            QuickPresetChip("LNReader (370+ Web Novels)") {
+                                newRepoUrl = "https://raw.githubusercontent.com/LNReader/lnreader-plugins/plugins/v3.0.0/.dist"
+                            }
+                            QuickPresetChip("Paperback (Default Comics)") {
+                                newRepoUrl = "https://paperback-ios.github.io/extensions-default/0.8"
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = newRepoUrl,
+                            onValueChange = { newRepoUrl = it; addError = null },
+                            label = { Text("Repository HTTPS URL") },
+                            isError = addError != null,
+                            supportingText = addError?.let { { Text(it, color = MaterialTheme.colorScheme.error) } },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TextButton(onClick = { showAddDialog = false; addError = null }) {
+                                Text("Cancel", color = TextSecondary)
+                            }
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    val success = onAddRepository(newRepoUrl.trim())
+                                    if (success) {
+                                        showAddDialog = false
+                                        newRepoUrl = ""
+                                        addError = null
+                                        selectedFilter = "Available"
+                                    } else {
+                                        addError = "Invalid or insecure repository URL"
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue),
+                                enabled = newRepoUrl.isNotBlank()
+                            ) {
+                                Text("Add Repository")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // LAYER 2: Floating Liquid Glass Bottom Navigation Dock
         PanelBottomNavBar(
             selectedTab = PanelTab.MORE,
@@ -295,6 +411,25 @@ fun ExtensionsScreenContent(
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
                 .padding(horizontal = 24.dp, vertical = 12.dp)
+        )
+    }
+}
+
+@Composable
+private fun QuickPresetChip(title: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color(0xFF222734))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = "+ $title",
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            color = ElectricBlue
         )
     }
 }

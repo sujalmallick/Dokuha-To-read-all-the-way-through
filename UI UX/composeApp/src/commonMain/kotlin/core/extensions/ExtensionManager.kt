@@ -116,15 +116,24 @@ class ExtensionManager(
             )
 
             for (repoUrl in _repoUrls.value) {
-                for (endpoint in candidateEndpoints) {
+                val endpoints = if (repoUrl.endsWith(".json")) {
+                    listOf("", "index.json", "novel_index.json", "plugins.min.json", "versioning.json")
+                } else {
+                    candidateEndpoints
+                }
+
+                for (endpoint in endpoints) {
                     try {
-                        val fullUrl = "${repoUrl.trimEnd('/')}/$endpoint"
+                        val fullUrl = if (endpoint.isEmpty()) repoUrl else "${repoUrl.trimEnd('/')}/$endpoint"
                         val response = client.get(fullUrl)
-                        val body = response.bodyAsText()
-                        if (body.isNotBlank()) {
-                            val parsed = catalogParser.parseCatalog(body, repoUrl)
-                            if (parsed.isNotEmpty()) {
-                                items.addAll(parsed)
+                        if (response.status.value in 200..299) {
+                            val body = response.bodyAsText()
+                            if (body.isNotBlank()) {
+                                val parsed = catalogParser.parseCatalog(body, repoUrl)
+                                if (parsed.isNotEmpty()) {
+                                    println("[ExtensionManager] Discovered ${parsed.size} extensions from $fullUrl")
+                                    items.addAll(parsed)
+                                }
                             }
                         }
                     } catch (_: Exception) {
