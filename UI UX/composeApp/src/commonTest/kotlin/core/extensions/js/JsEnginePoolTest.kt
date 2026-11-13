@@ -103,4 +103,19 @@ class JsEnginePoolTest {
 
         pool.close()
     }
+
+    @Test
+    fun testExplicitEviction() = runBlocking {
+        val pool = JsEnginePool(maxActiveEngines = 5)
+
+        pool.withEngine(42L, { it.evaluate("var v = 'active';") }) {
+            assertEquals("active", it.evaluate("v"))
+        }
+        assertEquals(1, pool.activeCount())
+
+        pool.evict(42L)
+        assertEquals(0, pool.activeCount(), "Evicted engine should be removed immediately from pool")
+
+        pool.close()
+    }
 }
