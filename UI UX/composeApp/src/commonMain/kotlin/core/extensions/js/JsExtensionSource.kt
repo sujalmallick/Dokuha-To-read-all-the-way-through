@@ -54,6 +54,7 @@ class JsExtensionSource(
 
     override suspend fun getPopular(page: Int): MangasPage {
         val result = engine.callFunction("extension.getPopular", page)
+        println("[JsExtensionSource] getPopular result: $result")
         return parseMangasPage(result)
     }
 

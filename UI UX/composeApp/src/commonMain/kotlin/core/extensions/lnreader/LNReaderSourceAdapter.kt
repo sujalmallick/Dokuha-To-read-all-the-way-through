@@ -137,14 +137,25 @@ class LNReaderSourceAdapter(
         else -> MangaStatus.UNKNOWN
     }
 
-    private fun parseNovelList(jsonStr: String): MangasPage {
-        val arr = Json.parseToJsonElement(jsonStr).jsonArray
-        val mangas = arr.map { el ->
-            val obj = el.jsonObject
+    private fun parseNovelList(jsonStr: String?): MangasPage {
+        if (jsonStr.isNullOrBlank() || jsonStr == "null" || jsonStr == "undefined") {
+            return MangasPage(mangas = emptyList(), hasNextPage = false)
+        }
+        val element = try {
+            Json.parseToJsonElement(jsonStr)
+        } catch (_: Exception) {
+            return MangasPage(mangas = emptyList(), hasNextPage = false)
+        }
+        val arr = element as? JsonArray ?: return MangasPage(mangas = emptyList(), hasNextPage = false)
+        val mangas = arr.mapNotNull { el ->
+            val obj = el as? JsonObject ?: return@mapNotNull null
+            val url = obj["path"]?.jsonPrimitive?.contentOrNull ?: return@mapNotNull null
+            val name = obj["name"]?.jsonPrimitive?.contentOrNull ?: "Unknown"
+            val cover = obj["cover"]?.jsonPrimitive?.contentOrNull
             SourceManga(
-                url = obj["path"]?.jsonPrimitive?.content ?: "",
-                title = obj["name"]?.jsonPrimitive?.content ?: "Unknown",
-                thumbnailUrl = obj["cover"]?.jsonPrimitive?.contentOrNull,
+                url = url,
+                title = name,
+                thumbnailUrl = cover,
                 isNovel = true
             )
         }

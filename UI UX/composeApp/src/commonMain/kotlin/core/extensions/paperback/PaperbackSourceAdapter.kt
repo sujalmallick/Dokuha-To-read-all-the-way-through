@@ -27,7 +27,7 @@ class PaperbackSourceAdapter(
     val manifest: PaperbackManifest,
     private val enginePool: JsEnginePool,
     private val bridge: JsBridge,
-    val isV9: Boolean = true
+    val isV9: Boolean = false
 ) : ComicSource {
 
     override val id: Long = (manifest.id.hashCode().toLong() and 0x7FFFFFFF) + 30_000L
@@ -42,12 +42,14 @@ class PaperbackSourceAdapter(
         engine.setGlobalVariable("__dokuha_source_id", id.toString())
         engine.evaluate(manifest.script)
 
-        if (isV9) {
-            val initScript = """
-                (async () => {
+        val initScript = """
+            (async () => {
+                let inst = null;
+                let mode = '$isV9' === 'true' ? 'v9' : 'v8';
+
+                if (globalThis.source) {
+                    mode = 'v9';
                     const src = globalThis.source;
-                    if (!src) throw new Error("Paperback v0.9 source namespace missing");
-                    let inst = null;
                     if (src.default) {
                         inst = (typeof src.default === 'function') ? new src.default() : src.default;
                     } else if (src['${manifest.id}']) {
@@ -59,41 +61,75 @@ class PaperbackSourceAdapter(
                         const target = src[candidateKey];
                         inst = (typeof target === 'function') ? new target() : target;
                     }
-                    globalThis.__pb_instance = inst;
-                    if (typeof globalThis.__pb_instance.initialise === 'function') {
-                        await globalThis.__pb_instance.initialise();
-                    }
-                })()
-            """.trimIndent()
-            engine.evaluate(initScript)
-        } else {
-            engine.evaluate("const sourceKey = Object.keys(globalThis.Sources)[0];")
-            engine.evaluate("globalThis.__pb_instance = new globalThis.Sources[sourceKey](globalThis.cheerio);")
-        }
+                } else if (globalThis.Sources && Object.keys(globalThis.Sources).length > 0) {
+                    mode = 'v8';
+                    const sourceKey = Object.keys(globalThis.Sources)[0];
+                    inst = new globalThis.Sources[sourceKey](globalThis.cheerio);
+                } else if (globalThis.window && globalThis.window.Sources && Object.keys(globalThis.window.Sources).length > 0) {
+                    mode = 'v8';
+                    const sourceKey = Object.keys(globalThis.window.Sources)[0];
+                    inst = new globalThis.window.Sources[sourceKey](globalThis.cheerio);
+                } else {
+                    throw new Error("Neither Paperback v0.9 nor v0.8 source namespace found");
+                }
+                globalThis.__pb_instance = inst;
+                globalThis.__pb_mode = mode;
+                if (typeof globalThis.__pb_instance.initialise === 'function') {
+                    await globalThis.__pb_instance.initialise();
+                }
+            })()
+        """.trimIndent()
+        engine.evaluate(initScript)
     }
 
     override suspend fun getPopular(page: Int): MangasPage = enginePool.withEngine(id, { initEngine(it) }) { engine ->
-        val script = if (isV9) {
-            "JSON.stringify(await globalThis.__pb_instance.getDiscoverSectionItems({ id: 'popular' }, { page: $page }))"
-        } else {
-            "JSON.stringify(await globalThis.__pb_instance.getViewMoreItems('popular', { page: $page }))"
-        }
+        val script = """
+            (async () => {
+                if (globalThis.__pb_mode === 'v9' && typeof globalThis.__pb_instance.getDiscoverSectionItems === 'function') {
+                    return JSON.stringify(await globalThis.__pb_instance.getDiscoverSectionItems({ id: 'popular' }, { page: $page }));
+                } else if (typeof globalThis.__pb_instance.getViewMoreItems === 'function') {
+                    return JSON.stringify(await globalThis.__pb_instance.getViewMoreItems('popular', { page: $page }));
+                } else if (typeof globalThis.__pb_instance.getHomePageSections === 'function') {
+                    const sections = await globalThis.__pb_instance.getHomePageSections();
+                    const first = (sections && sections[0]) ? (sections[0].items || []) : [];
+                    return JSON.stringify({ items: first });
+                }
+                return JSON.stringify({ items: [] });
+            })()
+        """.trimIndent()
         val res = engine.evaluate(script)
         parsePagedResults(res)
     }
 
     override suspend fun getLatestUpdates(page: Int): MangasPage = enginePool.withEngine(id, { initEngine(it) }) { engine ->
-        val script = if (isV9) {
-            "JSON.stringify(await globalThis.__pb_instance.getDiscoverSectionItems({ id: 'latest_updates' }, { page: $page }))"
-        } else {
-            "JSON.stringify(await globalThis.__pb_instance.getViewMoreItems('latest_updates', { page: $page }))"
-        }
+        val script = """
+            (async () => {
+                if (globalThis.__pb_mode === 'v9' && typeof globalThis.__pb_instance.getDiscoverSectionItems === 'function') {
+                    return JSON.stringify(await globalThis.__pb_instance.getDiscoverSectionItems({ id: 'latest_updates' }, { page: $page }));
+                } else if (typeof globalThis.__pb_instance.getViewMoreItems === 'function') {
+                    return JSON.stringify(await globalThis.__pb_instance.getViewMoreItems('latest_updates', { page: $page }));
+                } else if (typeof globalThis.__pb_instance.getHomePageSections === 'function') {
+                    const sections = await globalThis.__pb_instance.getHomePageSections();
+                    const sec = (sections && sections.length > 1) ? sections[1] : (sections && sections[0]);
+                    const items = sec ? (sec.items || []) : [];
+                    return JSON.stringify({ items: items });
+                }
+                return JSON.stringify({ items: [] });
+            })()
+        """.trimIndent()
         val res = engine.evaluate(script)
         parsePagedResults(res)
     }
 
     override suspend fun search(query: String, page: Int, filters: List<SourceFilter>): MangasPage = enginePool.withEngine(id, { initEngine(it) }) { engine ->
-        val script = "JSON.stringify(await globalThis.__pb_instance.getSearchResults({ title: ${Json.encodeToString(query)} }, { page: $page }))"
+        val script = """
+            (async () => {
+                if (typeof globalThis.__pb_instance.getSearchResults === 'function') {
+                    return JSON.stringify(await globalThis.__pb_instance.getSearchResults({ title: ${Json.encodeToString(query)} }, { page: $page }));
+                }
+                return JSON.stringify({ items: [] });
+            })()
+        """.trimIndent()
         val res = engine.evaluate(script)
         parsePagedResults(res)
     }
@@ -149,15 +185,36 @@ class PaperbackSourceAdapter(
         else -> MangaStatus.UNKNOWN
     }
 
-    private fun parsePagedResults(jsonStr: String): MangasPage {
-        val json = Json.parseToJsonElement(jsonStr).jsonObject
-        val results = json["results"]?.jsonArray ?: json["items"]?.jsonArray ?: JsonArray(emptyList())
-        val mangas = results.map { el ->
-            val obj = el.jsonObject
+    private fun parsePagedResults(jsonStr: String?): MangasPage {
+        if (jsonStr.isNullOrBlank() || jsonStr == "null" || jsonStr == "undefined") {
+            return MangasPage(mangas = emptyList(), hasNextPage = false)
+        }
+        val element = try {
+            Json.parseToJsonElement(jsonStr)
+        } catch (_: Exception) {
+            return MangasPage(mangas = emptyList(), hasNextPage = false)
+        }
+        val results = when (element) {
+            is JsonArray -> element
+            is JsonObject -> element["results"]?.jsonArray
+                ?: element["items"]?.jsonArray
+                ?: element["pagedResults"]?.jsonObject?.get("results")?.jsonArray
+                ?: JsonArray(emptyList())
+            else -> JsonArray(emptyList())
+        }
+        val mangas = results.mapNotNull { el ->
+            val obj = el as? JsonObject ?: return@mapNotNull null
+            val url = obj["id"]?.jsonPrimitive?.contentOrNull
+                ?: obj["mangaId"]?.jsonPrimitive?.contentOrNull
+                ?: return@mapNotNull null
+            val title = obj["title"]?.jsonPrimitive?.contentOrNull
+                ?: (obj["title"] as? JsonObject)?.get("name")?.jsonPrimitive?.contentOrNull
+                ?: "Unknown"
+            val image = obj["image"]?.jsonPrimitive?.contentOrNull
             SourceManga(
-                url = obj["id"]?.jsonPrimitive?.content ?: obj["mangaId"]?.jsonPrimitive?.content ?: "",
-                title = obj["title"]?.jsonPrimitive?.content ?: "Unknown",
-                thumbnailUrl = obj["image"]?.jsonPrimitive?.contentOrNull,
+                url = url,
+                title = title,
+                thumbnailUrl = image,
                 isNovel = false
             )
         }

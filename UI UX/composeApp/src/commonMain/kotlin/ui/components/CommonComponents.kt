@@ -739,6 +739,7 @@ fun ExtensionItemCard(
     hasUpdate: Boolean,
     onActionClick: () -> Unit,
     modifier: Modifier = Modifier,
+    lang: String? = null,
     avatarColor: Color = Color.White
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -811,12 +812,32 @@ fun ExtensionItemCard(
 
             // Name & Version
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = name,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+                    if (!lang.isNullOrBlank() && lang != "ALL") {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(ElectricBlue.copy(alpha = 0.15f))
+                                .border(0.5.dp, ElectricBlue.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = lang.uppercase(),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = ElectricBlue
+                            )
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = version,

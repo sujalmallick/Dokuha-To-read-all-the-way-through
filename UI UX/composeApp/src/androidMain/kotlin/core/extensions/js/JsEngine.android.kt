@@ -3,11 +3,11 @@ package core.extensions.js
 import com.dokar.quickjs.QuickJs
 import com.dokar.quickjs.binding.asyncFunction
 import com.dokar.quickjs.binding.function
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
+import kotlinx.coroutines.withTimeout
 
 actual class JsEngine actual constructor() {
     private var quickJs: QuickJs? = QuickJs.create(Dispatchers.Default)
@@ -15,8 +15,7 @@ actual class JsEngine actual constructor() {
     private val syncFunctions = mutableMapOf<String, (List<Any?>) -> Any?>()
     private val asyncFunctions = mutableMapOf<String, suspend (List<Any?>) -> Any?>()
 
-    private var lastEvalResult: String? = null
-    private var lastEvalError: String? = null
+    private var currentCompletion: CompletableDeferred<String>? = null
 
     init {
         quickJs?.let { qjs ->
@@ -37,13 +36,14 @@ actual class JsEngine actual constructor() {
             }
             qjs.asyncFunction("__dokuha_finish") { args ->
                 val isSuccess = args.getOrNull(0) as? Boolean ?: true
-                val value = args.getOrNull(1)?.toString()
-                if (isSuccess) {
-                    lastEvalResult = value
-                    lastEvalError = null
-                } else {
-                    lastEvalResult = null
-                    lastEvalError = value ?: "Unknown error"
+                val value = args.getOrNull(1)?.toString() ?: ""
+                val deferred = currentCompletion
+                if (deferred != null && !deferred.isCompleted) {
+                    if (isSuccess) {
+                        deferred.complete(value)
+                    } else {
+                        deferred.completeExceptionally(RuntimeException(value.ifBlank { "Unknown JavaScript error" }))
+                    }
                 }
             }
         }
@@ -55,7 +55,10 @@ actual class JsEngine actual constructor() {
         val looksAsync = trimmed.startsWith("(async") ||
             trimmed.startsWith("async") ||
             trimmed.startsWith("new Promise") ||
-            trimmed.startsWith("Promise.")
+            trimmed.startsWith("Promise.") ||
+            trimmed.startsWith("await ") ||
+            trimmed.startsWith("JSON.stringify(await ") ||
+            trimmed.startsWith("JSON.stringify((await ")
 
         if (looksAsync) {
             return runAsyncScript(qjs, script)
@@ -67,15 +70,15 @@ actual class JsEngine actual constructor() {
             is String -> res
             else -> res.toString()
         }
-        if (str.startsWith("Promise { <state>:")) {
+        if (str.startsWith("Promise { <state>:") || str == "[object Promise]") {
             return runAsyncScript(qjs, script)
         }
         return str
     }
 
     private suspend fun runAsyncScript(qjs: QuickJs, script: String): String {
-        lastEvalResult = null
-        lastEvalError = null
+        val deferred = CompletableDeferred<String>()
+        currentCompletion = deferred
         val cleanScript = script.trim().trimEnd(';')
         val asyncRunner = """
             (async () => {
@@ -88,15 +91,20 @@ actual class JsEngine actual constructor() {
                 }
             })();
         """.trimIndent()
-        qjs.evaluate<Any?>(asyncRunner)
-        lastEvalError?.let { error("JavaScript error: $it") }
-        return lastEvalResult ?: "null"
+
+        return try {
+            qjs.evaluate<Any?>(asyncRunner)
+            withTimeout(30_000L) {
+                deferred.await()
+            }
+        } finally {
+            currentCompletion = null
+        }
     }
 
     actual fun setGlobalFunction(name: String, block: (List<Any?>) -> Any?) {
         val qjs = quickJs ?: error("JsEngine is closed")
         syncFunctions[name] = block
-        // Register JS wrapper
         val escapedName = name.replace("'", "\\'")
         val bridgeScript = "globalThis['$escapedName'] = function(...args) { return __dokuha_dispatch('$escapedName', ...args); };"
         kotlinx.coroutines.runBlocking {
@@ -139,8 +147,10 @@ actual class JsEngine actual constructor() {
                 else -> arg.toString()
             }
         }
-        lastEvalResult = null
-        lastEvalError = null
+        val escapedFunctionName = functionName.replace("'", "\\'")
+
+        val deferred = CompletableDeferred<String>()
+        currentCompletion = deferred
 
         val script = """
             (async () => {
@@ -148,16 +158,16 @@ actual class JsEngine actual constructor() {
                     let parent = globalThis;
                     let fn;
                     try {
-                        fn = eval('$functionName');
+                        fn = eval('$escapedFunctionName');
                     } catch (_) {}
-                    const lastDot = '$functionName'.lastIndexOf('.');
+                    const lastDot = '$escapedFunctionName'.lastIndexOf('.');
                     if (lastDot !== -1) {
                         try {
-                            parent = eval('$functionName'.substring(0, lastDot));
+                            parent = eval('$escapedFunctionName'.substring(0, lastDot));
                         } catch (_) {}
                     }
                     if (typeof fn !== 'function') {
-                        throw new Error('$functionName is not a function');
+                        throw new Error('$escapedFunctionName is not a function');
                     }
                     let res = await fn.call(parent, $argsJs);
                     const serialized = (typeof res === 'object' && res !== null) ? JSON.stringify(res) : (res === undefined ? 'undefined' : String(res));
@@ -168,14 +178,22 @@ actual class JsEngine actual constructor() {
             })();
         """.trimIndent()
 
-        qjs.evaluate<Any?>(script)
-
-        lastEvalError?.let { error("JavaScript error in $functionName: $it") }
-        return lastEvalResult ?: "null"
+        return try {
+            qjs.evaluate<Any?>(script)
+            withTimeout(30_000L) {
+                deferred.await()
+            }
+        } finally {
+            currentCompletion = null
+        }
     }
 
     actual fun close() {
-        quickJs?.close()
+        currentCompletion?.cancel()
+        currentCompletion = null
+        // In quickjs-kt 1.0.0-alpha13, quickjs.close() calls native clear_java_vm_cache()
+        // which zeroes out the process-global JavaVM pointer, breaking JNI callbacks across
+        // all pooled engines. We clear listeners and let the instance be reclaimed without zeroing JavaVM.
         quickJs = null
         syncFunctions.clear()
         asyncFunctions.clear()

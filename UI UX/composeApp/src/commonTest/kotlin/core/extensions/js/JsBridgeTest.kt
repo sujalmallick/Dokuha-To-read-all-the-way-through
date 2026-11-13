@@ -345,4 +345,42 @@ class JsBridgeTest {
         // Normal HTML must not trigger challenge
         assertFalse(bridge.isCloudflareChallenge("<html><head><title>Chapter 10 - Asura Scans</title></head><body><h1>Content</h1></body></html>"))
     }
+
+    @Test
+    fun testAsyncFunctionAndEvaluateSuspension() = runBlocking {
+        val engine = JsEngine()
+        engine.setGlobalAsyncFunction("mockFetch") {
+            kotlinx.coroutines.delay(50)
+            """{"status":"success","data":"fetched_content"}"""
+        }
+
+        // Test evaluate with async IIFE
+        val evalResult = engine.evaluate("""
+            (async () => {
+                const res = await mockFetch();
+                return res;
+            })()
+        """.trimIndent())
+        assertTrue(evalResult.contains("fetched_content"), "evaluate with async IIFE should await host async function: $evalResult")
+
+        // Test callFunction with async method on object
+        engine.evaluate("""
+            globalThis.testExtension = {
+                fetchPage: async function(page) {
+                    const raw = await mockFetch();
+                    const parsed = JSON.parse(raw);
+                    return {
+                        page: page,
+                        list: [{ title: 'Item on page ' + page, content: parsed.data }]
+                    };
+                }
+            };
+        """.trimIndent())
+
+        val callResult = engine.callFunction("testExtension.fetchPage", 3)
+        assertTrue(callResult.contains("\"page\":3"), "callFunction should pass argument correctly: $callResult")
+        assertTrue(callResult.contains("fetched_content"), "callFunction should return resolved async data: $callResult")
+
+        engine.close()
+    }
 }

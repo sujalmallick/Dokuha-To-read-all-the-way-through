@@ -115,12 +115,14 @@ fun SourceDetailScreenContent(
     var isFilterSheetOpen by remember { mutableStateOf(false) }
     var currentPage by remember { mutableIntStateOf(1) }
 
-    val mangaItems by repository.getSourceCatalogue(
-        sourceId = sourceInfo.id,
-        page = currentPage,
-        query = searchQuery,
-        filters = filters
-    ).collectAsState(initial = emptyList())
+    val mangaItems by remember(sourceInfo.id, currentPage, searchQuery, filters) {
+        repository.getSourceCatalogue(
+            sourceId = sourceInfo.id,
+            page = currentPage,
+            query = searchQuery,
+            filters = filters
+        )
+    }.collectAsState(initial = emptyList())
 
     val avatarColor = when (sourceInfo.name) {
         "MangaDex" -> Color(0xFFFF6740)

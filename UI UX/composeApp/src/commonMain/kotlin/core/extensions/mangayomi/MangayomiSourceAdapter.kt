@@ -7,6 +7,7 @@ import core.source.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
 
 @Serializable
@@ -62,7 +63,11 @@ class MangayomiSourceAdapter(
         val result = enginePool.withEngine(id, { initEngine(it) }) { engine ->
             engine.callFunction("extention.getDetail", url)
         }
-        val json = Json.parseToJsonElement(result).jsonObject
+        val json = try {
+            Json.parseToJsonElement(result).jsonObject
+        } catch (_: Exception) {
+            buildJsonObject {}
+        }
         cachedDetailUrl = url
         cachedDetailJson = json
         cachedDetailTimestamp = now
@@ -73,6 +78,7 @@ class MangayomiSourceAdapter(
         bridge.registerFunctions(engine, id)
         engine.evaluate(bridge.getPreambleScript(id))
         engine.setGlobalVariable("__mangayomi_source_meta", manifest.toJson())
+        engine.setGlobalVariable("__mangayomi_source_baseUrl", Json.encodeToString(manifest.baseUrl))
         engine.setGlobalVariable("__dokuha_source_id", id.toString())
         engine.evaluate(manifest.script)
         engine.evaluate("var extention = new DefaultExtension();")
@@ -157,16 +163,29 @@ class MangayomiSourceAdapter(
         else -> MangaStatus.UNKNOWN
     }
 
-    private fun parseCatalogResult(result: String): MangasPage {
-        val json = Json.parseToJsonElement(result).jsonObject
+    private fun parseCatalogResult(result: String?): MangasPage {
+        if (result.isNullOrBlank() || result == "null" || result == "undefined") {
+            return MangasPage(mangas = emptyList(), hasNextPage = false)
+        }
+        val element = try {
+            Json.parseToJsonElement(result)
+        } catch (_: Exception) {
+            return MangasPage(mangas = emptyList(), hasNextPage = false)
+        }
+        val json = element as? JsonObject ?: return MangasPage(mangas = emptyList(), hasNextPage = false)
         val hasNext = json["hasNextPage"]?.jsonPrimitive?.booleanOrNull ?: false
         val list = json["list"]?.jsonArray ?: JsonArray(emptyList())
-        val mangas = list.map { el ->
-            val obj = el.jsonObject
+        val mangas = list.mapNotNull { el ->
+            val obj = el as? JsonObject ?: return@mapNotNull null
+            val url = obj["link"]?.jsonPrimitive?.contentOrNull
+                ?: obj["url"]?.jsonPrimitive?.contentOrNull
+                ?: return@mapNotNull null
+            val title = obj["name"]?.jsonPrimitive?.contentOrNull ?: "Unknown"
+            val thumb = obj["imageUrl"]?.jsonPrimitive?.contentOrNull
             SourceManga(
-                url = obj["link"]?.jsonPrimitive?.content ?: obj["url"]?.jsonPrimitive?.content ?: "",
-                title = obj["name"]?.jsonPrimitive?.content ?: "Unknown",
-                thumbnailUrl = obj["imageUrl"]?.jsonPrimitive?.contentOrNull,
+                url = url,
+                title = title,
+                thumbnailUrl = thumb,
                 isNovel = manifest.isNovel
             )
         }

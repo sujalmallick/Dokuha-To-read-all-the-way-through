@@ -2,14 +2,18 @@ package ui.screens.extensions
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -57,6 +61,7 @@ class ExtensionsScreen : Screen {
         val availableCatalog by extensionManager.availableExtensions.collectAsState(initial = emptyList())
 
         val effectiveExtensions = remember(installedExts, availableCatalog) {
+            val installedKeys = installedExts.map { "${it.name.lowercase().trim()}::${it.lang.lowercase().trim()}" }.toSet()
             val installedIds = installedExts.map { it.id }.toSet()
             val list = mutableListOf<MockExtension>()
             for (inst in installedExts) {
@@ -72,8 +77,11 @@ class ExtensionsScreen : Screen {
                     )
                 )
             }
+            val seenAvailableKeys = mutableSetOf<String>()
             for (avail in availableCatalog) {
-                if (!installedIds.contains(avail.id)) {
+                val key = "${avail.name.lowercase().trim()}::${avail.lang.lowercase().trim()}"
+                if (!installedIds.contains(avail.id) && !installedKeys.contains(key) && !seenAvailableKeys.contains(key)) {
+                    seenAvailableKeys.add(key)
                     list.add(
                         MockExtension(
                             id = avail.id,
@@ -94,13 +102,16 @@ class ExtensionsScreen : Screen {
             initialExtensions = effectiveExtensions,
             onActionClick = { ext ->
                 coroutineScope.launch {
+                    println("[ExtensionsScreen] onActionClick called for ${ext.name} (id: ${ext.id}, isInstalled: ${ext.isInstalled})")
                     if (ext.isInstalled) {
                         extensionManager.uninstallExtension(ext.id)
                     } else {
                         val catalogItem = availableCatalog.firstOrNull { it.id == ext.id }
+                        println("[ExtensionsScreen] catalogItem found: ${catalogItem?.name} (pkg: ${catalogItem?.pkg})")
                         if (catalogItem != null) {
                             val repoBase = extensionManager.repoUrls.value.firstOrNull() ?: ""
-                            extensionManager.installExtension(catalogItem, repoBase)
+                            val success = extensionManager.installExtension(catalogItem, repoBase)
+                            println("[ExtensionsScreen] install result: $success")
                         }
                     }
                 }
@@ -143,6 +154,8 @@ fun ExtensionsScreenContent(
     var showAddDialog by remember { mutableStateOf(false) }
     var newRepoUrl by remember { mutableStateOf("") }
     var addError by remember { mutableStateOf<String?>(null) }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedLang by remember { mutableStateOf("ALL") }
 
     // State list for interactive updates
     val extensionsList = remember(initialExtensions) {
@@ -152,12 +165,15 @@ fun ExtensionsScreenContent(
     }
 
     val filteredExtensions = extensionsList.filter { ext ->
-        when (selectedFilter) {
+        val matchesTab = when (selectedFilter) {
             "Installed" -> ext.isInstalled
             "Available" -> !ext.isInstalled
             "Updates" -> ext.hasUpdate
             else -> true
         }
+        val matchesSearch = searchQuery.isBlank() || ext.name.contains(searchQuery, ignoreCase = true)
+        val matchesLang = selectedLang == "ALL" || ext.lang.equals(selectedLang, ignoreCase = true)
+        matchesTab && matchesSearch && matchesLang
     }
 
     Box(
@@ -238,6 +254,72 @@ fun ExtensionsScreenContent(
                         labelProvider = { it },
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Liquid Glass Search Field
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Search extensions...", color = TextSecondary, fontSize = 14.sp) },
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = "Search", tint = TextSecondary, modifier = Modifier.size(18.dp))
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Clear", tint = TextSecondary, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = ElectricBlue.copy(alpha = 0.5f),
+                            unfocusedBorderColor = Color.White.copy(alpha = 0.12f),
+                            focusedContainerColor = Color.White.copy(alpha = 0.04f),
+                            unfocusedContainerColor = Color.White.copy(alpha = 0.04f),
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    // Language Quick Filter Chips
+                    val availableLangs = remember(extensionsList) {
+                        val langs = extensionsList.map { it.lang }.filter { it.isNotBlank() && it != "ALL" }.distinct().sorted()
+                        listOf("ALL") + langs
+                    }
+                    if (availableLangs.size > 2) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(availableLangs) { lang ->
+                                val isSelected = selectedLang.equals(lang, ignoreCase = true)
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) ElectricBlue.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.06f))
+                                        .border(
+                                            width = 1.dp,
+                                            color = if (isSelected) ElectricBlue.copy(alpha = 0.6f) else Color.White.copy(alpha = 0.1f),
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable { selectedLang = lang }
+                                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = lang,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) ElectricBlue else TextSecondary
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
                 Spacer(modifier = Modifier.height(20.dp))
             }
@@ -303,6 +385,7 @@ fun ExtensionsScreenContent(
                     ExtensionItemCard(
                         name = ext.name,
                         version = ext.version,
+                        lang = ext.lang,
                         isInstalled = ext.isInstalled,
                         hasUpdate = ext.hasUpdate,
                         avatarColor = avatarColor,

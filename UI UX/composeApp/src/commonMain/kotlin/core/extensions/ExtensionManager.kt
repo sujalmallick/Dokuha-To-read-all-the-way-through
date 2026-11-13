@@ -143,7 +143,10 @@ class ExtensionManager(
             }
         }
 
-        val allItems = items.distinctBy { it.id }
+        val allItems = items
+            .distinctBy { it.id }
+            .groupBy { "${it.name.lowercase().trim()}::${it.lang.lowercase().trim()}::${it.ecosystem}" }
+            .map { (_, group) -> group.maxByOrNull { it.version } ?: group.first() }
         _availableExtensions.value = allItems
     }
 
@@ -296,7 +299,8 @@ class ExtensionManager(
                         script = manifest.script,
                         iconUrl = manifest.iconUrl
                     )
-                    val adapter = PaperbackSourceAdapter(pbManifest, enginePool, bridge)
+                    val isV9 = !manifest.script.contains("Sources") && !manifest.script.contains("window.Sources")
+                    val adapter = PaperbackSourceAdapter(pbManifest, enginePool, bridge, isV9 = isV9)
                     activeSources[manifest.id] = adapter
                     panelRepository?.registerSource(adapter)
                 }

@@ -88,9 +88,9 @@ data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") :
         val repository: PanelRepository = koinInject()
         val scope = rememberCoroutineScope()
 
-        val manga by repository.getMangaDetails(mangaUrl).collectAsState(initial = null)
-        val chapters by repository.getChapters(mangaUrl).collectAsState(initial = emptyList())
-        val library by repository.getLibrary("All").collectAsState(initial = emptyList())
+        val manga by remember(mangaUrl) { repository.getMangaDetails(mangaUrl) }.collectAsState(initial = null)
+        val chapters by remember(mangaUrl) { repository.getChapters(mangaUrl) }.collectAsState(initial = emptyList())
+        val library by remember { repository.getLibrary("All") }.collectAsState(initial = emptyList())
         val isInLibrary = library.any { it.url == mangaUrl }
 
         TitleDetailsScreenContent(

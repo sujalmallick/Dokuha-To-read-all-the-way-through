@@ -797,7 +797,11 @@ class JsBridge(
         constructor(htmlString) {
             this._root = globalThis.dokuha.parseHtml(htmlString);
             this._rawHtml = htmlString;
-            this._baseUrl = (globalThis.__mangayomi_source_meta && globalThis.__mangayomi_source_meta.baseUrl) || "";
+            let meta = globalThis.__mangayomi_source_meta;
+            if (typeof meta === 'string') {
+                try { meta = JSON.parse(meta); } catch(_) { meta = null; }
+            }
+            this._baseUrl = (meta && meta.baseUrl) || globalThis.__mangayomi_source_baseUrl || "";
         }
 
         select(selector) {
@@ -926,14 +930,28 @@ class JsBridge(
     // Mangayomi Host Environment Shims
     globalThis.MProvider = class MProvider {
         constructor() {
-            this.source = globalThis.__mangayomi_source_meta || {};
+            let meta = globalThis.__mangayomi_source_meta;
+            if (typeof meta === 'string') {
+                try { meta = JSON.parse(meta); } catch(_) { meta = {}; }
+            }
+            this.source = meta || {};
         }
         getHeaders(url) { return {}; }
     };
 
     globalThis.Client = class Client {
         async get(url, headers = {}) {
-            const res = await globalThis.dokuha.fetch(url, { method: 'GET', headers });
+            let targetUrl = url;
+            if (typeof targetUrl === 'string') {
+                if (targetUrl.startsWith("null/") || targetUrl.startsWith("undefined/")) {
+                    const base = (globalThis.__mangayomi_source_baseUrl || (typeof globalThis.__mangayomi_source_meta === 'object' ? globalThis.__mangayomi_source_meta?.baseUrl : null) || "");
+                    targetUrl = base + targetUrl.substring(targetUrl.indexOf('/'));
+                } else if (targetUrl.startsWith("/")) {
+                    const base = (globalThis.__mangayomi_source_baseUrl || (typeof globalThis.__mangayomi_source_meta === 'object' ? globalThis.__mangayomi_source_meta?.baseUrl : null) || "");
+                    targetUrl = base + targetUrl;
+                }
+            }
+            const res = await globalThis.dokuha.fetch(targetUrl, { method: 'GET', headers });
             return {
                 statusCode: res.status,
                 body: res.body,
@@ -943,7 +961,17 @@ class JsBridge(
             };
         }
         async post(url, headers = {}, body = null) {
-            const res = await globalThis.dokuha.fetch(url, { method: 'POST', headers, body });
+            let targetUrl = url;
+            if (typeof targetUrl === 'string') {
+                if (targetUrl.startsWith("null/") || targetUrl.startsWith("undefined/")) {
+                    const base = (globalThis.__mangayomi_source_baseUrl || (typeof globalThis.__mangayomi_source_meta === 'object' ? globalThis.__mangayomi_source_meta?.baseUrl : null) || "");
+                    targetUrl = base + targetUrl.substring(targetUrl.indexOf('/'));
+                } else if (targetUrl.startsWith("/")) {
+                    const base = (globalThis.__mangayomi_source_baseUrl || (typeof globalThis.__mangayomi_source_meta === 'object' ? globalThis.__mangayomi_source_meta?.baseUrl : null) || "");
+                    targetUrl = base + targetUrl;
+                }
+            }
+            const res = await globalThis.dokuha.fetch(targetUrl, { method: 'POST', headers, body });
             return {
                 statusCode: res.status,
                 body: res.body,
@@ -979,15 +1007,44 @@ class JsBridge(
         return this.substring(start + left.length, end);
     };
 
-    // SharedPreferences Shim (Sandboxed per Extension)
+    // SharedPreferences Shim (Sandboxed per Extension with fallback to extension preferences & manifest baseUrl)
     globalThis.SharedPreferences = class SharedPreferences {
         get(key) {
             const val = globalThis.__dokuha_storage_get(_getStorageKey(key));
-            return val !== "" ? val : null;
+            if (val !== "" && val !== null && val !== undefined) return val;
+
+            if (typeof globalThis.extention !== 'undefined' && typeof globalThis.extention.getSourcePreferences === 'function') {
+                try {
+                    const prefs = globalThis.extention.getSourcePreferences();
+                    if (Array.isArray(prefs)) {
+                        for (const pref of prefs) {
+                            if (pref && pref.key === key) {
+                                const listVal = pref.listPreference ? (pref.listPreference.value || (pref.listPreference.entryValues && pref.listPreference.entryValues[pref.listPreference.valueIndex || 0])) : undefined;
+                                const editVal = pref.editTextPreference ? pref.editTextPreference.value : undefined;
+                                const checkVal = pref.checkBoxPreference ? pref.checkBoxPreference.value : undefined;
+                                const def = listVal !== undefined ? listVal : (editVal !== undefined ? editVal : (checkVal !== undefined ? checkVal : pref.value));
+                                if (def !== undefined && def !== null && def !== "") return def;
+                            }
+                        }
+                    }
+                } catch (_) {}
+            }
+
+            if (typeof key === 'string' && key.toLowerCase().includes("baseurl")) {
+                if (typeof globalThis.__mangayomi_source_baseUrl === 'string' && globalThis.__mangayomi_source_baseUrl) {
+                    return globalThis.__mangayomi_source_baseUrl;
+                }
+                let meta = globalThis.__mangayomi_source_meta;
+                if (typeof meta === 'string') {
+                    try { meta = JSON.parse(meta); } catch(_) { meta = null; }
+                }
+                if (meta && meta.baseUrl) return meta.baseUrl;
+            }
+            return null;
         }
         getString(key, def) {
-            const val = globalThis.__dokuha_storage_get(_getStorageKey(key));
-            return val !== "" ? val : def;
+            const val = this.get(key);
+            return val !== null && val !== undefined ? String(val) : def;
         }
         setString(key, val) {
             globalThis.__dokuha_storage_set(_getStorageKey(key), String(val));

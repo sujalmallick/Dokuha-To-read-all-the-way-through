@@ -495,20 +495,24 @@ class SqlDelightPanelRepository(
         }
         if (matchingDynamic != null) {
             return flow {
-                val results = try {
-                    if (query.isNotBlank()) {
+                val results: List<SourceManga> = try {
+                    val pageResult = if (query.isNotBlank()) {
                         matchingDynamic.search(query, page, emptyList()).mangas
                     } else if (filters.sortBy == BrowseSortOrder.LATEST) {
                         matchingDynamic.getLatestUpdates(page).mangas
                     } else {
                         matchingDynamic.getPopular(page).mangas
                     }
+                    println("[getSourceCatalogue] source $sourceId returned ${pageResult.size} mangas")
+                    pageResult
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     println("[getSourceCatalogue] Error for source $sourceId: ${e.message}")
                     emptyList()
                 }
                 emit(results)
-            }
+            }.flowOn(Dispatchers.IO)
         }
         return flowOf(emptyList())
     }
