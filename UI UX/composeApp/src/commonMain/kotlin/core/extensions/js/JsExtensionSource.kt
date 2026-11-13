@@ -234,10 +234,19 @@ class JsExtensionSource(
             val array = if (element is JsonArray) element else element.jsonObject["pages"]?.jsonArray ?: JsonArray(emptyList())
             array.mapIndexed { idx, item ->
                 val obj = item.jsonObject
+                val headersMap = obj["headers"]?.let { h ->
+                    if (h is JsonObject) {
+                        h.mapValues { it.value.jsonPrimitive.content }
+                    } else null
+                } ?: mapOf(
+                    "User-Agent" to "Dokuha/1.0.0 (https://github.com/RitwikGupta-0501/dokuha)",
+                    "Referer" to manifest.baseUrl
+                )
                 SourcePage(
                     index = obj["index"]?.jsonPrimitive?.floatOrNull?.toInt() ?: (idx + 1),
                     url = obj["url"]?.jsonPrimitive?.contentOrNull ?: "",
-                    imageUrl = obj["imageUrl"]?.jsonPrimitive?.contentOrNull
+                    imageUrl = obj["imageUrl"]?.jsonPrimitive?.contentOrNull,
+                    headers = headersMap
                 )
             }
         } catch (_: Exception) {

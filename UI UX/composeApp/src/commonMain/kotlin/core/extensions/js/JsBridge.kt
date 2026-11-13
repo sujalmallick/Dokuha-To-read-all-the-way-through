@@ -28,7 +28,7 @@ class JsBridge(
 ) {
     private val cookieJar = mutableMapOf<String, String>()
     private var currentUserAgent: String =
-        "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+        "Dokuha/1.0.0 (https://github.com/RitwikGupta-0501/dokuha)"
 
     /**
      * Executes an HTTP request on behalf of the JavaScript extension.
@@ -217,10 +217,14 @@ class JsBridge(
             status: res.status,
             ok: res.ok,
             headers: res.headers,
+            body: res.body,
             text: async () => res.body,
             json: async () => JSON.parse(res.body)
         };
     };
+    if (typeof globalThis.fetch === 'undefined') {
+        globalThis.fetch = globalThis.dokuha.fetch;
+    }
 
     // Lightweight Cheerio-compatible DOM parser
     globalThis.dokuha.parseHtml = function(htmlString) {

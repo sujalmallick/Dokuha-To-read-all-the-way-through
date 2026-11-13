@@ -297,20 +297,55 @@ object SampleExtensions {
 
             async getChapters(url) {
                 const mangaId = url.split("/").pop();
-                const apiUrl = this.apiUrl + "/manga/" + mangaId + "/feed?limit=100&translatedLanguage[]=en&order[chapter]=desc&includeEmptyPages=0";
-                const response = await dokuha.fetch(apiUrl, { headers: this._headers() });
-                const json = JSON.parse(response.body);
-                const data = json.data || [];
+                const ratings = "&contentRating[]=safe&contentRating[]=suggestive&contentRating[]=erotica&contentRating[]=pornographic";
+                const apiUrlEn = this.apiUrl + "/manga/" + mangaId + "/feed?limit=500&translatedLanguage[]=en&order[chapter]=desc" + ratings;
+                const responseEn = await dokuha.fetch(apiUrlEn, { headers: this._headers() });
+                const jsonEn = JSON.parse(responseEn.body);
+                let data = jsonEn.data || [];
+
+                const hasHostedEn = data.some(ch => !ch.attributes || !ch.attributes.externalUrl);
+                if (!hasHostedEn) {
+                    const apiUrlAll = this.apiUrl + "/manga/" + mangaId + "/feed?limit=500&order[chapter]=desc" + ratings;
+                    const responseAll = await dokuha.fetch(apiUrlAll, { headers: this._headers() });
+                    const jsonAll = JSON.parse(responseAll.body);
+                    const allData = jsonAll.data || [];
+                    const existingIds = {};
+                    for (let i = 0; i < data.length; i++) {
+                        existingIds[data[i].id] = true;
+                    }
+                    for (let i = 0; i < allData.length; i++) {
+                        if (!existingIds[allData[i].id]) {
+                            data.push(allData[i]);
+                            existingIds[allData[i].id] = true;
+                        }
+                    }
+                }
 
                 return data.map((item, index) => {
                     const attr = item.attributes || {};
                     const chNum = parseFloat(attr.chapter) || 0.0;
+                    const extUrl = attr.externalUrl;
+                    const lang = attr.translatedLanguage;
                     const title = attr.title ? (" - " + attr.title) : "";
-                    const name = attr.chapter ? ("Chapter " + attr.chapter + title) : ("Oneshot" + title);
+
+                    let prefix = "";
+                    if (lang && lang !== "en") {
+                        prefix = "[" + lang.toUpperCase() + "] ";
+                    }
+                    if (extUrl) {
+                        try {
+                            const host = extUrl.split("/")[2].replace("www.", "");
+                            prefix = "[" + host + "] " + prefix;
+                        } catch (_) {
+                            prefix = "[External] " + prefix;
+                        }
+                    }
+
+                    const name = attr.chapter ? (prefix + "Chapter " + attr.chapter + title) : (prefix + (attr.title || "Oneshot"));
                     const dateUpload = attr.publishAt ? new Date(attr.publishAt).getTime() : Date.now();
 
                     return {
-                        url: this.baseUrl + "/chapter/" + item.id,
+                        url: extUrl || (this.baseUrl + "/chapter/" + item.id),
                         name: name,
                         chapterNumber: chNum,
                         dateUpload: dateUpload,
@@ -320,61 +355,36 @@ object SampleExtensions {
             },
 
             async getPages(chapterUrl) {
+                if (chapterUrl.startsWith("http://") || chapterUrl.startsWith("https://")) {
+                    if (!chapterUrl.includes("mangadex.org/chapter/")) {
+                        return [];
+                    }
+                }
                 const chapterId = chapterUrl.split("/").pop();
                 const atHomeUrl = this.apiUrl + "/at-home/server/" + chapterId;
                 const response = await dokuha.fetch(atHomeUrl, { headers: this._headers() });
                 const json = JSON.parse(response.body);
+                if (json.result !== "ok" || !json.baseUrl || !json.chapter) {
+                    return [];
+                }
                 const baseUrl = json.baseUrl;
                 const hash = json.chapter.hash;
                 const data = json.chapter.data || [];
 
                 return data.map((filename, index) => ({
                     index: index + 1,
-                    url: chapterUrl + "/" + (index + 1),
-                    imageUrl: baseUrl + "/data/" + hash + "/" + filename
+                    url: baseUrl + "/data/" + hash + "/" + filename,
+                    imageUrl: baseUrl + "/data/" + hash + "/" + filename,
+                    headers: {
+                        "User-Agent": "Dokuha/1.0.0 (https://github.com/RitwikGupta-0501/dokuha)",
+                        "Referer": "https://mangadex.org"
+                    }
                 }));
             }
         };
     """.trimIndent()
 
-    val DEMO_CATALOG_ITEMS = listOf(
-        ExtensionCatalogItem(
-            id = "mangadex",
-            name = "MangaDex",
-            version = "1.0.0",
-            lang = "en",
-            baseUrl = "https://mangadex.org",
-            type = ExtensionType.COMIC,
-            iconUrl = "https://mangadex.org/favicon.ico",
-            isNsfw = false,
-            pkg = "demo://mangadex",
-            sha256 = ""
-        ),
-        ExtensionCatalogItem(
-            id = "sample-manga",
-            name = "Sample Manga (Demo)",
-            version = "1.0.0",
-            lang = "en",
-            baseUrl = "https://samplemanga.example.com",
-            type = ExtensionType.COMIC,
-            iconUrl = "",
-            isNsfw = false,
-            pkg = "demo://sample-manga",
-            sha256 = ""
-        ),
-        ExtensionCatalogItem(
-            id = "sample-novel",
-            name = "Sample Novel (Demo)",
-            version = "1.0.0",
-            lang = "en",
-            baseUrl = "https://samplenovel.example.com",
-            type = ExtensionType.NOVEL,
-            iconUrl = "",
-            isNsfw = false,
-            pkg = "demo://sample-novel",
-            sha256 = ""
-        )
-    )
+    val DEMO_CATALOG_ITEMS = emptyList<ExtensionCatalogItem>()
 
     fun getDemoBundle(id: String): String? = when (id) {
         "mangadex" -> MANGADEX_BUNDLE
