@@ -1,10 +1,13 @@
 package data.repository
 
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
+import core.source.ComicSource
 import core.source.MangaStatus
 import core.source.SourceManga
 import io.panel.reader.db.PanelDatabase
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.take
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -219,6 +222,84 @@ class SqlDelightPanelRepositoryTest {
         repository.unregisterSource(999L)
         val emptySources = repository.getSources().first()
         assertTrue(emptySources.isEmpty(), "Should be empty after unregistering")
+    }
+
+    @Test
+    fun testSourceIdDirectRoutingAndFallbackTitle() = runBlocking {
+        val sourceA = object : ComicSource {
+            override val id: Long = 1001L
+            override val name: String = "Source Alpha"
+            override val baseUrl: String = "https://alpha.example.com"
+            override val lang: String = "en"
+            override val isNsfw: Boolean = false
+            override suspend fun getPopular(page: Int) = core.source.MangasPage(emptyList(), false)
+            override suspend fun getLatestUpdates(page: Int) = core.source.MangasPage(emptyList(), false)
+            override suspend fun search(query: String, page: Int, filters: List<core.source.SourceFilter>) = core.source.MangasPage(emptyList(), false)
+            override suspend fun getMangaDetails(manga: SourceManga) = manga.copy(title = "Alpha Resolved Title", description = "Alpha Description")
+            override suspend fun getChapterList(manga: SourceManga) = listOf(
+                core.source.SourceChapter(url = "ch-alpha-1", name = "Alpha Chapter 1", chapterNumber = 1f)
+            )
+            override suspend fun getPageList(chapter: core.source.SourceChapter) = emptyList<core.source.SourcePage>()
+        }
+
+        val sourceB = object : ComicSource {
+            override val id: Long = 1002L
+            override val name: String = "Source Beta"
+            override val baseUrl: String = "https://beta.example.com"
+            override val lang: String = "en"
+            override val isNsfw: Boolean = false
+            override suspend fun getPopular(page: Int) = core.source.MangasPage(emptyList(), false)
+            override suspend fun getLatestUpdates(page: Int) = core.source.MangasPage(emptyList(), false)
+            override suspend fun search(query: String, page: Int, filters: List<core.source.SourceFilter>) = core.source.MangasPage(emptyList(), false)
+            override suspend fun getMangaDetails(manga: SourceManga) = manga.copy(title = "Beta Resolved Title", description = "Beta Description")
+            override suspend fun getChapterList(manga: SourceManga) = listOf(
+                core.source.SourceChapter(url = "ch-beta-1", name = "Beta Chapter 1", chapterNumber = 1f)
+            )
+            override suspend fun getPageList(chapter: core.source.SourceChapter) = emptyList<core.source.SourcePage>()
+        }
+
+        repository.registerSource(sourceA)
+        repository.registerSource(sourceB)
+
+        // Given a relative URL that doesn't start with either baseUrl:
+        val relativeUrl = "/comics/shared-relative-slug-123"
+
+        // 1. Direct routing to Source Beta using sourceId="1002"
+        val emissions = repository.getMangaDetails(relativeUrl, sourceId = "1002", fallbackTitle = "Fallback Beta").take(2).toList()
+        assertEquals(2, emissions.size)
+        assertEquals("Fallback Beta", emissions[0]?.title, "Initial emission must be the fallback title")
+        assertEquals("Beta Resolved Title", emissions[1]?.title, "Second emission must be the fresh resolved title")
+        assertEquals("Beta Description", emissions[1]?.description)
+
+        val betaChapters = repository.getChapters(relativeUrl, sourceId = "1002").first()
+        assertEquals(1, betaChapters.size)
+        assertEquals("Beta Chapter 1", betaChapters.first().name)
+
+        // 2. Fallback title preservation when scraper throws
+        val failingSource = object : ComicSource {
+            override val id: Long = 1003L
+            override val name: String = "Failing Source"
+            override val baseUrl: String = "https://fail.example.com"
+            override val lang: String = "en"
+            override val isNsfw: Boolean = false
+            override suspend fun getPopular(page: Int) = core.source.MangasPage(emptyList(), false)
+            override suspend fun getLatestUpdates(page: Int) = core.source.MangasPage(emptyList(), false)
+            override suspend fun search(query: String, page: Int, filters: List<core.source.SourceFilter>) = core.source.MangasPage(emptyList(), false)
+            override suspend fun getMangaDetails(manga: SourceManga): SourceManga {
+                throw RuntimeException("Network / Scraper Failure")
+            }
+            override suspend fun getChapterList(manga: SourceManga) = emptyList<core.source.SourceChapter>()
+            override suspend fun getPageList(chapter: core.source.SourceChapter) = emptyList<core.source.SourcePage>()
+        }
+        repository.registerSource(failingSource)
+
+        val fallbackManga = repository.getMangaDetails("/comics/failing-manga", sourceId = "1003", fallbackTitle = "Known Title Keep Alive").first()
+        assertNotNull(fallbackManga)
+        assertEquals("Known Title Keep Alive", fallbackManga.title, "Fallback title must be preserved when scraper fails")
+
+        repository.unregisterSource(1001L)
+        repository.unregisterSource(1002L)
+        repository.unregisterSource(1003L)
     }
 
     @Test

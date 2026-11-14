@@ -106,7 +106,16 @@ data class SourceDetailScreen(
             sourceInfo = sourceInfo,
             repository = repository,
             onBack = { navigator.pop() },
-            onOpenManga = { manga -> navigator.push(TitleDetailsScreen(manga.url)) }
+            onOpenManga = { manga ->
+                navigator.push(
+                    TitleDetailsScreen(
+                        mangaUrl = manga.url,
+                        initialTitle = manga.title,
+                        initialThumbnailUrl = manga.thumbnailUrl,
+                        sourceId = sourceInfo.id
+                    )
+                )
+            }
         )
     }
 }

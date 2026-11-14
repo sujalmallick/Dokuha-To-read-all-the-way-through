@@ -79,7 +79,15 @@ class DownloadsScreen : Screen {
         DownloadsScreenContent(
             storageInfo = storageInfo,
             initialDownloads = initialDownloads,
-            onOpenManga = { manga -> navigator.push(TitleDetailsScreen(manga.url)) },
+            onOpenManga = { manga ->
+                navigator.push(
+                    TitleDetailsScreen(
+                        mangaUrl = manga.url,
+                        initialTitle = manga.title,
+                        initialThumbnailUrl = manga.thumbnailUrl
+                    )
+                )
+            },
             onPauseToggle = { chapterUrl -> repository.toggleDownloadPause(chapterUrl) },
             onCancelDownload = { chapterUrl -> repository.cancelDownload(chapterUrl) },
             onTabSelected = { tab ->

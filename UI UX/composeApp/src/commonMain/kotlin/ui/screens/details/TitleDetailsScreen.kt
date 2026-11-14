@@ -37,6 +37,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -64,11 +65,13 @@ import org.koin.compose.koinInject
 import ui.components.ChapterRowItem
 import ui.components.PanelCircleIconButton
 import ui.components.PanelPillButton
+import ui.glass.glassPress
 import ui.glass.glassSource
 import ui.glass.nonGlassPress
 import ui.glass.rememberPanelGlassState
 import ui.screens.novelreader.NovelReaderScreen
 import ui.screens.webtoonreader.WebtoonReaderScreen
+import ui.theme.CapsuleShape
 import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
 import ui.theme.PanelBackground
@@ -80,16 +83,34 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import ui.theme.TextSecondary
 
-data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") : Screen {
+data class TitleDetailsScreen(
+    val mangaUrl: String = "manga/the-last-horizon",
+    val initialTitle: String = "",
+    val initialThumbnailUrl: String? = null,
+    val sourceId: String? = null
+) : Screen {
 
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repository: PanelRepository = koinInject()
         val scope = rememberCoroutineScope()
+        var refreshTrigger by remember { mutableIntStateOf(0) }
 
-        val manga by remember(mangaUrl) { repository.getMangaDetails(mangaUrl) }.collectAsState(initial = null)
-        val chapters by remember(mangaUrl) { repository.getChapters(mangaUrl) }.collectAsState(initial = emptyList())
+        val manga by remember(mangaUrl, sourceId, refreshTrigger) {
+            repository.getMangaDetails(mangaUrl, sourceId, initialTitle)
+        }.collectAsState(
+            initial = if (initialTitle.isNotBlank()) {
+                SourceManga(url = mangaUrl, title = initialTitle, thumbnailUrl = initialThumbnailUrl)
+            } else {
+                null
+            }
+        )
+
+        val chapters by remember(mangaUrl, sourceId, refreshTrigger) {
+            repository.getChapters(mangaUrl, sourceId)
+        }.collectAsState(initial = emptyList())
+
         val library by remember { repository.getLibrary("All") }.collectAsState(initial = emptyList())
         val isInLibrary = library.any { it.url == mangaUrl }
 
@@ -97,8 +118,9 @@ data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") :
             manga = manga,
             chapters = chapters,
             isInLibrary = isInLibrary,
+            onRefresh = { refreshTrigger++ },
             onToggleLibrary = {
-                val currentManga = manga ?: SourceManga(url = mangaUrl, title = "Unknown")
+                val currentManga = manga ?: SourceManga(url = mangaUrl, title = initialTitle.ifBlank { "Unknown" }, thumbnailUrl = initialThumbnailUrl)
                 scope.launch {
                     repository.toggleFavorite(currentManga, !isInLibrary)
                 }
@@ -112,11 +134,11 @@ data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") :
                 }
             },
             onDownloadChapter = { chapter ->
-                val currentManga = manga ?: SourceManga(url = mangaUrl, title = "Unknown")
+                val currentManga = manga ?: SourceManga(url = mangaUrl, title = initialTitle.ifBlank { "Unknown" }, thumbnailUrl = initialThumbnailUrl)
                 repository.enqueueDownload(currentManga, chapter)
             },
             onDownloadAll = {
-                val currentManga = manga ?: SourceManga(url = mangaUrl, title = "Unknown")
+                val currentManga = manga ?: SourceManga(url = mangaUrl, title = initialTitle.ifBlank { "Unknown" }, thumbnailUrl = initialThumbnailUrl)
                 chapters.forEach { ch ->
                     repository.enqueueDownload(currentManga, ch)
                 }
@@ -130,6 +152,7 @@ fun TitleDetailsScreenContent(
     manga: SourceManga?,
     chapters: List<SourceChapter>,
     isInLibrary: Boolean = false,
+    onRefresh: () -> Unit = {},
     onToggleLibrary: () -> Unit = {},
     onBack: () -> Unit,
     onReadChapter: (SourceChapter) -> Unit,
@@ -340,6 +363,42 @@ fun TitleDetailsScreenContent(
                             Text(
                                 text = "No chapters available for this title",
                                 style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Empty or Failed Chapter List Indicator
+            if (chapters.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 28.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val retryInteraction = remember { MutableInteractionSource() }
+                        Row(
+                            modifier = Modifier
+                                .clip(CapsuleShape)
+                                .glassPress(retryInteraction)
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .border(1.dp, GlassBorder, CapsuleShape)
+                                .clickable(
+                                    interactionSource = retryInteraction,
+                                    indication = null,
+                                    onClick = onRefresh
+                                )
+                                .padding(horizontal = 20.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "No chapters found. Tap to reload",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
                                 color = TextSecondary
                             )
                         }

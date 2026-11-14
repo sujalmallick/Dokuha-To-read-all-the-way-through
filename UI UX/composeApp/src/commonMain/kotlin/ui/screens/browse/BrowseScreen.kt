@@ -99,7 +99,15 @@ class BrowseScreen : Screen {
             repository = repository,
             onOpenSource = { source -> navigator.push(SourceDetailScreen(source.id, source.name)) },
             onSeeAllSources = { navigator.push(ExtensionsScreen()) },
-            onOpenManga = { manga -> navigator.push(TitleDetailsScreen(manga.url)) },
+            onOpenManga = { manga ->
+                navigator.push(
+                    TitleDetailsScreen(
+                        mangaUrl = manga.url,
+                        initialTitle = manga.title,
+                        initialThumbnailUrl = manga.thumbnailUrl
+                    )
+                )
+            },
             onTabSelected = { tab ->
                 when (tab) {
                     PanelTab.LIBRARY -> navigator.push(LibraryScreen())

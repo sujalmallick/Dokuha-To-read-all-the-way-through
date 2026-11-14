@@ -89,7 +89,13 @@ class LibraryScreen : Screen {
         LibraryScreenContent(
             repository = repository,
             onOpenManga = { manga ->
-                navigator.push(TitleDetailsScreen(manga.url))
+                navigator.push(
+                    TitleDetailsScreen(
+                        mangaUrl = manga.url,
+                        initialTitle = manga.title,
+                        initialThumbnailUrl = manga.thumbnailUrl
+                    )
+                )
             },
             onResumeChapter = { manga, chapter ->
                 if (manga.isNovel) {

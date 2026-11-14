@@ -71,7 +71,15 @@ class UpdatesScreen : Screen {
         UpdatesScreenContent(
             updateGroups = updateGroups,
             historyGroups = historyGroups,
-            onOpenManga = { manga -> navigator.push(TitleDetailsScreen(manga.url)) },
+            onOpenManga = { manga ->
+                navigator.push(
+                    TitleDetailsScreen(
+                        mangaUrl = manga.url,
+                        initialTitle = manga.title,
+                        initialThumbnailUrl = manga.thumbnailUrl
+                    )
+                )
+            },
             onResumeChapter = { manga, chapter ->
                 if (manga.isNovel) {
                     navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name))
