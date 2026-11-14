@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
@@ -740,7 +741,8 @@ fun ExtensionItemCard(
     onActionClick: () -> Unit,
     modifier: Modifier = Modifier,
     lang: String? = null,
-    avatarColor: Color = Color.White
+    avatarColor: Color = Color.White,
+    onDeleteClick: (() -> Unit)? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val shape = RoundedCornerShape(18.dp)
@@ -850,39 +852,106 @@ fun ExtensionItemCard(
             // Phase C: Professional Option A actions
             when {
                 hasUpdate -> {
-                    // "Update" liquid glass mini capsule button
-                    val actionInteraction = remember { MutableInteractionSource() }
-                    Box(
-                        modifier = Modifier
-                            .clip(CapsuleShape)
-                            .glassPress(actionInteraction)
-                            .background(Color.White.copy(alpha = 0.15f))
-                            .border(0.5.dp, Color.White.copy(alpha = 0.35f), CapsuleShape)
-                            .clickable(
-                                interactionSource = actionInteraction,
-                                indication = null,
-                                onClick = onActionClick
-                            )
-                            .padding(horizontal = 14.dp, vertical = 6.dp),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = "Update",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        // "Update" liquid glass mini capsule button
+                        val actionInteraction = remember { MutableInteractionSource() }
+                        Box(
+                            modifier = Modifier
+                                .clip(CapsuleShape)
+                                .glassPress(actionInteraction)
+                                .background(Color.White.copy(alpha = 0.15f))
+                                .border(0.5.dp, Color.White.copy(alpha = 0.35f), CapsuleShape)
+                                .clickable(
+                                    interactionSource = actionInteraction,
+                                    indication = null,
+                                    onClick = onActionClick
+                                )
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Update",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        if (onDeleteClick != null) {
+                            val deleteInteraction = remember { MutableInteractionSource() }
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .glassPress(deleteInteraction)
+                                    .background(Color(0xFFEF4444).copy(alpha = 0.12f))
+                                    .border(0.5.dp, Color(0xFFEF4444).copy(alpha = 0.30f), CircleShape)
+                                    .clickable(
+                                        interactionSource = deleteInteraction,
+                                        indication = null,
+                                        onClick = onDeleteClick
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteOutline,
+                                    contentDescription = "Uninstall $name",
+                                    tint = Color(0xFFF87171),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                     }
                 }
                 isInstalled -> {
-                    // "Installed" plain secondary text
-                    Text(
-                        text = "Installed",
-                        color = TextSecondary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // "Installed" subtle pill
+                        Box(
+                            modifier = Modifier
+                                .clip(CapsuleShape)
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .border(0.5.dp, Color.White.copy(alpha = 0.15f), CapsuleShape)
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = "Installed",
+                                color = TextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+
+                        if (onDeleteClick != null) {
+                            val deleteInteraction = remember { MutableInteractionSource() }
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .glassPress(deleteInteraction)
+                                    .background(Color(0xFFEF4444).copy(alpha = 0.12f))
+                                    .border(0.5.dp, Color(0xFFEF4444).copy(alpha = 0.30f), CircleShape)
+                                    .clickable(
+                                        interactionSource = deleteInteraction,
+                                        indication = null,
+                                        onClick = onDeleteClick
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DeleteOutline,
+                                    contentDescription = "Uninstall $name",
+                                    tint = Color(0xFFF87171),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
                 }
                 else -> {
                     // "Install" Crisp Luxe White button with dark ink

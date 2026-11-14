@@ -37,6 +37,7 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.ExtensionItemCard
+import ui.components.GlassConfirmDialog
 import ui.components.GlassSegmentedControl
 import ui.components.PanelBottomNavBar
 import ui.components.PanelTab
@@ -116,6 +117,12 @@ class ExtensionsScreen : Screen {
                     }
                 }
             },
+            onDeleteClick = { ext ->
+                coroutineScope.launch {
+                    println("[ExtensionsScreen] onDeleteClick called for ${ext.name} (id: ${ext.id})")
+                    extensionManager.uninstallExtension(ext.id)
+                }
+            },
             onAddRepository = { url ->
                 val result = extensionManager.addRepository(url)
                 result.isValid
@@ -142,6 +149,7 @@ fun ExtensionsScreenContent(
     initialExtensions: List<MockExtension>,
     onTabSelected: (PanelTab) -> Unit,
     onActionClick: (MockExtension) -> Unit = {},
+    onDeleteClick: (MockExtension) -> Unit = {},
     onAddRepository: (String) -> Boolean = { true },
     onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -152,6 +160,7 @@ fun ExtensionsScreenContent(
     val filters = listOf("Installed", "Available", "Updates")
 
     var showAddDialog by remember { mutableStateOf(false) }
+    var extensionToUninstall by remember { mutableStateOf<MockExtension?>(null) }
     var newRepoUrl by remember { mutableStateOf("") }
     var addError by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
@@ -399,7 +408,12 @@ fun ExtensionsScreenContent(
                                 )
                             }
                             onActionClick(ext)
-                        }
+                        },
+                        onDeleteClick = if (ext.isInstalled) {
+                            {
+                                extensionToUninstall = ext
+                            }
+                        } else null
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -483,6 +497,30 @@ fun ExtensionsScreenContent(
                     }
                 }
             }
+        }
+
+        // Uninstall Confirmation Dialog
+        if (extensionToUninstall != null) {
+            val ext = extensionToUninstall!!
+            GlassConfirmDialog(
+                title = "Uninstall Extension?",
+                message = "Are you sure you want to uninstall '${ext.name}'? Its sources and catalog items will be removed.",
+                confirmText = "Uninstall",
+                isDestructive = true,
+                onConfirm = {
+                    val index = extensionsList.indexOfFirst { it.id == ext.id }
+                    if (index != -1) {
+                        val current = extensionsList[index]
+                        extensionsList[index] = current.copy(
+                            isInstalled = false,
+                            hasUpdate = false
+                        )
+                    }
+                    onDeleteClick(ext)
+                    extensionToUninstall = null
+                },
+                onDismiss = { extensionToUninstall = null }
+            )
         }
 
         // LAYER 2: Floating Liquid Glass Bottom Navigation Dock
