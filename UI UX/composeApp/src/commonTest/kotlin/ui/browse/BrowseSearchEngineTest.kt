@@ -123,6 +123,28 @@ class BrowseSearchEngineTest {
     }
 
     @Test
+    fun testInfiniteScrollCatalogueAccumulation() = runTest {
+        val accumulatedManga = mutableListOf<core.source.SourceManga>()
+        var page = 1
+        var hasMore = true
+
+        while (hasMore && page <= 5) {
+            val batch = repository.getSourceCatalogue(sourceId = "1", page = page).first()
+            if (batch.isEmpty()) {
+                hasMore = false
+            } else {
+                val newUnique = batch.filter { item -> accumulatedManga.none { it.url == item.url } }
+                accumulatedManga.addAll(newUnique)
+                page++
+            }
+        }
+
+        assertTrue(accumulatedManga.size >= 4, "Infinite scroll should accumulate all available titles across pages")
+        val uniqueUrls = accumulatedManga.map { it.url }.toSet()
+        assertEquals(uniqueUrls.size, accumulatedManga.size, "Accumulated catalogue must not contain duplicate items")
+    }
+
+    @Test
     fun testCombinedQueryAndFilterNarrowing() = runTest {
         val combinedFilters = BrowseFilters(
             genres = setOf("Action"),

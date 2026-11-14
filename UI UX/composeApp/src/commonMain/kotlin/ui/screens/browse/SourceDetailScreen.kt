@@ -23,19 +23,25 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +59,9 @@ import core.source.SourceManga
 import data.mock.BrowseFilters
 import data.mock.MockSourceInfo
 import data.mock.PanelRepository
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.MangaCoverCard
@@ -66,6 +75,7 @@ import ui.glass.glassSurface
 import ui.glass.rememberPanelGlassState
 import ui.screens.details.TitleDetailsScreen
 import ui.theme.CapsuleShape
+import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
 import ui.theme.GlassBorderStrong
 import ui.theme.PanelBackground
@@ -110,19 +120,120 @@ fun SourceDetailScreenContent(
     modifier: Modifier = Modifier
 ) {
     val glassState = rememberPanelGlassState()
+    val coroutineScope = rememberCoroutineScope()
+    val gridState = rememberLazyGridState()
+
     var searchQuery by remember { mutableStateOf("") }
     var filters by remember { mutableStateOf(BrowseFilters()) }
     var isFilterSheetOpen by remember { mutableStateOf(false) }
-    var currentPage by remember { mutableIntStateOf(1) }
 
-    val mangaItems by remember(sourceInfo.id, currentPage, searchQuery, filters) {
-        repository.getSourceCatalogue(
-            sourceId = sourceInfo.id,
-            page = currentPage,
-            query = searchQuery,
-            filters = filters
-        )
-    }.collectAsState(initial = emptyList())
+    val mangaItems = remember { mutableStateListOf<SourceManga>() }
+    var currentPage by remember { mutableIntStateOf(1) }
+    var isInitialLoading by remember { mutableStateOf(true) }
+    var isLoadingMore by remember { mutableStateOf(false) }
+    var hasMorePages by remember { mutableStateOf(true) }
+    var loadError by remember { mutableStateOf<String?>(null) }
+
+    // Reset and trigger initial load whenever source, search query or filters change
+    LaunchedEffect(sourceInfo.id, searchQuery, filters) {
+        if (searchQuery.isNotBlank()) {
+            delay(350L) // Debounce rapid keyboard typing
+        }
+        isInitialLoading = true
+        isLoadingMore = false
+        hasMorePages = true
+        loadError = null
+        currentPage = 1
+        mangaItems.clear()
+
+        try {
+            val results = repository.getSourceCatalogue(
+                sourceId = sourceInfo.id,
+                page = 1,
+                query = searchQuery,
+                filters = filters
+            ).first()
+            val unique = results.distinctBy { it.url }
+            mangaItems.addAll(unique)
+            hasMorePages = unique.isNotEmpty()
+        } catch (e: Exception) {
+            loadError = e.message ?: "Failed to load titles"
+        } finally {
+            isInitialLoading = false
+        }
+    }
+
+    // Prefetch trigger: observe when user scrolls within 6 items of bottom
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val layoutInfo = gridState.layoutInfo
+            val total = layoutInfo.totalItemsCount
+            val lastVisible = layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            total > 0 && lastVisible >= total - 6
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore, isInitialLoading, isLoadingMore, hasMorePages) {
+        if (shouldLoadMore && !isInitialLoading && !isLoadingMore && hasMorePages) {
+            isLoadingMore = true
+            loadError = null
+            val nextPage = currentPage + 1
+            try {
+                val results = repository.getSourceCatalogue(
+                    sourceId = sourceInfo.id,
+                    page = nextPage,
+                    query = searchQuery,
+                    filters = filters
+                ).first()
+
+                val existingUrls = mangaItems.map { it.url }.toSet()
+                val unique = results.filter { it.url !in existingUrls }
+
+                if (unique.isEmpty()) {
+                    hasMorePages = false
+                } else {
+                    mangaItems.addAll(unique)
+                    currentPage = nextPage
+                }
+            } catch (e: Exception) {
+                loadError = e.message ?: "Failed to load more titles"
+            } finally {
+                isLoadingMore = false
+            }
+        }
+    }
+
+    val retryLoadMore: () -> Unit = {
+        if (!isLoadingMore && hasMorePages) {
+            coroutineScope.launch {
+                isLoadingMore = true
+                loadError = null
+                val nextPage = currentPage + 1
+                try {
+                    val results = repository.getSourceCatalogue(
+                        sourceId = sourceInfo.id,
+                        page = nextPage,
+                        query = searchQuery,
+                        filters = filters
+                    ).first()
+
+                    val existingUrls = mangaItems.map { it.url }.toSet()
+                    val unique = results.filter { it.url !in existingUrls }
+
+                    if (unique.isEmpty()) {
+                        hasMorePages = false
+                    } else {
+                        mangaItems.addAll(unique)
+                        currentPage = nextPage
+                    }
+                } catch (e: Exception) {
+                    loadError = e.message ?: "Failed to load more titles"
+                } finally {
+                    isLoadingMore = false
+                }
+            }
+        }
+    }
 
     val avatarColor = when (sourceInfo.name) {
         "MangaDex" -> Color(0xFFFF6740)
@@ -162,6 +273,7 @@ fun SourceDetailScreenContent(
         // LAYER 1: Scrollable Content Grid
         LazyVerticalGrid(
             columns = GridCells.Fixed(3),
+            state = gridState,
             modifier = Modifier
                 .fillMaxSize()
                 .glassSource(glassState),
@@ -331,7 +443,7 @@ fun SourceDetailScreenContent(
                         )
 
                         Text(
-                            text = "${mangaItems.size} titles",
+                            text = if (isInitialLoading) "Loading..." else "${mangaItems.size} titles",
                             fontSize = 13.sp,
                             color = TextSecondary
                         )
@@ -339,8 +451,33 @@ fun SourceDetailScreenContent(
                 }
             }
 
-            // Manga Grid Items
-            if (mangaItems.isEmpty()) {
+            // Manga Grid Items & Infinite Scroll States
+            if (isInitialLoading) {
+                item(span = { GridItemSpan(3) }) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 64.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(36.dp),
+                                color = ElectricBlue,
+                                strokeWidth = 3.dp
+                            )
+                            Text(
+                                text = "Loading titles...",
+                                fontSize = 13.sp,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                }
+            } else if (mangaItems.isEmpty()) {
                 item(span = { GridItemSpan(3) }) {
                     Box(
                         modifier = Modifier
@@ -350,14 +487,14 @@ fun SourceDetailScreenContent(
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                text = "No titles found",
+                                text = if (loadError != null) "Failed to load titles" else "No titles found",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 color = TextPrimary
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Try adjusting your search query or filters",
+                                text = loadError ?: "Try adjusting your search query or filters",
                                 fontSize = 13.sp,
                                 color = TextSecondary
                             )
@@ -365,7 +502,10 @@ fun SourceDetailScreenContent(
                     }
                 }
             } else {
-                itemsIndexed(mangaItems) { index, manga ->
+                itemsIndexed(
+                    items = mangaItems,
+                    key = { _, manga -> manga.url }
+                ) { index, manga ->
                     MangaCoverCard(
                         title = manga.title,
                         subtitle = manga.genres.firstOrNull() ?: (if (manga.isNovel) "Novel" else "Manga"),
@@ -375,68 +515,90 @@ fun SourceDetailScreenContent(
                     )
                 }
 
-                // Pagination Row
-                item(span = { GridItemSpan(3) }) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        if (currentPage > 1) {
-                            val prevInteraction = remember { MutableInteractionSource() }
-                            Box(
+                // Loading More Indicator
+                if (isLoadingMore) {
+                    item(span = { GridItemSpan(3) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 20.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
                                 modifier = Modifier
                                     .clip(CapsuleShape)
-                                    .glassPress(prevInteraction)
                                     .background(Color.White.copy(alpha = 0.08f))
                                     .border(1.dp, GlassBorder, CapsuleShape)
-                                    .clickable(
-                                        interactionSource = prevInteraction,
-                                        indication = null,
-                                        onClick = { currentPage = (currentPage - 1).coerceAtLeast(1) }
-                                    )
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                contentAlignment = Alignment.Center
+                                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = ElectricBlue,
+                                    strokeWidth = 2.dp
+                                )
                                 Text(
-                                    text = "Previous Page",
-                                    fontSize = 13.sp,
+                                    text = "Loading more titles...",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium,
                                     color = TextPrimary
                                 )
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
                         }
+                    }
+                }
 
-                        Text(
-                            text = "Page $currentPage",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextSecondary
-                        )
-
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        val nextInteraction = remember { MutableInteractionSource() }
+                // Retry Button if Loading More Failed
+                if (loadError != null && !isLoadingMore) {
+                    item(span = { GridItemSpan(3) }) {
                         Box(
                             modifier = Modifier
-                                .clip(CapsuleShape)
-                                .glassPress(nextInteraction)
-                                .background(Color.White.copy(alpha = 0.12f))
-                                .border(1.dp, GlassBorderStrong, CapsuleShape)
-                            .clickable(
-                                interactionSource = nextInteraction,
-                                indication = null,
-                                onClick = { currentPage++ }
-                            )
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val retryInteraction = remember { MutableInteractionSource() }
+                            Row(
+                                modifier = Modifier
+                                    .clip(CapsuleShape)
+                                    .glassPress(retryInteraction)
+                                    .background(Color(0xFFEF4444).copy(alpha = 0.15f))
+                                    .border(1.dp, Color(0xFFEF4444).copy(alpha = 0.35f), CapsuleShape)
+                                    .clickable(
+                                        interactionSource = retryInteraction,
+                                        indication = null,
+                                        onClick = retryLoadMore
+                                    )
+                                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Couldn't load more. Tap to retry",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // End of Catalogue Indicator
+                if (!hasMorePages && mangaItems.size >= 8) {
+                    item(span = { GridItemSpan(3) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 24.dp, bottom = 16.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Next Page",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White
+                                text = "End of catalogue • ${mangaItems.size} titles",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = TextSecondary.copy(alpha = 0.7f)
                             )
                         }
                     }
@@ -451,7 +613,6 @@ fun SourceDetailScreenContent(
             glassState = glassState,
             onApplyFilters = { newFilters ->
                 filters = newFilters
-                currentPage = 1
             },
             onDismiss = { isFilterSheetOpen = false }
         )
