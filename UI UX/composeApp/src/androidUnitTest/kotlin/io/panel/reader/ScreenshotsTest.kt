@@ -6,6 +6,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import core.source.MangaStatus
 import core.source.SourceManga
+import data.download.DefaultDownloadManager
+import data.extension.DefaultExtensionRepository
+import data.library.DefaultCategoryRepository
 import data.mock.FakePanelRepository
 import data.mock.MockStorageInfo
 import data.profile.DayReadingActivity
@@ -26,9 +29,13 @@ import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import ui.screens.browse.BrowseScreenContent
+import ui.screens.details.BatchDownloadSheet
 import ui.screens.details.TitleDetailsScreenContent
 import ui.screens.downloads.DownloadsScreenContent
+import ui.screens.extensions.ExtensionDetailSheet
 import ui.screens.extensions.ExtensionsScreenContent
+import ui.screens.library.BatchMoveSheet
+import ui.screens.library.CategoryEditSheet
 import ui.screens.library.LibraryScreenContent
 import ui.screens.more.MoreScreenContent
 import ui.screens.novelreader.NovelReaderScreenContent
@@ -108,6 +115,7 @@ class ScreenshotsTest {
                     chapterTitle = "Chapter 42: Awakening",
                     pages = pages,
                     settingsRepository = mangaSettingsRepo,
+                    isOfflineCached = true,
                     onBack = {}
                 )
             }
@@ -199,20 +207,44 @@ class ScreenshotsTest {
 
     @Test
     fun capture_10_downloads_screen() {
-        val storageInfo = runBlocking { repository.getStorageInfo().first() }
-        val downloads = runBlocking { repository.getDownloads().first() }
+        val downloadManager = DefaultDownloadManager(autoStartSimulation = false)
+        val storageInfo = downloadManager.storageInfo.value
+        val queue = downloadManager.queue.value
+        val completed = downloadManager.completedDownloads.value
 
         composeTestRule.setContent {
             PanelTheme {
                 DownloadsScreenContent(
                     storageInfo = storageInfo,
-                    initialDownloads = downloads,
+                    queue = queue,
+                    completed = completed,
                     onOpenManga = {},
                     onTabSelected = {}
                 )
             }
         }
         composeTestRule.onRoot().captureRoboImage("screenshots/10_downloads.png")
+    }
+
+    @Test
+    fun capture_17_batch_download_sheet() {
+        val downloadManager = DefaultDownloadManager(autoStartSimulation = false)
+        val manga = runBlocking { repository.getMangaDetails("manga/the-last-horizon").first() }
+            ?: SourceManga("manga/the-last-horizon", "The Last Horizon")
+        val chapters = runBlocking { repository.getChapters("manga/the-last-horizon").first() }
+
+        composeTestRule.setContent {
+            PanelTheme {
+                BatchDownloadSheet(
+                    visible = true,
+                    manga = manga,
+                    chapters = chapters,
+                    downloadManager = downloadManager,
+                    onDismiss = {}
+                )
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/17_batch_download_sheet.png")
     }
 
     @Test
@@ -339,5 +371,92 @@ class ScreenshotsTest {
             }
         }
         composeTestRule.onRoot().captureRoboImage("screenshots/14_reader_settings.png")
+    }
+
+    @Test
+    @Config(qualifiers = "w840dp-h600dp-xhdpi")
+    fun capture_18_dual_page_spread_tablet() {
+        val pages = runBlocking { repository.getPages("").first() }
+        val tabletSettingsRepo = FakeSettingsRepository().apply {
+            setDefaultReadingMode(DefaultReadingMode.RIGHT_TO_LEFT)
+            setSplitDoubleSpread(true)
+            setDualPageOffset(false)
+        }
+
+        composeTestRule.setContent {
+            PanelTheme {
+                WebtoonReaderScreenContent(
+                    chapterTitle = "Chapter 42: Awakening",
+                    pages = pages,
+                    settingsRepository = tabletSettingsRepo,
+                    isOfflineCached = true,
+                    onBack = {}
+                )
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/18_dual_page_spread_tablet.png")
+    }
+
+    @Test
+    fun capture_19_extension_detail_sheet() {
+        val extRepo = DefaultExtensionRepository()
+        val mangadex = extRepo.extensions.value.first { it.name == "MangaDex" }
+
+        composeTestRule.setContent {
+            PanelTheme {
+                ExtensionDetailSheet(
+                    extension = mangadex,
+                    isVisible = true,
+                    onDismiss = {},
+                    onInstall = {},
+                    onUpdate = {},
+                    onUninstall = {},
+                    onClearCache = {}
+                )
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/19_extension_detail_sheet.png")
+    }
+
+    @Test
+    fun capture_20_library_batch_selection() {
+        val catRepo = DefaultCategoryRepository()
+        val allManga = runBlocking { repository.getLibrary("All").first() }
+        val selectedUrls = allManga.take(2).map { it.url }.toSet()
+
+        composeTestRule.setContent {
+            PanelTheme {
+                LibraryScreenContent(
+                    repository = repository,
+                    categoryRepository = catRepo,
+                    initialSelectionMode = true,
+                    initialSelectedUrls = selectedUrls,
+                    onOpenManga = {},
+                    onResumeChapter = { _, _ -> },
+                    onTabSelected = {}
+                )
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/20_library_batch_selection.png")
+    }
+
+    @Test
+    fun capture_21_category_edit_sheet() {
+        val catRepo = DefaultCategoryRepository()
+        val categories = catRepo.categories.value
+
+        composeTestRule.setContent {
+            PanelTheme {
+                CategoryEditSheet(
+                    categories = categories,
+                    isVisible = true,
+                    onDismiss = {},
+                    onAddCategory = {},
+                    onDeleteCategory = {},
+                    onMoveCategory = { _, _ -> }
+                )
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/21_category_edit_sheet.png")
     }
 }

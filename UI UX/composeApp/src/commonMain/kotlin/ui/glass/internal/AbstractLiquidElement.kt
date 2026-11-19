@@ -168,12 +168,18 @@ internal abstract class AbstractLiquidNode(
       return
     }
 
-    val layer = obtainGraphicsLayer()
-    recordLiquefiablesIntoLayer(layer, reusableScope)
+    try {
+      val layer = obtainGraphicsLayer()
+      val recorded = recordLiquefiablesIntoLayer(layer, reusableScope)
 
-    applyAdditionalEffects(layer) {
-      layer.renderEffect = cachedRenderEffect
-      drawLayer(layer)
+      if (recorded) {
+        applyAdditionalEffects(layer) {
+          layer.renderEffect = cachedRenderEffect
+          drawLayer(layer)
+        }
+      }
+    } catch (_: Throwable) {
+      // Graceful fallback to prevent hardware renderer aborts
     }
 
     drawContent()

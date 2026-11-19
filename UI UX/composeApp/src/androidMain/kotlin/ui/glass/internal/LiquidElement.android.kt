@@ -51,7 +51,7 @@ internal class LiquidNode(
   private var cachedBlurEffect: android.graphics.RenderEffect? = null
 
   override fun createRenderEffect(): RenderEffect? = with(reusableScope) {
-    if (size.isUnspecified) return null
+    if (size.isUnspecified || size.width <= 0f || size.height <= 0f) return null
 
     try {
       liquidShader.updateLiquidUniforms()
@@ -64,8 +64,8 @@ internal class LiquidNode(
       val blurEffect = cachedBlurEffect
         ?.takeUnless { mutatedFields has Fields.Frost }
         ?: createBlurEffect(
-          frostRadius,
-          frostRadius,
+          frostRadius.coerceAtLeast(1f),
+          frostRadius.coerceAtLeast(1f),
           Shader.TileMode.CLAMP,
         ).also { cachedBlurEffect = it }
 

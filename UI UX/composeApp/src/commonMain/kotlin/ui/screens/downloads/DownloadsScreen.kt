@@ -1,8 +1,13 @@
 package ui.screens.downloads
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,13 +27,18 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,13 +47,16 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import core.source.SourceManga
-import data.mock.FakePanelRepository
+import data.download.DownloadJob
+import data.download.DownloadManager
+import data.download.DownloadStatus
 import data.mock.MockDownloadItem
 import data.mock.MockStorageInfo
 import data.mock.PanelRepository
@@ -60,8 +73,13 @@ import ui.screens.browse.BrowseScreen
 import ui.screens.details.TitleDetailsScreen
 import ui.screens.library.LibraryScreen
 import ui.screens.updates.UpdatesScreen
+import ui.theme.CoverGradients
+import ui.theme.ElectricBlue
+import ui.theme.GlassBorder
+import ui.theme.GlassBorderStrong
 import ui.theme.PanelBackground
 import ui.theme.PanelTheme
+import ui.theme.TextMuted
 import ui.theme.TextPrimary
 import ui.theme.TextSecondary
 import ui.theme.TextTertiary
@@ -71,14 +89,27 @@ class DownloadsScreen : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
-        val repository: PanelRepository = koinInject()
+        val downloadManager: DownloadManager = koinInject()
 
-        val storageInfo by repository.getStorageInfo().collectAsState(initial = MockStorageInfo())
-        val initialDownloads by repository.getDownloads().collectAsState(initial = emptyList())
+        val storageInfo by downloadManager.storageInfo.collectAsState()
+        val queue by downloadManager.queue.collectAsState()
+        val completed by downloadManager.completedDownloads.collectAsState()
 
         DownloadsScreenContent(
             storageInfo = storageInfo,
-            initialDownloads = initialDownloads,
+            queue = queue,
+            completed = completed,
+            onPauseToggle = { job ->
+                if (job.status == DownloadStatus.PAUSED) downloadManager.resume(job.id)
+                else downloadManager.pause(job.id)
+            },
+            onCancel = { job -> downloadManager.cancel(job.id) },
+            onPauseAll = { downloadManager.pauseAll() },
+            onResumeAll = { downloadManager.resumeAll() },
+            onClearCompleted = { downloadManager.clearCompleted() },
+            onDeleteCompleted = { job ->
+                downloadManager.deleteDownloadedChapter(job.manga.url, job.chapter.url)
+            },
             onOpenManga = { manga -> navigator.push(TitleDetailsScreen(manga.url)) },
             onTabSelected = { tab ->
                 when (tab) {
@@ -95,21 +126,38 @@ class DownloadsScreen : Screen {
 @Composable
 fun DownloadsScreenContent(
     storageInfo: MockStorageInfo,
-    initialDownloads: List<MockDownloadItem>,
+    queue: List<DownloadJob> = emptyList(),
+    completed: List<DownloadJob> = emptyList(),
+    initialDownloads: List<MockDownloadItem> = emptyList(),
+    onPauseToggle: (DownloadJob) -> Unit = {},
+    onCancel: (DownloadJob) -> Unit = {},
+    onPauseAll: () -> Unit = {},
+    onResumeAll: () -> Unit = {},
+    onClearCompleted: () -> Unit = {},
+    onDeleteCompleted: (DownloadJob) -> Unit = {},
     onOpenManga: (SourceManga) -> Unit,
     onTabSelected: (PanelTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val glassState = rememberPanelGlassState()
 
-    val downloadItems = remember(initialDownloads) {
-        mutableStateListOf<MockDownloadItem>().apply {
-            addAll(
-                if (initialDownloads.isNotEmpty()) initialDownloads
-                else FakePanelRepository().getDownloads().let { emptyList() }
+    val effectiveQueue = remember(queue, initialDownloads) {
+        if (queue.isNotEmpty() || initialDownloads.isEmpty()) queue
+        else initialDownloads.map { item ->
+            DownloadJob(
+                id = item.id,
+                manga = item.manga,
+                chapter = item.chapter,
+                progress = item.progress,
+                downloadedBytes = item.downloadedBytes,
+                totalBytes = item.totalBytes,
+                etaSeconds = item.etaMinutes * 60,
+                status = if (item.isPaused) DownloadStatus.PAUSED else DownloadStatus.DOWNLOADING
             )
         }
     }
+
+    val anyActive = effectiveQueue.any { it.status == DownloadStatus.DOWNLOADING }
 
     Box(
         modifier = modifier
@@ -118,6 +166,7 @@ fun DownloadsScreenContent(
     ) {
         // Subtle ambient liquid glow orbs behind content for realistic glass refraction
         Canvas(modifier = Modifier.fillMaxSize()) {
+            if (size.width <= 0f || size.height <= 0f) return@Canvas
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
@@ -125,7 +174,7 @@ fun DownloadsScreenContent(
                         Color.Transparent
                     ),
                     center = Offset(size.width * 0.85f, size.height * 0.15f),
-                    radius = size.width * 0.7f
+                    radius = (size.width * 0.7f).coerceAtLeast(1f)
                 )
             )
             drawCircle(
@@ -135,7 +184,7 @@ fun DownloadsScreenContent(
                         Color.Transparent
                     ),
                     center = Offset(size.width * 0.15f, size.height * 0.60f),
-                    radius = size.width * 0.8f
+                    radius = (size.width * 0.8f).coerceAtLeast(1f)
                 )
             )
         }
@@ -187,37 +236,156 @@ fun DownloadsScreenContent(
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
-            // "Downloading (3)" Section Header
+            // Downloading Queue Section Header with Quick Actions
             item {
-                Text(
-                    text = "Downloading (${downloadItems.size})",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Active Queue (${effectiveQueue.size})",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+
+                    if (effectiveQueue.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .border(0.75.dp, GlassBorder, RoundedCornerShape(10.dp))
+                                .clickable {
+                                    if (anyActive) onPauseAll() else onResumeAll()
+                                }
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = if (anyActive) "Pause All" else "Resume All",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (anyActive) TextSecondary else ElectricBlue
+                            )
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(12.dp))
             }
 
-            // Download Queue Items (Liquid Glass cards)
-            itemsIndexed(downloadItems) { index, item ->
-                val downloadedMb = item.downloadedBytes / (1024 * 1024)
-                val totalMb = item.totalBytes / (1024 * 1024)
+            // Download Queue Items
+            if (effectiveQueue.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White.copy(alpha = 0.03f))
+                            .border(0.5.dp, GlassBorder, RoundedCornerShape(16.dp))
+                            .padding(vertical = 28.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "Queue is Empty",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextSecondary
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Chapters selected for offline reading appear here",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextTertiary
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(20.dp))
+                }
+            } else {
+                itemsIndexed(effectiveQueue) { index, item ->
+                    val downloadedMb = item.downloadedBytes / (1024 * 1024)
+                    val totalMb = item.totalBytes / (1024 * 1024)
+                    val etaMins = (item.etaSeconds / 60).coerceAtLeast(1)
 
-                DownloadQueueCard(
-                    title = item.manga.title,
-                    chapter = item.chapter.name,
-                    progress = item.progress,
-                    downloadedMb = downloadedMb,
-                    totalMb = totalMb,
-                    etaMinutes = item.etaMinutes,
-                    isPaused = item.isPaused,
-                    gradientIndex = index,
-                    onPauseToggle = {
-                        downloadItems[index] = item.copy(isPaused = !item.isPaused)
-                    },
-                    onClick = { onOpenManga(item.manga) }
-                )
-                Spacer(modifier = Modifier.height(10.dp))
+                    val statusText = when (item.status) {
+                        DownloadStatus.DOWNLOADING -> {
+                            val speedMb = (item.speedBytesPerSec / (1024f * 1024f) * 10f).roundToInt() / 10f
+                            "$downloadedMb MB of $totalMb MB • $speedMb MB/s • ${item.etaSeconds}s left"
+                        }
+                        DownloadStatus.QUEUED -> "$downloadedMb MB of $totalMb MB • Queued"
+                        DownloadStatus.PAUSED -> "$downloadedMb MB of $totalMb MB • Paused"
+                        DownloadStatus.ERROR -> "Error: ${item.error ?: "Download interrupted"}"
+                        DownloadStatus.COMPLETED -> "$totalMb MB • Completed"
+                    }
+
+                    DownloadQueueCard(
+                        title = item.manga.title,
+                        chapter = item.chapter.name,
+                        progress = item.progress,
+                        downloadedMb = downloadedMb,
+                        totalMb = totalMb,
+                        etaMinutes = etaMins,
+                        isPaused = item.status == DownloadStatus.PAUSED,
+                        gradientIndex = index,
+                        statusText = statusText,
+                        onPauseToggle = { onPauseToggle(item) },
+                        onCancel = { onCancel(item) },
+                        onClick = { onOpenManga(item.manga) }
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
+
+            // Completed Downloads Section
+            if (completed.isNotEmpty()) {
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Downloaded (${completed.size})",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .border(0.75.dp, GlassBorder, RoundedCornerShape(10.dp))
+                                .clickable(onClick = onClearCompleted)
+                                .padding(horizontal = 10.dp, vertical = 5.dp)
+                        ) {
+                            Text(
+                                text = "Clear All",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                itemsIndexed(completed) { index, item ->
+                    val totalMb = item.totalBytes / (1024 * 1024)
+                    CompletedChapterCard(
+                        title = item.manga.title,
+                        chapter = item.chapter.name,
+                        totalMb = totalMb,
+                        gradientIndex = index,
+                        onDelete = { onDeleteCompleted(item) },
+                        onClick = { onOpenManga(item.manga) }
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
             }
         }
 
@@ -228,6 +396,123 @@ fun DownloadsScreenContent(
             glassState = glassState,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
+    }
+}
+
+@Composable
+fun CompletedChapterCard(
+    title: String,
+    chapter: String,
+    totalMb: Long,
+    gradientIndex: Int,
+    onDelete: () -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(18.dp)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.09f),
+                        Color.White.copy(alpha = 0.03f)
+                    )
+                )
+            )
+            .border(
+                width = 0.75.dp,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.28f),
+                        Color.White.copy(alpha = 0.06f)
+                    )
+                ),
+                shape = shape
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val coverShape = RoundedCornerShape(10.dp)
+            Box(
+                modifier = Modifier
+                    .size(width = 46.dp, height = 62.dp)
+                    .clip(coverShape)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            CoverGradients[gradientIndex.mod(CoverGradients.size)]
+                        )
+                    )
+                    .border(1.dp, Color.White.copy(alpha = 0.35f), coverShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = title.take(1),
+                    color = Color.White.copy(alpha = 0.35f),
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = chapter,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontSize = 12.sp,
+                    color = TextSecondary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        tint = ElectricBlue,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "$totalMb MB • Ready for Offline",
+                        fontSize = 11.sp,
+                        color = ElectricBlue
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            PanelCircleIconButton(
+                icon = Icons.Default.Delete,
+                size = 36.dp,
+                iconSize = 16.dp,
+                backgroundColor = Color.White.copy(alpha = 0.08f),
+                borderColor = Color.White.copy(alpha = 0.16f),
+                tint = TextSecondary,
+                onClick = onDelete
+            )
+        }
     }
 }
 
@@ -368,7 +653,7 @@ fun AestheticStorageWidget(
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Minimal Legend Row (Free space is displayed in the top right pill badge)
+            // Minimal Legend Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -423,7 +708,8 @@ fun DownloadsScreenPreview() {
     PanelTheme {
         DownloadsScreenContent(
             storageInfo = MockStorageInfo(),
-            initialDownloads = emptyList(),
+            queue = emptyList(),
+            completed = emptyList(),
             onOpenManga = {},
             onTabSelected = {}
         )

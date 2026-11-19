@@ -1,6 +1,12 @@
 package core.di
 
 import core.storage.platformStorageModule
+import data.download.DefaultDownloadManager
+import data.download.DownloadManager
+import data.extension.DefaultExtensionRepository
+import data.extension.ExtensionRepository
+import data.library.CategoryRepository
+import data.library.DefaultCategoryRepository
 import data.db.DatabaseDriverFactory
 import data.mock.PanelRepository
 import data.profile.PersistentProfileRepository
@@ -24,4 +30,7 @@ val appModule = module {
     single<TrackerRepository> { ProductionTrackerRepository(getOrNull()) }
     single<SettingsRepository> { PersistentSettingsRepository(get()) }
     single<ProfileRepository> { PersistentProfileRepository(get(), get()) }
+    single<DownloadManager> { DefaultDownloadManager() }
+    single<ExtensionRepository> { DefaultExtensionRepository() }
+    single<CategoryRepository> { DefaultCategoryRepository() }
 }
