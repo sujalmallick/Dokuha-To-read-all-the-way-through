@@ -19,5 +19,7 @@ keystore.properties
 google-services.json
 GoogleService-Info.plist
 
-# OS-specific
+# Build & binary outputs
+*.apk
+*.aab
 Thumbs.db

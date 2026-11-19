@@ -472,6 +472,7 @@ private fun SliderRow(
 @Composable
 private fun ColorfulBackdrop(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
+        if (size.width <= 0f || size.height <= 0f) return@Canvas
         // Deep background gradient
         drawRect(
             brush = Brush.verticalGradient(
@@ -488,40 +489,40 @@ private fun ColorfulBackdrop(modifier: Modifier = Modifier) {
             brush = Brush.radialGradient(
                 colors = listOf(Color(0xFFFF2A85), Color.Transparent),
                 center = Offset(size.width * 0.25f, size.height * 0.2f),
-                radius = size.width * 0.45f
+                radius = (size.width * 0.45f).coerceAtLeast(1f)
             ),
             center = Offset(size.width * 0.25f, size.height * 0.2f),
-            radius = size.width * 0.45f
+            radius = (size.width * 0.45f).coerceAtLeast(1f)
         )
 
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(Color(0xFF007AFF), Color.Transparent),
                 center = Offset(size.width * 0.8f, size.height * 0.35f),
-                radius = size.width * 0.5f
+                radius = (size.width * 0.5f).coerceAtLeast(1f)
             ),
             center = Offset(size.width * 0.8f, size.height * 0.35f),
-            radius = size.width * 0.5f
+            radius = (size.width * 0.5f).coerceAtLeast(1f)
         )
 
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(Color(0xFF00E5FF), Color.Transparent),
                 center = Offset(size.width * 0.3f, size.height * 0.65f),
-                radius = size.width * 0.4f
+                radius = (size.width * 0.4f).coerceAtLeast(1f)
             ),
             center = Offset(size.width * 0.3f, size.height * 0.65f),
-            radius = size.width * 0.4f
+            radius = (size.width * 0.4f).coerceAtLeast(1f)
         )
 
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(Color(0xFFFF9500), Color.Transparent),
                 center = Offset(size.width * 0.75f, size.height * 0.8f),
-                radius = size.width * 0.45f
+                radius = (size.width * 0.45f).coerceAtLeast(1f)
             ),
             center = Offset(size.width * 0.75f, size.height * 0.8f),
-            radius = size.width * 0.45f
+            radius = (size.width * 0.45f).coerceAtLeast(1f)
         )
     }
 }

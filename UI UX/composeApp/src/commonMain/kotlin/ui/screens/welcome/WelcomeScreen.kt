@@ -49,14 +49,19 @@ import ui.theme.PanelTheme
 import ui.theme.TextPrimary
 import ui.theme.TextSecondary
 
+import data.settings.SettingsRepository
+import org.koin.compose.koinInject
+
 class WelcomeScreen : Screen {
 
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
+        val settingsRepository: SettingsRepository = koinInject()
         WelcomeScreenContent(
             onGetStarted = {
-                navigator.push(LibraryScreen())
+                settingsRepository.setOnboardingCompleted(true)
+                navigator.replaceAll(LibraryScreen())
             }
         )
     }
@@ -110,7 +115,7 @@ fun WelcomeScreenContent(
                     modifier = Modifier.padding(top = 80.dp)
                 ) {
                     Text(
-                        text = "Panel",
+                        text = "Dokuha",
                         fontSize = 44.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary,
@@ -197,6 +202,7 @@ fun WelcomeIllustrationBackground(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
         val width = size.width
         val height = size.height
+        if (width <= 0f || height <= 0f) return@Canvas
 
         // Deep vertical twilight gradient
         drawRect(
@@ -258,14 +264,15 @@ fun WelcomeIllustrationBackground(modifier: Modifier = Modifier) {
         }
 
         // Horizon twilight glow
+        val horizonRadius = (width * 0.7f).coerceAtLeast(1f)
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(Color(0xFFF472B6).copy(alpha = 0.35f), Color.Transparent),
                 center = Offset(width * 0.5f, height * 0.65f),
-                radius = width * 0.7f
+                radius = horizonRadius
             ),
             center = Offset(width * 0.5f, height * 0.65f),
-            radius = width * 0.7f
+            radius = horizonRadius
         )
 
         // City skyline silhouettes & Rooftop baseline

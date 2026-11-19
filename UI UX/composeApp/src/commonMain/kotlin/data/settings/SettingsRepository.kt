@@ -48,6 +48,10 @@ data class ExtensionRepo(
 const val REPOSITORY_SECURITY_WARNING = "Extensions can run code on your device. Only add repositories you trust."
 
 interface SettingsRepository {
+    // Onboarding
+    val isOnboardingCompleted: StateFlow<Boolean>
+    fun setOnboardingCompleted(completed: Boolean)
+
     // Appearance
     val themeMode: StateFlow<ThemeMode>
     val accentColorIndex: StateFlow<Int>
@@ -133,6 +137,14 @@ interface SettingsRepository {
 }
 
 class FakeSettingsRepository : SettingsRepository {
+    // Onboarding
+    private val _isOnboardingCompleted = MutableStateFlow(false)
+    override val isOnboardingCompleted: StateFlow<Boolean> = _isOnboardingCompleted.asStateFlow()
+
+    override fun setOnboardingCompleted(completed: Boolean) {
+        _isOnboardingCompleted.value = completed
+    }
+
     // Appearance
     private val _themeMode = MutableStateFlow(ThemeMode.DARK)
     override val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
@@ -280,7 +292,7 @@ class FakeSettingsRepository : SettingsRepository {
     private val _concurrentDownloads = MutableStateFlow(2)
     override val concurrentDownloads: StateFlow<Int> = _concurrentDownloads.asStateFlow()
 
-    private val _downloadLocation = MutableStateFlow("Internal Storage / Panel")
+    private val _downloadLocation = MutableStateFlow("Internal Storage / Dokuha")
     override val downloadLocation: StateFlow<String> = _downloadLocation.asStateFlow()
 
     override fun setDownloadOnlyOnWifi(enabled: Boolean) {
@@ -304,8 +316,8 @@ class FakeSettingsRepository : SettingsRepository {
         listOf(
             ExtensionRepo(
                 id = "repo-official",
-                name = "Official Panel Repository",
-                url = "https://raw.githubusercontent.com/panel-app/extensions/repo/index.min.json",
+                name = "Official Dokuha Repository",
+                url = "https://raw.githubusercontent.com/dokuha-app/extensions/repo/index.min.json",
                 isOfficial = true
             ),
             ExtensionRepo(

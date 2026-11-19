@@ -445,6 +445,7 @@ fun TitleHeroArtwork(modifier: Modifier = Modifier) {
     Canvas(modifier = modifier) {
         val width = size.width
         val height = size.height
+        if (width <= 0f || height <= 0f) return@Canvas
 
         // Dark Crimson & Night Navy backdrop
         drawRect(
@@ -461,6 +462,7 @@ fun TitleHeroArtwork(modifier: Modifier = Modifier) {
         )
 
         // Radial crimson energy flare on the right
+        val crimsonRadius = (width * 0.55f).coerceAtLeast(1f)
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
@@ -469,13 +471,14 @@ fun TitleHeroArtwork(modifier: Modifier = Modifier) {
                     Color.Transparent
                 ),
                 center = Offset(width * 0.85f, height * 0.35f),
-                radius = width * 0.55f
+                radius = crimsonRadius
             ),
             center = Offset(width * 0.85f, height * 0.35f),
-            radius = width * 0.55f
+            radius = crimsonRadius
         )
 
         // Radial electric blue / cyan magic flare on the left
+        val cyanRadius = (width * 0.45f).coerceAtLeast(1f)
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
@@ -484,10 +487,10 @@ fun TitleHeroArtwork(modifier: Modifier = Modifier) {
                     Color.Transparent
                 ),
                 center = Offset(width * 0.15f, height * 0.5f),
-                radius = width * 0.45f
+                radius = cyanRadius
             ),
             center = Offset(width * 0.15f, height * 0.5f),
-            radius = width * 0.45f
+            radius = cyanRadius
         )
 
         // Stylized anime character silhouette: Cape

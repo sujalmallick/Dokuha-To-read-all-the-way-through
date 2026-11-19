@@ -51,24 +51,28 @@ internal class LiquidNode(
   private var cachedBlurEffect: android.graphics.RenderEffect? = null
 
   override fun createRenderEffect(): RenderEffect? = with(reusableScope) {
-    if (size.isUnspecified) return null
+    if (size.isUnspecified || size.width <= 0f || size.height <= 0f) return null
 
-    liquidShader.updateLiquidUniforms()
-    val liquidEffect = createRuntimeShaderEffect(liquidShader, "content")
+    try {
+      liquidShader.updateLiquidUniforms()
+      val liquidEffect = createRuntimeShaderEffect(liquidShader, "content")
 
-    if (frostRadius < 1f) {
-      return liquidEffect.asComposeRenderEffect()
+      if (frostRadius < 1f) {
+        return liquidEffect.asComposeRenderEffect()
+      }
+
+      val blurEffect = cachedBlurEffect
+        ?.takeUnless { mutatedFields has Fields.Frost }
+        ?: createBlurEffect(
+          frostRadius.coerceAtLeast(1f),
+          frostRadius.coerceAtLeast(1f),
+          Shader.TileMode.CLAMP,
+        ).also { cachedBlurEffect = it }
+
+      return createChainEffect(liquidEffect, blurEffect).asComposeRenderEffect()
+    } catch (_: Throwable) {
+      return null
     }
-
-    val blurEffect = cachedBlurEffect
-      ?.takeUnless { mutatedFields has Fields.Frost }
-      ?: createBlurEffect(
-        frostRadius,
-        frostRadius,
-        Shader.TileMode.CLAMP,
-      ).also { cachedBlurEffect = it }
-
-    return createChainEffect(liquidEffect, blurEffect).asComposeRenderEffect()
   }
 
   private fun RuntimeShader.updateLiquidUniforms() = with(reusableScope) {

@@ -148,18 +148,19 @@ fun BrowseScreenContent(
     ) {
         // Ambient liquid refraction glow orbs in background
         Canvas(modifier = Modifier.fillMaxSize()) {
+            if (size.width <= 0f || size.height <= 0f) return@Canvas
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(Color(0xFF38BDF8).copy(alpha = 0.08f), Color.Transparent),
                     center = Offset(size.width * 0.85f, size.height * 0.35f),
-                    radius = size.width * 0.65f
+                    radius = (size.width * 0.65f).coerceAtLeast(1f)
                 )
             )
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(Color(0xFFA855F7).copy(alpha = 0.07f), Color.Transparent),
                     center = Offset(size.width * 0.15f, size.height * 0.55f),
-                    radius = size.width * 0.60f
+                    radius = (size.width * 0.60f).coerceAtLeast(1f)
                 )
             )
         }

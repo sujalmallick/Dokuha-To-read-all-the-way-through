@@ -22,6 +22,7 @@ class PersistentSettingsRepository(
         const val CURRENT_SCHEMA_VERSION = 1
 
         // Keys
+        private const val KEY_ONBOARDING_COMPLETED = "setting_onboarding_completed"
         private const val KEY_THEME_MODE = "setting_theme_mode"
         private const val KEY_ACCENT_COLOR_INDEX = "setting_accent_color_index"
         private const val KEY_REDUCE_GLASS = "setting_reduce_glass"
@@ -66,6 +67,17 @@ class PersistentSettingsRepository(
         if (currentVersion < CURRENT_SCHEMA_VERSION) {
             storage.putInt(KEY_SCHEMA_VERSION, CURRENT_SCHEMA_VERSION)
         }
+    }
+
+    // Onboarding
+    private val _isOnboardingCompleted = MutableStateFlow(
+        storage.getBoolean(KEY_ONBOARDING_COMPLETED, false)
+    )
+    override val isOnboardingCompleted: StateFlow<Boolean> = _isOnboardingCompleted.asStateFlow()
+
+    override fun setOnboardingCompleted(completed: Boolean) {
+        _isOnboardingCompleted.value = completed
+        storage.putBoolean(KEY_ONBOARDING_COMPLETED, completed)
     }
 
     // Appearance
@@ -294,7 +306,7 @@ class PersistentSettingsRepository(
     override val concurrentDownloads: StateFlow<Int> = _concurrentDownloads.asStateFlow()
 
     private val _downloadLocation = MutableStateFlow(
-        storage.getString(KEY_DOWNLOAD_LOCATION, "Internal storage / Panel / Downloads")
+        storage.getString(KEY_DOWNLOAD_LOCATION, "Internal storage / Dokuha / Downloads")
     )
     override val downloadLocation: StateFlow<String> = _downloadLocation.asStateFlow()
 
