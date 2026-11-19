@@ -226,7 +226,7 @@ fun BatchDownloadSheet(
                             )
                             Spacer(modifier = Modifier.weight(1f))
                             Text(
-                                text = "Free: ${"%.1f".format(freeGb)} GB",
+                                text = "Free: ${(kotlin.math.round(freeGb * 10) / 10.0)} GB",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary
                             )

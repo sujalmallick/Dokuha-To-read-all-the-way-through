@@ -65,7 +65,7 @@ class DefaultCategoryRepository : CategoryRepository {
 
         val maxOrder = _categories.value.maxOfOrNull { it.order } ?: 0
         val newCategory = LibraryCategory(
-            id = "cat-${System.currentTimeMillis()}",
+            id = "cat-${kotlin.math.abs(trimmed.hashCode())}-${_categories.value.size + 1}",
             name = trimmed,
             order = maxOrder + 1,
             isDefault = false

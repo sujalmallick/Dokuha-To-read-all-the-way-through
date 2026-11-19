@@ -98,9 +98,68 @@ class ExtensionsScreen : Screen {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repository: ExtensionRepository = koinInject()
+        val panelRepository: PanelRepository = koinInject()
+        val extensionManager: ExtensionManager = koinInject()
+        val coroutineScope = rememberCoroutineScope()
+
+        val mockExtensions by panelRepository.getExtensions().collectAsState(initial = emptyList())
+        val installedExts by extensionManager.installedExtensions.collectAsState(initial = emptyList())
+        val availableCatalog by extensionManager.availableExtensions.collectAsState(initial = emptyList())
+
+        val effectiveExtensions = remember(mockExtensions, installedExts, availableCatalog) {
+            if (installedExts.isNotEmpty() || availableCatalog.isNotEmpty()) {
+                val installedIds = installedExts.map { it.id }.toSet()
+                val list = mutableListOf<MockExtension>()
+                for (inst in installedExts) {
+                    list.add(
+                        MockExtension(
+                            id = inst.id,
+                            name = inst.name,
+                            version = inst.version,
+                            lang = inst.lang.uppercase(),
+                            isInstalled = true,
+                            hasUpdate = false,
+                            iconUrl = inst.iconUrl
+                        )
+                    )
+                }
+                for (avail in availableCatalog) {
+                    if (!installedIds.contains(avail.id)) {
+                        list.add(
+                            MockExtension(
+                                id = avail.id,
+                                name = avail.name,
+                                version = avail.version,
+                                lang = avail.lang.uppercase(),
+                                isInstalled = false,
+                                hasUpdate = false,
+                                iconUrl = avail.iconUrl
+                            )
+                        )
+                    }
+                }
+                list
+            } else {
+                mockExtensions
+            }
+        }
 
         ExtensionsScreenContent(
+            initialExtensions = effectiveExtensions,
             extensionRepository = repository,
+            onActionClick = { ext ->
+                coroutineScope.launch {
+                    if (ext.isInstalled) {
+                        extensionManager.uninstallExtension(ext.id)
+                    } else {
+                        val catalogItem = availableCatalog.firstOrNull { it.id == ext.id }
+                        if (catalogItem != null) {
+                            val repoBase = extensionManager.repoUrls.value.firstOrNull() ?: ""
+                            extensionManager.installExtension(catalogItem, repoBase)
+                        }
+                    }
+                }
+            },
             onTabSelected = { tab ->
                 when (tab) {
                     PanelTab.LIBRARY -> navigator.push(LibraryScreen())
@@ -118,6 +177,7 @@ fun ExtensionsScreenContent(
     initialExtensions: List<MockExtension> = emptyList(),
     extensionRepository: ExtensionRepository? = null,
     onTabSelected: (PanelTab) -> Unit = {},
+    onActionClick: (MockExtension) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val repository = remember(extensionRepository) {
@@ -353,7 +413,6 @@ fun ExtensionsScreenContent(
                                 )
                             }
                         }
-                        onActionClick(ext)
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))

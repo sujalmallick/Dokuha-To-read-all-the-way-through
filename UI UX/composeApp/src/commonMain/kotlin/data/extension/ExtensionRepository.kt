@@ -359,7 +359,7 @@ class DefaultExtensionRepository(
             ?: url.substringAfter("://").substringBefore('/').replaceFirstChar { it.uppercase() }
 
         val newRepo = ExtensionRepo(
-            id = "repo-${System.currentTimeMillis()}",
+            id = "repo-${kotlin.math.abs(url.hashCode())}-${_repositories.value.size + 1}",
             name = repoName,
             url = url,
             fingerprint = validation.fingerprint ?: ExtensionRepoValidator.computeFingerprint(url),

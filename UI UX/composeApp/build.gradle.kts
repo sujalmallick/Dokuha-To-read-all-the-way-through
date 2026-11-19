@@ -14,13 +14,13 @@ kotlin {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         }
     }
-
+    
     jvm("desktop") {
         compilerOptions {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         }
     }
-
+    
     listOf(
         iosX64(),
         iosArm64(),
@@ -31,7 +31,7 @@ kotlin {
             isStatic = true
         }
     }
-
+    
     sourceSets {
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -41,21 +41,21 @@ kotlin {
             implementation(compose.ui)
             implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
-
+            
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.androidx.lifecycle.viewmodel)
-
+            
             // Image Loading
             implementation(libs.coil.compose)
             implementation(libs.coil.network.ktor3)
-
+            
             // Voyager Navigation
             implementation(libs.voyager.navigator)
             implementation(libs.voyager.tab.navigator)
             implementation(libs.voyager.transitions)
             implementation(libs.voyager.koin)
-
+            
             // Koin DI
             implementation(libs.koin.core)
             implementation(libs.koin.compose)
@@ -71,7 +71,7 @@ kotlin {
             implementation(libs.sqldelight.coroutines)
             implementation(libs.sqldelight.primitive.adapters)
         }
-
+        
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
@@ -94,7 +94,7 @@ kotlin {
             implementation(libs.ktor.client.darwin)
             implementation(libs.sqldelight.native.driver)
         }
-
+        
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)

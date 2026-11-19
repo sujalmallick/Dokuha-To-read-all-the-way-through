@@ -1,4 +1,5 @@
 package core.extensions.js
+
 import core.source.MangaStatus
 import core.source.SourceChapter
 import core.source.SourceManga
@@ -116,7 +117,7 @@ const extension = {
     const title = $('.post-title h1').text().trim() || 'Untitled Novel';
     const author = $('.author-content a').first().text().trim() || null;
     const desc = $('.description-summary .summary__content').text().trim() || '';
-
+    
     const genres = [];
     $('.genres-content a').each((i, el) => {
       const g = $(el).text().trim();

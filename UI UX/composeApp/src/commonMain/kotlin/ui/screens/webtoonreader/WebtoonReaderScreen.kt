@@ -149,6 +149,11 @@ data class WebtoonReaderScreen(
             settingsRepository = settingsRepository,
             onOpenSettings = { navigator.push(ReaderSettingsScreen()) },
             isOfflineCached = isDownloaded,
+            onProgressChange = { page, isCompleted ->
+                coroutineScope.launch {
+                    repository.updateChapterProgress(currentChapterUrl, page, isCompleted)
+                }
+            },
             onPreviousChapter = {
                 if (chapters.isNotEmpty() && currentChapterIndex in 0 until chapters.lastIndex) {
                     val prevChapter = chapters[currentChapterIndex + 1]
@@ -184,6 +189,7 @@ fun WebtoonReaderScreenContent(
     settingsRepository: SettingsRepository? = null,
     onOpenSettings: () -> Unit = {},
     isOfflineCached: Boolean = false,
+    onProgressChange: (page: Int, isCompleted: Boolean) -> Unit = { _, _ -> },
     onPreviousChapter: () -> Unit = {},
     onNextChapter: () -> Unit = {},
     hasPreviousChapter: Boolean = true,
@@ -287,6 +293,10 @@ fun WebtoonReaderScreenContent(
                     pagerState.currentPage >= displayPages.size
                 }
             }
+        }
+
+        LaunchedEffect(currentPageIndex, isAtEndOfChapter) {
+            onProgressChange(currentPageIndex, isAtEndOfChapter)
         }
 
         val horizontalPadding = maxWidth * sidePadding.coerceIn(0f, 0.4f)
@@ -410,6 +420,7 @@ fun WebtoonReaderScreenContent(
                                     chapterTitle = chapterTitle,
                                     isRtl = true,
                                     cropBorders = cropBorders,
+                                    page = displayPages.getOrNull(pageIndex),
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {
@@ -466,6 +477,7 @@ fun WebtoonReaderScreenContent(
                                     chapterTitle = chapterTitle,
                                     isRtl = false,
                                     cropBorders = cropBorders,
+                                    page = displayPages.getOrNull(pageIndex),
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {

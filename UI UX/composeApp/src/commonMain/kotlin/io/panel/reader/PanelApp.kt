@@ -15,7 +15,7 @@ import data.settings.SettingsRepository
 import org.koin.compose.KoinApplication
 import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
-import org.koin.core.context.GlobalContext
+import org.koin.mp.KoinPlatformTools
 import org.koin.dsl.KoinAppDeclaration
 import ui.screens.library.LibraryScreen
 import ui.screens.splash.SplashScreenContent
@@ -33,17 +33,18 @@ fun PanelApp(
         newPanelImageLoader(context)
     }
 
-    if (GlobalContext.getOrNull() == null) {
+    if (KoinPlatformTools.defaultContext().getOrNull() != null) {
+        KoinContext {
+            PanelAppRoot()
+        }
+    } else {
         KoinApplication(application = {
             appDeclaration?.invoke(this)
             modules(appModule)
         }) {
             PanelAppRoot()
         }
-    } else {
-        KoinContext {
-            PanelAppRoot()
-        }
+    }
     }
 }
 

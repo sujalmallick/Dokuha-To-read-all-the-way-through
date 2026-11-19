@@ -5,7 +5,7 @@
 # PANEL
 ### 読破 — *Dokuha: To Read All The Way Through*
 
-**A modern, distraction-free reader for Manga, Manhwa, and Webnovels.**
+**A modern, distraction-free reader for Manga, Manhwa, and Webnovels.**  
 Crafted with Compose Multiplatform for fluid 60+ FPS performance on Android and iOS.
 
 [![Platform](https://img.shields.io/badge/Platform-Android_%7C_iOS-007AFF.svg)]()

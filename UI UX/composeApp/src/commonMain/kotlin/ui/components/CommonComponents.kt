@@ -295,6 +295,7 @@ fun MangaCoverCard(
     gradientIndex: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    thumbnailUrl: String? = null,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
     onLongClick: (() -> Unit)? = null
@@ -356,16 +357,16 @@ fun MangaCoverCard(
                                 radius = 250f
                             )
                         )
-                    )
-            )
-            // Title initial watermark in center
-            Text(
-                text = title.take(1),
-                color = Color.White.copy(alpha = 0.14f),
-                fontSize = 40.sp,
-                fontWeight = FontWeight.Black,
-                modifier = Modifier.align(Alignment.Center)
-            )
+                )
+                // Title initial watermark in center
+                Text(
+                    text = title.take(1),
+                    color = Color.White.copy(alpha = 0.14f),
+                    fontSize = 40.sp,
+                    fontWeight = FontWeight.Black,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
 
             // Selection indicator badge
             if (isSelectionMode) {

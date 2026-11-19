@@ -71,7 +71,8 @@ internal class LiquidNode(
 
       return createChainEffect(liquidEffect, blurEffect).asComposeRenderEffect()
     } catch (_: Throwable) {
-      return null
+      // Graceful fallback to basic blur or null on unsupported/failing GPU drivers
+      return cachedBlurEffect?.asComposeRenderEffect()
     }
   }
 

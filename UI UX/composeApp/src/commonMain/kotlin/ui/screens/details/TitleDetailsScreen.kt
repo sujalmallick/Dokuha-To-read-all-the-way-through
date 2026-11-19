@@ -63,8 +63,6 @@ import data.download.DownloadStatus
 import data.mock.PanelRepository
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
-import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
 import ui.components.ChapterRowItem
 import ui.components.PanelCircleIconButton
 import ui.components.PanelPillButton
@@ -104,10 +102,9 @@ data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") :
             downloadManager = downloadManager,
             isInLibrary = isInLibrary,
             onToggleLibrary = {
-                manga?.let { selectedManga ->
-                    scope.launch {
-                        repository.toggleFavorite(selectedManga, !isInLibrary)
-                    }
+                val currentManga = manga ?: SourceManga(url = mangaUrl, title = "Unknown")
+                scope.launch {
+                    repository.toggleFavorite(currentManga, !isInLibrary)
                 }
             },
             onBack = { navigator.pop() },
