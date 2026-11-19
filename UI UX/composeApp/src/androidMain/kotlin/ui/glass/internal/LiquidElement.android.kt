@@ -81,7 +81,7 @@ internal class LiquidNode(
     setFloatUniform("refraction", refraction)
     setFloatUniform("curve", curve)
     setFloatUniform("edge", edge)
-    setColorUniform("tint", argbColor)
+    setFloatUniform("tint", colorComponents)
     setFloatUniform("saturation", saturation)
     setFloatUniform("dispersion", dispersion)
     setFloatUniform("contrast", contrast)

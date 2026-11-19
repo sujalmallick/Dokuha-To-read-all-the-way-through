@@ -25,8 +25,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.network.NetworkHeaders
+import coil3.network.httpHeaders
+import coil3.request.ImageRequest
+import core.source.SourcePage
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
@@ -77,80 +85,117 @@ fun MangaPageCanvas(
     chapterTitle: String = "Chapter 42",
     isRtl: Boolean = true,
     cropBorders: Boolean = false,
+    page: SourcePage? = null,
     modifier: Modifier = Modifier
 ) {
     val pageType = pageIndex % 4
     val pageNumber = pageIndex + 1
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(MangaPaperBg)
-            .padding(if (cropBorders) 0.dp else 8.dp)
-    ) {
-        // Base Panel Layout
-        when (pageType) {
-            0 -> MangaSplashPageLayout(pageNumber = pageNumber, chapterTitle = chapterTitle)
-            1 -> MangaActionTrioLayout(pageNumber = pageNumber)
-            2 -> MangaStoryboardGridLayout(pageNumber = pageNumber)
-            3 -> MangaNightConfrontationLayout(pageNumber = pageNumber)
-        }
+    val imageUrl = page?.imageUrl ?: page?.url
+    val isRemoteImage = !imageUrl.isNullOrBlank() &&
+        (imageUrl.startsWith("http://", ignoreCase = true) || imageUrl.startsWith("https://", ignoreCase = true))
 
-        // Spine / Gutter Binding Shadow (Tactile volume curvature)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .drawWithCache {
-                    val isEven = pageNumber % 2 == 0
-                    // In RTL Manga: Even pages are on the left (spine is on right); Odd pages on right (spine on left)
-                    val shadowBrush = if (isRtl) {
-                        if (isEven) {
-                            Brush.horizontalGradient(
-                                colors = listOf(Color.Transparent, Color(0x33000000)),
-                                startX = size.width - 24.dp.toPx(),
-                                endX = size.width
-                            )
-                        } else {
-                            Brush.horizontalGradient(
-                                colors = listOf(Color(0x33000000), Color.Transparent),
-                                startX = 0f,
-                                endX = 24.dp.toPx()
-                            )
-                        }
-                    } else {
-                        // In Western LTR Comic: Odd pages have spine on left, Even on right
-                        if (isEven) {
-                            Brush.horizontalGradient(
-                                colors = listOf(Color.Transparent, Color(0x33000000)),
-                                startX = size.width - 24.dp.toPx(),
-                                endX = size.width
-                            )
-                        } else {
-                            Brush.horizontalGradient(
-                                colors = listOf(Color(0x33000000), Color.Transparent),
-                                startX = 0f,
-                                endX = 24.dp.toPx()
-                            )
-                        }
-                    }
-
-                    onDrawWithContent {
-                        drawContent()
-                        drawRect(brush = shadowBrush)
+    if (isRemoteImage) {
+        val platformContext = LocalPlatformContext.current
+        val imageRequest = remember(imageUrl, page?.headers) {
+            ImageRequest.Builder(platformContext)
+                .data(imageUrl)
+                .apply {
+                    val headers = page?.headers
+                    if (!headers.isNullOrEmpty()) {
+                        val networkHeaders = NetworkHeaders.Builder().apply {
+                            headers.forEach { (k, v) -> add(k, v) }
+                        }.build()
+                        httpHeaders(networkHeaders)
                     }
                 }
-        )
+                .build()
+        }
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(MangaPaperBg)
+                .padding(if (cropBorders) 0.dp else 8.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            AsyncImage(
+                model = imageRequest,
+                contentDescription = "Page $pageNumber",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
+    } else {
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(MangaPaperBg)
+                .padding(if (cropBorders) 0.dp else 8.dp)
+        ) {
+            // Base Panel Layout
+            when (pageType) {
+                0 -> MangaSplashPageLayout(pageNumber = pageNumber, chapterTitle = chapterTitle)
+                1 -> MangaActionTrioLayout(pageNumber = pageNumber)
+                2 -> MangaStoryboardGridLayout(pageNumber = pageNumber)
+                3 -> MangaNightConfrontationLayout(pageNumber = pageNumber)
+            }
 
-        // Bottom Folio Indicator (Authentic tankōbon margin)
-        MangaFolioIndicator(
-            pageNumber = pageNumber,
-            totalPages = totalPages,
-            chapterTitle = chapterTitle,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 4.dp)
-        )
+            // Spine / Gutter Binding Shadow (Tactile volume curvature)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .drawWithCache {
+                        val isEven = pageNumber % 2 == 0
+                        // In RTL Manga: Even pages are on the left (spine is on right); Odd pages on right (spine on left)
+                        val shadowBrush = if (isRtl) {
+                            if (isEven) {
+                                Brush.horizontalGradient(
+                                    colors = listOf(Color.Transparent, Color(0x33000000)),
+                                    startX = size.width - 24.dp.toPx(),
+                                    endX = size.width
+                                )
+                            } else {
+                                Brush.horizontalGradient(
+                                    colors = listOf(Color(0x33000000), Color.Transparent),
+                                    startX = 0f,
+                                    endX = 24.dp.toPx()
+                                )
+                            }
+                        } else {
+                            // In Western LTR Comic: Odd pages have spine on left, Even on right
+                            if (isEven) {
+                                Brush.horizontalGradient(
+                                    colors = listOf(Color.Transparent, Color(0x33000000)),
+                                    startX = size.width - 24.dp.toPx(),
+                                    endX = size.width
+                                )
+                            } else {
+                                Brush.horizontalGradient(
+                                    colors = listOf(Color(0x33000000), Color.Transparent),
+                                    startX = 0f,
+                                    endX = 24.dp.toPx()
+                                )
+                            }
+                        }
+
+                        onDrawWithContent {
+                            drawContent()
+                            drawRect(brush = shadowBrush)
+                        }
+                    }
+            )
+
+            // Bottom Folio Indicator (Authentic tankōbon margin)
+            MangaFolioIndicator(
+                pageNumber = pageNumber,
+                totalPages = totalPages,
+                chapterTitle = chapterTitle,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 4.dp)
+            )
+        }
     }
 }
 

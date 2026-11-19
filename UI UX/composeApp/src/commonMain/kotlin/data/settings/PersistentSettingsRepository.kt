@@ -331,7 +331,7 @@ class PersistentSettingsRepository(
         storage.putString(KEY_DOWNLOAD_LOCATION, location)
     }
 
-    // Sources & Extensions (Ship with ZERO default repos per user directive)
+    // Sources & Extensions (Clean startup with zero pre-loaded repositories)
     private val _extensionRepos = MutableStateFlow<List<ExtensionRepo>>(
         runCatching {
             val raw = storage.getString(KEY_EXTENSION_REPOS, "")

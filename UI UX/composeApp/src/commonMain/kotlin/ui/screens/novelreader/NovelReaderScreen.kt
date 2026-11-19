@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -129,6 +130,10 @@ data class NovelReaderScreen(
         var currentChapterTitle by remember(chapterTitle) { mutableStateOf(chapterTitle) }
 
         val novelContent by repository.getNovelContent(currentChapterUrl).collectAsState(initial = null)
+
+        LaunchedEffect(currentChapterUrl) {
+            repository.recordHistory(currentChapterUrl)
+        }
 
         NovelReaderScreenContent(
             chapterNumber = currentChapterNumber,

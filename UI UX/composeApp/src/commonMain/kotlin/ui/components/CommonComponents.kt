@@ -48,6 +48,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil3.compose.AsyncImage
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import data.download.DownloadStatus
@@ -333,14 +335,26 @@ fun MangaCoverCard(
                     shape = CoverImageShape
                 )
         ) {
-            // Subtle atmosphere
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        brush = Brush.radialGradient(
-                            colors = listOf(Color.White.copy(alpha = 0.08f), Color.Transparent),
-                            radius = 250f
+            val isRemoteImage = !thumbnailUrl.isNullOrBlank() &&
+                (thumbnailUrl.startsWith("http://", ignoreCase = true) || thumbnailUrl.startsWith("https://", ignoreCase = true))
+
+            if (isRemoteImage) {
+                AsyncImage(
+                    model = thumbnailUrl,
+                    contentDescription = title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
+                // Subtle atmosphere
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(Color.White.copy(alpha = 0.08f), Color.Transparent),
+                                radius = 250f
+                            )
                         )
                     )
             )
@@ -982,6 +996,7 @@ fun UpdateItemCard(
     onResume: () -> Unit,
     onClick: () -> Unit,
     onDownloadClick: () -> Unit = {},
+    thumbnailUrl: String? = null,
     modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -1044,12 +1059,24 @@ fun UpdateItemCard(
                     ),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = title.take(1),
-                    color = Color.White.copy(alpha = 0.35f),
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                val isRemoteImage = !thumbnailUrl.isNullOrBlank() &&
+                    (thumbnailUrl.startsWith("http://", ignoreCase = true) || thumbnailUrl.startsWith("https://", ignoreCase = true))
+
+                if (isRemoteImage) {
+                    AsyncImage(
+                        model = thumbnailUrl,
+                        contentDescription = title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Text(
+                        text = title.take(1),
+                        color = Color.White.copy(alpha = 0.35f),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(12.dp))

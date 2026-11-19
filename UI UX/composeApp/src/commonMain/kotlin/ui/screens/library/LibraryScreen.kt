@@ -85,6 +85,7 @@ import ui.screens.browse.BrowseScreen
 import ui.screens.details.TitleDetailsScreen
 import ui.screens.more.MoreScreen
 import ui.screens.updates.UpdatesScreen
+import ui.screens.novelreader.NovelReaderScreen
 import ui.screens.webtoonreader.WebtoonReaderScreen
 import ui.theme.CapsuleShape
 import ui.theme.GlassBorder
@@ -110,7 +111,11 @@ class LibraryScreen : Screen {
                 navigator.push(TitleDetailsScreen(manga.url))
             },
             onResumeChapter = { manga, chapter ->
-                navigator.push(WebtoonReaderScreen(manga.url, chapter.url))
+                if (manga.isNovel) {
+                    navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name))
+                } else {
+                    navigator.push(WebtoonReaderScreen(manga.url, chapter.url))
+                }
             },
             onTabSelected = { tab ->
                 when (tab) {
@@ -332,6 +337,36 @@ fun LibraryScreenContent(
                             onResume = { onResumeChapter(manga, chapter) },
                             onClick = { onOpenManga(manga) }
                         )
+                    }
+                }
+            }
+
+            // Empty Library State
+            if (libraryItems.isEmpty() && continueReadingPair == null) {
+                item(span = { GridItemSpan(3) }) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 80.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                text = "Your library is empty",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Install an extension and favorite manga or novels to see them here.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary,
+                                modifier = Modifier.padding(horizontal = 32.dp)
+                            )
+                        }
                     }
                 }
             }

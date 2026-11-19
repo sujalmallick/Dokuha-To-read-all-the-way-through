@@ -88,6 +88,10 @@ import ui.theme.TextPrimary
 import ui.theme.TextSecondary
 import ui.theme.TextTertiary
 
+import androidx.compose.runtime.rememberCoroutineScope
+import core.extensions.ExtensionManager
+import kotlinx.coroutines.launch
+
 class ExtensionsScreen : Screen {
 
     @Composable
@@ -349,6 +353,7 @@ fun ExtensionsScreenContent(
                                 )
                             }
                         }
+                        onActionClick(ext)
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))

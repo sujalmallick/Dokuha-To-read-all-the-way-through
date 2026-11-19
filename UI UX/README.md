@@ -2,21 +2,17 @@
 
 <img src="design/logo.png" alt="PANEL Logo (Dokuha)" width="128" />
 
-# 🌌 PANEL (読破 — Dokuha) — UI / UX Module
-### *Read Anywhere. To Read All The Way Through.*
+# PANEL
+### 読破 — *Dokuha: To Read All The Way Through*
 
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.1.0-7F52FF.svg?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
-[![Compose Multiplatform](https://img.shields.io/badge/Compose_Multiplatform-1.7.1-4285F4.svg?logo=jetpackcompose&logoColor=white)](https://www.jetbrains.com/lp/compose-multiplatform/)
-[![Platform](https://img.shields.io/badge/Platform-Android_%7C_iOS-brightgreen.svg)]()
-[![Voyager](https://img.shields.io/badge/Navigation-Voyager-FF4081.svg)](https://voyager.adriel.cafe/)
-[![Haze](https://img.shields.io/badge/Glassmorphism-Haze_1.1.1-673AB7.svg)](https://github.com/chrisbanes/haze)
-[![Koin](https://img.shields.io/badge/DI-Koin_4.0-E91E63.svg)](https://insert-koin.io/)
-[![Roborazzi](https://img.shields.io/badge/Verified-Roborazzi_Screenshots-00C853.svg)](https://github.com/takahirom/roborazzi)
+**A modern, distraction-free reader for Manga, Manhwa, and Webnovels.**
+Crafted with Compose Multiplatform for fluid 60+ FPS performance on Android and iOS.
 
-<p align="center">
-  <b>A next-generation, cross-platform reader for Manga, Manhwa, and Webnovels.</b><br>
-  Built with Kotlin Multiplatform (KMP) and Compose Multiplatform (CMP) for silky 60+ FPS performance on Android & iOS.
-</p>
+[![Platform](https://img.shields.io/badge/Platform-Android_%7C_iOS-007AFF.svg)]()
+[![Kotlin Multiplatform](https://img.shields.io/badge/Kotlin-2.1.0-7F52FF.svg?logo=kotlin&logoColor=white)](https://kotlinlang.org/)
+[![Compose Multiplatform](https://img.shields.io/badge/Compose-1.7.1-4285F4.svg?logo=jetpackcompose&logoColor=white)](https://www.jetbrains.com/lp/compose-multiplatform/)
+[![Architecture](https://img.shields.io/badge/Architecture-Clean%20%7C%20Koin-E91E63.svg)](../docs/ARCHITECTURE.md)
+[![Test Suite](https://img.shields.io/badge/Tests-58%20Passed-00C853.svg)](../docs/ARCHITECTURE.md#6-automated-verification-matrix)
 
 ---
 
@@ -28,27 +24,47 @@
 
 ---
 
-## ✨ Features & Visual Highlights
+## The Reading Experience
 
-### 1. 🌌 Frosted Glass & Midnight Aesthetic
-Deep obsidian navy backgrounds, luminous electric blue accents, and real-time backdrop blur powered by **Haze**. Every navigation bar, bottom sheet, and floating control feels tactile, modern, and fluid.
+Dokuha is built from the ground up for readers who demand speed, tactile elegance, and complete focus on the story. No banner ads, no clunky web wrappers, and no visual clutter.
 
-### 2. 📖 All-in-One Reading Experience
-- **Continuous Webtoon Reader**: Seamless vertical scrolling strip with floating episode capsules and progress scrubbers.
-- **Manga Engine**: Support for right-to-left (RTL), left-to-right (LTR), and vertical page flips.
-- **Editorial Webnovel Reader**: Custom drop-cap typography, estimated read-time indicators, and 4 curated colorways (Dark Navy, Sepia, Cream, OLED Pitch Black).
+### Liquid Glass Aesthetic
+A custom translucent chrome engine that feels weightless. Ambient specular borders and physical backdrop dimming ensure controls remain legible without obscuring dynamic artwork.
 
-### 3. 🧩 Modular Source & Extension Ecosystem
-Browse sources across languages with localized tags, filter installed extensions, track updates in chronological sections, and manage queued downloads.
+### Quad-Mode Reading Engine
+Read any publication in its native format:
+- **Webtoon Strip**: Continuous, zero-gap vertical scrolling with floating episode scrubbers.
+- **RTL Manga**: Authentic right-to-left page turning with instant gesture flip.
+- **LTR Comic**: Traditional left-to-right paging with snappy page transitions.
+- **Vertical Paging**: Discrete, snapping page-by-page vertical reading.
 
-### 4. 📊 Storage & Offline Management
-Interactive custom canvas donut chart visualizing disk space distribution across Manga, Manhwa, Novels, and other files with per-task pause/resume download controls.
+### Editorial Webnovel Studio
+Long-form prose demands thoughtful typography. Dokuha features illuminated drop-caps, customizable typefaces (System, Classic Serif, Modern Sans, Monospace), adjustable line-height, and four calibrated color palettes: Dark Obsidian, Warm Sepia, Light Cream, and Pitch OLED Black.
+
+### Smart 3-Zone Gestures
+Turn pages without looking. The display is divided into three intuitive touch regions for previous page, controls toggle, and next page—automatically reversing directions when switching between Western comics and Japanese manga.
+
+### Ambient Viewport Control
+- **In-App Dimmer**: Dim the reader surface below system brightness levels for comfortable late-night sessions.
+- **Dynamic Margins**: Adjustable side padding (0% to 40%) optimizes panel proportions on large tablets and foldables.
+- **Border Cropping**: Remove dead white or black margins with a single toggle.
+
+### Universal Discovery & Search
+Find your next read in seconds:
+- **Instant Search**: Fast, debounced search querying across titles, authors, and genres simultaneously.
+- **Multi-Parameter Filtering**: Narrow down thousands of titles by completion status, content format, sort order, and multi-selected genre tags.
+- **Source Hub**: Browse modular catalogs with dedicated brand views and language filters.
+
+### Privacy by Architecture
+- **Hardware-Backed Encryption**: Tracker tokens and credentials are encrypted directly using Android KeyStore and Apple Keychain.
+- **Direct Cloud Sync**: Connect directly to AniList, MyAnimeList, and Kitsu with zero intermediary proxy servers.
+- **Zero Telemetry**: No analytics trackers, no user fingerprinting, and zero advertising SDKs.
 
 ---
 
-## 📱 Screen Showcase (Native Roborazzi Captures)
+## Gallery
 
-All screens rendered pixel-perfectly with 100% shared Compose Multiplatform code:
+*Native captures rendered with 100% shared Compose Multiplatform code:*
 
 <div align="center">
 
@@ -57,95 +73,95 @@ All screens rendered pixel-perfectly with 100% shared Compose Multiplatform code
 <table>
   <tr>
     <td align="center" width="33%">
-      <img src="composeApp/screenshots/01_welcome.png" alt="01 Welcome Screen" width="100%" /><br />
-      <b>01. Welcome & Immersion</b><br />
-      <i>Starry night sky canvas & city silhouettes</i>
+      <img src="composeApp/screenshots/01_welcome.png" alt="Welcome Screen" width="100%" /><br />
+      <b>Welcome & Immersion</b><br />
+      Starry sky canvas and luxury entry
     </td>
     <td align="center" width="33%">
-      <img src="composeApp/screenshots/02_library.png" alt="02 Library Screen" width="100%" /><br />
-      <b>02. Dynamic Glass Library</b><br />
-      <i>Quick-resume glass card & manga grid</i>
+      <img src="composeApp/screenshots/02_library.png" alt="Library Screen" width="100%" /><br />
+      <b>Dynamic Library</b><br />
+      Quick-resume glass card and manga grid
     </td>
     <td align="center" width="33%">
-      <img src="composeApp/screenshots/03_title_details.png" alt="03 Title Details Screen" width="100%" /><br />
-      <b>03. Title Details Hub</b><br />
-      <i>Cinematic glow header & chapter feeds</i>
+      <img src="composeApp/screenshots/03_title_details.png" alt="Title Details Screen" width="100%" /><br />
+      <b>Title Details Hub</b><br />
+      Cinematic header, synopsis, and chapter list
     </td>
   </tr>
 </table>
 
-### Multi-Format Reader Experience
+### Multi-Format Reader
 
 <table>
   <tr>
     <td align="center" width="33%">
-      <img src="composeApp/screenshots/04_webtoon_reader.png" alt="04 Webtoon Reader" width="100%" /><br />
-      <b>04. Webtoon Reader</b><br />
-      <i>Continuous vertical strip & floating HUD</i>
+      <img src="composeApp/screenshots/04_webtoon_reader.png" alt="Webtoon & Manga Reader" width="100%" /><br />
+      <b>Webtoon & Manga Reader</b><br />
+      Multi-mode strip, RTL paging, and floating HUD
     </td>
     <td align="center" width="33%">
-      <img src="composeApp/screenshots/05_reader_settings.png" alt="05 Reader Settings" width="100%" /><br />
-      <b>05. Reader Settings Sheet</b><br />
-      <i>Mode selector tiles & ambient sliders</i>
+      <img src="composeApp/screenshots/05_reader_settings.png" alt="Reader Settings" width="100%" /><br />
+      <b>Reader Settings Sheet</b><br />
+      Mode selectors, dimmer, and margin sliders
     </td>
     <td align="center" width="33%">
-      <img src="composeApp/screenshots/06_webnovel_reader.png" alt="06 Webnovel Reader" width="100%" /><br />
-      <b>06. Editorial Webnovel Reader</b><br />
-      <i>Illuminated drop-caps & palette bar</i>
+      <img src="composeApp/screenshots/06_webnovel_reader.png" alt="Editorial Webnovel Reader" width="100%" /><br />
+      <b>Editorial Webnovel Reader</b><br />
+      Illuminated drop-caps and reading palettes
     </td>
   </tr>
 </table>
 
-### Discovery, Extensions & Management
+### Discovery, Updates & Storage
 
 <table>
   <tr>
     <td align="center" width="25%">
-      <img src="composeApp/screenshots/07_browse.png" alt="07 Browse Screen" width="100%" /><br />
-      <b>07. Browse Hub</b><br />
-      <i>Source directory & trending carousel</i>
+      <img src="composeApp/screenshots/07_browse.png" alt="Browse Hub" width="100%" /><br />
+      <b>Browse Hub</b><br />
+      Live search and filter bottom sheet
     </td>
     <td align="center" width="25%">
-      <img src="composeApp/screenshots/08_extensions.png" alt="08 Extensions Screen" width="100%" /><br />
-      <b>08. Extensions</b><br />
-      <i>Modular catalog & updates</i>
+      <img src="composeApp/screenshots/08_extensions.png" alt="Extensions" width="100%" /><br />
+      <b>Extensions</b><br />
+      Verified repository management
     </td>
     <td align="center" width="25%">
-      <img src="composeApp/screenshots/09_updates.png" alt="09 Updates Screen" width="100%" /><br />
-      <b>09. Daily Updates</b><br />
-      <i>Date-grouped chapter timeline</i>
+      <img src="composeApp/screenshots/09_updates.png" alt="Daily Updates" width="100%" /><br />
+      <b>Daily Updates</b><br />
+      Chronological chapter timeline
     </td>
     <td align="center" width="25%">
-      <img src="composeApp/screenshots/10_downloads.png" alt="10 Downloads Screen" width="100%" /><br />
-      <b>10. Storage & Queue</b><br />
-      <i>Canvas donut chart & queue</i>
+      <img src="composeApp/screenshots/10_downloads.png" alt="Downloads" width="100%" /><br />
+      <b>Storage & Queue</b><br />
+      Horizontal capsule bar and queue
     </td>
   </tr>
 </table>
 
-### Profile & Settings Hub
+### Profile & System Controls
 
 <table>
   <tr>
     <td align="center" width="25%">
-      <img src="composeApp/screenshots/11_profile.png" alt="11 Profile Screen" width="100%" /><br />
-      <b>11. Reader Profile</b><br />
-      <i>Avatar, activity bar chart & trackers</i>
+      <img src="composeApp/screenshots/11_profile.png" alt="Profile" width="100%" /><br />
+      <b>Reader Profile</b><br />
+      Reading statistics and linked trackers
     </td>
     <td align="center" width="25%">
-      <img src="composeApp/screenshots/12_more_hub.png" alt="12 More Hub Screen" width="100%" /><br />
-      <b>12. More Hub</b><br />
-      <i>Profile card & settings categories</i>
+      <img src="composeApp/screenshots/12_more_hub.png" alt="More Hub" width="100%" /><br />
+      <b>More Hub</b><br />
+      Profile card and preferences index
     </td>
     <td align="center" width="25%">
-      <img src="composeApp/screenshots/13_appearance_settings.png" alt="13 Appearance Settings" width="100%" /><br />
-      <b>13. Appearance</b><br />
-      <i>Theme, accent colors & accessibility</i>
+      <img src="composeApp/screenshots/13_appearance_settings.png" alt="Appearance Settings" width="100%" /><br />
+      <b>Appearance</b><br />
+      Themes, accent colors, and motion settings
     </td>
     <td align="center" width="25%">
-      <img src="composeApp/screenshots/14_reader_settings.png" alt="14 Reader Settings" width="100%" /><br />
-      <b>14. Reader Defaults</b><br />
-      <i>Reading mode & live novel preview</i>
+      <img src="composeApp/screenshots/14_reader_settings.png" alt="Reader Settings" width="100%" /><br />
+      <b>Reader Defaults</b><br />
+      Default reading modes and live preview
     </td>
   </tr>
 </table>
@@ -154,61 +170,14 @@ All screens rendered pixel-perfectly with 100% shared Compose Multiplatform code
 
 ---
 
-## 🏗 Architecture & Code Structure
+## Engineering & Architecture
 
-Panel follows clean, decoupled architecture ready for cross-team backend handoff:
+For detailed technical specifications, project structure, the clear-lens rendering engine implementation, hardware security contracts, and build steps, see:
 
-```
-composeApp/src/commonMain/kotlin/
-├── core/
-│   ├── di/                 # Dependency injection modules (Koin)
-│   └── source/             # Domain source models (Manga, Chapter, Page, NovelContent)
-├── data/
-│   └── mock/               # PanelRepository contract & mock implementation
-├── io/panel/reader/        # App entry point, Voyager TabNavigator
-└── ui/
-    ├── theme/              # Design tokens (Colors, Typography, Spacing, Shapes)
-    ├── components/         # GlassContainer, FrostedCapsule, PillButtons, BottomNavBar
-    └── screens/
-        ├── welcome/        # WelcomeScreen (Screen 1)
-        ├── library/        # LibraryScreen (Screen 2)
-        ├── details/        # TitleDetailsScreen (Screen 3)
-        ├── webtoonreader/  # WebtoonReaderScreen & ReaderSettingsSheet (Screens 4 & 5)
-        ├── novelreader/    # NovelReaderScreen (Screen 6)
-        ├── browse/         # BrowseScreen (Screen 7)
-        ├── extensions/     # ExtensionsScreen (Screen 8)
-        ├── updates/        # UpdatesScreen (Screen 9)
-        └── downloads/      # DownloadsScreen (Screen 10)
-```
-
-### 🔌 Backend Handover Ready
-All screens consume data strictly through the **`PanelRepository`** interface (`data/mock/MockRepositories.kt`). Backend developers can swap in SQLDelight, Ktor networking, Dex extension loaders, or Cloudflare bypass engines without touching UI composables.
-
----
-
-## 🚀 Building & Testing
-
-### Prerequisites
-- JDK 17+
-- Android Studio Ladybug+ / IntelliJ IDEA with Kotlin Multiplatform plugin
-
-### Verify UI Compilation
-```bash
-./gradlew :composeApp:compileCommonMainKotlinMetadata
-```
-
-### Assemble Android APK
-```bash
-./gradlew :composeApp:assembleDebug
-```
-
-### Run Native Roborazzi Screenshot Verification
-```bash
-./gradlew :composeApp:recordRoborazziDebug
-```
+**[Dokuha Architecture & Engineering Specification](../docs/ARCHITECTURE.md)**
 
 ---
 
 <div align="center">
-  <sub>Crafted with passion for readers around the world.</sub>
+  <sub>Crafted for readers around the world.</sub>
 </div>

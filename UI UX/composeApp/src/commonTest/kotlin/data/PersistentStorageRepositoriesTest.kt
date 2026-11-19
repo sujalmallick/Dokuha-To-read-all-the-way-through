@@ -66,8 +66,8 @@ class PersistentStorageRepositoriesTest {
         val profileRepo1 = PersistentProfileRepository(storage)
 
         // Initial default
-        assertEquals("Sujal", profileRepo1.profile.value.name)
-        assertEquals(0xFF007AFF, profileRepo1.profile.value.avatarColorHex)
+        assertEquals("Ritwik", profileRepo1.profile.value.name)
+        assertEquals(0xFF38BDF8, profileRepo1.profile.value.avatarColorHex)
 
         // User edits profile
         profileRepo1.updateProfile("DokuhaFan", 0xFFEF4444)

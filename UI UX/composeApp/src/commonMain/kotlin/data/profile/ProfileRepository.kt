@@ -5,21 +5,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 data class UserProfile(
-    val name: String = "Sujal",
-    val memberSince: String = "Reading since March 2026",
-    val avatarColorHex: Long = 0xFF007AFF,
-    val initials: String = "S"
+    val name: String = "Ritwik",
+    val memberSince: String = "Member since November 2026",
+    val avatarColorHex: Long = 0xFF38BDF8,
+    val initials: String = "R"
 )
 
 data class ReadingStats(
-    val chaptersRead: Int = 482,
-    val titlesCount: Int = 37,
-    val hoursRead: Float = 142.5f
+    val chaptersRead: Int = 0,
+    val titlesCount: Int = 0,
+    val hoursRead: Float = 0.0f
 )
 
 data class DayReadingActivity(
     val dayLabel: String, // "M", "T", "W", "T", "F", "S", "S"
-    val minutes: Int
+    val minutes: Int = 0
 )
 
 enum class TrackerService(val displayName: String) {
@@ -35,9 +35,9 @@ data class TrackerAccount(
 )
 
 data class LibrarySummary(
-    val readingCount: Int = 14,
-    val completedCount: Int = 18,
-    val planToReadCount: Int = 5
+    val readingCount: Int = 0,
+    val completedCount: Int = 0,
+    val planToReadCount: Int = 0
 )
 
 interface ProfileRepository {
@@ -55,32 +55,32 @@ class FakeProfileRepository : ProfileRepository {
 
     private val _profile = MutableStateFlow(
         UserProfile(
-            name = "Sujal",
-            memberSince = "Reading since March 2026",
-            avatarColorHex = 0xFF007AFF,
-            initials = "S"
+            name = "Ritwik",
+            memberSince = "Member since November 2026",
+            avatarColorHex = 0xFF38BDF8,
+            initials = "R"
         )
     )
     override val profile: StateFlow<UserProfile> = _profile.asStateFlow()
 
     private val _stats = MutableStateFlow(
         ReadingStats(
-            chaptersRead = 482,
-            titlesCount = 37,
-            hoursRead = 142.5f
+            chaptersRead = 0,
+            titlesCount = 0,
+            hoursRead = 0.0f
         )
     )
     override val stats: StateFlow<ReadingStats> = _stats.asStateFlow()
 
     private val _weeklyActivity = MutableStateFlow(
         listOf(
-            DayReadingActivity("M", 45),
-            DayReadingActivity("T", 90),
-            DayReadingActivity("W", 30),
-            DayReadingActivity("T", 120),
-            DayReadingActivity("F", 60),
-            DayReadingActivity("S", 150),
-            DayReadingActivity("S", 85)
+            DayReadingActivity("M", 0),
+            DayReadingActivity("T", 0),
+            DayReadingActivity("W", 0),
+            DayReadingActivity("T", 0),
+            DayReadingActivity("F", 0),
+            DayReadingActivity("S", 0),
+            DayReadingActivity("S", 0)
         )
     )
     override val weeklyActivity: StateFlow<List<DayReadingActivity>> = _weeklyActivity.asStateFlow()
@@ -89,8 +89,8 @@ class FakeProfileRepository : ProfileRepository {
         listOf(
             TrackerAccount(
                 service = TrackerService.ANILIST,
-                isConnected = true,
-                username = "sujal_reads"
+                isConnected = false,
+                username = null
             ),
             TrackerAccount(
                 service = TrackerService.MY_ANIME_LIST,
@@ -108,9 +108,9 @@ class FakeProfileRepository : ProfileRepository {
 
     private val _librarySummary = MutableStateFlow(
         LibrarySummary(
-            readingCount = 14,
-            completedCount = 18,
-            planToReadCount = 5
+            readingCount = 0,
+            completedCount = 0,
+            planToReadCount = 0
         )
     )
     override val librarySummary: StateFlow<LibrarySummary> = _librarySummary.asStateFlow()

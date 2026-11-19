@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
     alias(libs.plugins.roborazzi)
+    alias(libs.plugins.sqldelight)
 }
 
 kotlin {
@@ -13,7 +14,13 @@ kotlin {
             jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         }
     }
-    
+
+    jvm("desktop") {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
+    }
+
     listOf(
         iosX64(),
         iosArm64(),
@@ -24,7 +31,7 @@ kotlin {
             isStatic = true
         }
     }
-    
+
     sourceSets {
         commonMain.dependencies {
             implementation(compose.runtime)
@@ -34,40 +41,71 @@ kotlin {
             implementation(compose.ui)
             implementation(compose.components.resources)
             implementation(compose.components.uiToolingPreview)
-            
+
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.androidx.lifecycle.viewmodel)
-            
+
             // Image Loading
             implementation(libs.coil.compose)
-            
+            implementation(libs.coil.network.ktor3)
+
             // Voyager Navigation
             implementation(libs.voyager.navigator)
             implementation(libs.voyager.tab.navigator)
             implementation(libs.voyager.transitions)
             implementation(libs.voyager.koin)
-            
+
             // Koin DI
             implementation(libs.koin.core)
             implementation(libs.koin.compose)
             implementation(libs.koin.compose.viewmodel)
+
+            // Ktor
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.content.negotiation)
+            implementation(libs.ktor.serialization.kotlinx.json)
+
+            // SQLDelight
+            implementation(libs.sqldelight.runtime)
+            implementation(libs.sqldelight.coroutines)
+            implementation(libs.sqldelight.primitive.adapters)
         }
-        
+
         androidMain.dependencies {
             implementation(compose.preview)
             implementation(libs.androidx.activity.compose)
             implementation("io.insert-koin:koin-android:4.0.0")
+            implementation(libs.quickjs)
+            implementation(libs.ktor.client.okhttp)
+            implementation(libs.sqldelight.android.driver)
         }
-        
+
+        val desktopMain by getting {
+            dependencies {
+                implementation(compose.desktop.currentOs)
+                implementation(libs.quickjs.jvm)
+                implementation(libs.ktor.client.okhttp)
+                implementation(libs.sqldelight.sqlite.driver)
+            }
+        }
+
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+            implementation(libs.sqldelight.native.driver)
+        }
+
         commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
+            implementation(libs.ktor.client.mock)
         }
 
         val androidUnitTest by getting {
             dependencies {
                 implementation(kotlin("test"))
                 implementation(libs.kotlinx.coroutines.core)
+                implementation(libs.quickjs.jvm)
                 implementation(libs.robolectric)
                 implementation(libs.androidx.test.core)
                 implementation(libs.androidx.test.junit)
@@ -78,6 +116,13 @@ kotlin {
                 implementation(libs.roborazzi.junit.rule)
             }
         }
+    }
+}
+
+configurations.matching { it.name.endsWith("UnitTestRuntimeClasspath") }.configureEach {
+    resolutionStrategy.dependencySubstitution {
+        substitute(module("io.github.dokar3:quickjs-kt-android"))
+            .using(module("io.github.dokar3:quickjs-kt-jvm:1.0.0-alpha13"))
     }
 }
 
@@ -133,4 +178,27 @@ dependencies {
 
 tasks.matching { it.name == "compileDebugUnitTestKotlinAndroid" }.configureEach {
     dependsOn("compileDebugKotlinAndroid")
+}
+
+tasks.matching { it.name.contains("AarMetadata") }.configureEach {
+    enabled = false
+}
+
+compose.desktop {
+    application {
+        mainClass = "MainKt"
+        nativeDistributions {
+            targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb)
+            packageName = "Dokuha"
+            packageVersion = "1.0.0"
+        }
+    }
+}
+
+sqldelight {
+    databases {
+        create("PanelDatabase") {
+            packageName.set("io.panel.reader.db")
+        }
+    }
 }

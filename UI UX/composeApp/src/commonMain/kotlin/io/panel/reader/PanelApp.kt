@@ -20,6 +20,8 @@ import org.koin.dsl.KoinAppDeclaration
 import ui.screens.library.LibraryScreen
 import ui.screens.splash.SplashScreenContent
 import ui.screens.welcome.WelcomeScreen
+import coil3.compose.setSingletonImageLoaderFactory
+import core.image.newPanelImageLoader
 import ui.theme.PanelAccentColors
 import ui.theme.PanelTheme
 
@@ -27,6 +29,10 @@ import ui.theme.PanelTheme
 fun PanelApp(
     appDeclaration: KoinAppDeclaration? = null
 ) {
+    setSingletonImageLoaderFactory { context ->
+        newPanelImageLoader(context)
+    }
+
     if (GlobalContext.getOrNull() == null) {
         KoinApplication(application = {
             appDeclaration?.invoke(this)
