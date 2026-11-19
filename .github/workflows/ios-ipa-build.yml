@@ -1,0 +1,77 @@
+name: Build iOS IPA
+
+# Restricted strictly to manual trigger (workflow_dispatch) as requested by user.
+# Will not run automatically on push or pull_request.
+on:
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: 'Build Configuration'
+        required: true
+        default: 'Release'
+        type: choice
+        options:
+          - Release
+          - Debug
+
+jobs:
+  build-ipa:
+    name: Build iOS IPA (${{ inputs.configuration }})
+    runs-on: macos-14
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+        working-directory: UI UX
+
+      - name: Build Kotlin Multiplatform iOS Framework
+        run: |
+          if [ "${{ inputs.configuration }}" = "Debug" ]; then
+            ./gradlew :composeApp:linkDebugFrameworkIosArm64
+          else
+            ./gradlew :composeApp:linkReleaseFrameworkIosArm64
+          fi
+        working-directory: UI UX
+
+      - name: Build and Archive iOS App via Xcode
+        run: |
+          xcodebuild -project iosApp/iosApp.xcodeproj \
+            -scheme iosApp \
+            -configuration ${{ inputs.configuration }} \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Dokuha.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            archive
+
+      - name: Package IPA
+        run: |
+          mkdir -p build/Payload
+          APP_PATH=$(find build/Dokuha.xcarchive/Products/Applications -maxdepth 1 -name "*.app" | head -n 1)
+          if [ -z "$APP_PATH" ]; then
+            echo "Error: No .app bundle found in archive!"
+            exit 1
+          fi
+          echo "Found app bundle at: $APP_PATH"
+          cp -r "$APP_PATH" build/Payload/Dokuha.app
+          cd build
+          zip -qr "Dokuha-${{ inputs.configuration }}.ipa" Payload
+          ls -lh "Dokuha-${{ inputs.configuration }}.ipa"
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dokuha-iOS-${{ inputs.configuration }}-IPA
+          path: build/Dokuha-${{ inputs.configuration }}.ipa
+          if-no-files-found: error
+          retention-days: 14
