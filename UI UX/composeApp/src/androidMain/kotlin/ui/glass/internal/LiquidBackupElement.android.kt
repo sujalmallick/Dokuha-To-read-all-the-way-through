@@ -80,13 +80,17 @@ internal class LiquidBackupNode(
 
   @RequiresApi(31)
   override fun createRenderEffect(): RenderEffect? = with(reusableScope) {
-    if (frostRadius <= 0f || size.isUnspecified) return null
+    if (frostRadius < 1f || size.isUnspecified) return null
 
-    return BlurEffect(
-      radiusX = frostRadius,
-      radiusY = frostRadius,
-      edgeTreatment = TileMode.Clamp,
-    )
+    return try {
+      BlurEffect(
+        radiusX = frostRadius.coerceAtLeast(1f),
+        radiusY = frostRadius.coerceAtLeast(1f),
+        edgeTreatment = TileMode.Clamp,
+      )
+    } catch (_: Throwable) {
+      null
+    }
   }
 
   private fun createColorFilter(
@@ -110,7 +114,9 @@ private fun Outline.asPath(): Path = when (this) {
 
 private fun ContentDrawScope.drawBackupEdgeEffect(shapePath: Path) = clipPath(shapePath) {
   val strokeWidth = 4.dp.toPx()
-  val radius = size.minDimension
+  val radius = size.minDimension.coerceAtLeast(1f)
+  if (size.minDimension <= 0f) return@clipPath
+
   drawPath(
     path = shapePath,
     brush = Brush.radialGradient(

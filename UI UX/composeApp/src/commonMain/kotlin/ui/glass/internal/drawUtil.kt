@@ -20,28 +20,34 @@ import ui.glass.internal.LiquidScopeImpl.Companion.Float4Zero
 internal fun ContentDrawScope.recordLiquefiablesIntoLayer(
   layer: GraphicsLayer,
   reusableScope: InternalLiquidScope,
-) = with(reusableScope) {
-  if (positionOnScreen.isUnspecified) return@with
+): Boolean = with(reusableScope) {
+  if (positionOnScreen.isUnspecified) return false
+  if (intSize.width <= 0 || intSize.height <= 0) return false
   val liquefiables = liquefiables.fastFilter { boundsInRoot.overlaps(it.boundsOnScreen) }
-  if (liquefiables.isEmpty()) return@with
+  if (liquefiables.isEmpty()) return false
 
-  layer.record(intSize) {
-    liquefiables.fastForEach { liquefiable ->
-      liquefiable.layer
-        ?.takeUnless { it.isReleased }
-        ?.let { liquefiableLayer ->
-          val (x, y) = liquefiable.boundsOnScreen.topLeft - positionOnScreen
-          withTransform(
-            {
-              rotate(degrees = inverseRotationZ, pivot = Offset.Zero)
-              scale(scaleX = inverseScaleX, scaleY = inverseScaleY, pivot = Offset.Zero)
-              translate(left = x, top = y)
-            },
-          ) {
-            drawLayer(liquefiableLayer)
+  return try {
+    layer.record(intSize) {
+      liquefiables.fastForEach { liquefiable ->
+        liquefiable.layer
+          ?.takeUnless { it.isReleased }
+          ?.let { liquefiableLayer ->
+            val (x, y) = liquefiable.boundsOnScreen.topLeft - positionOnScreen
+            withTransform(
+              {
+                rotate(degrees = inverseRotationZ, pivot = Offset.Zero)
+                scale(scaleX = inverseScaleX, scaleY = inverseScaleY, pivot = Offset.Zero)
+                translate(left = x, top = y)
+              },
+            ) {
+              drawLayer(liquefiableLayer)
+            }
           }
-        }
+      }
     }
+    true
+  } catch (_: Throwable) {
+    false
   }
 }
 

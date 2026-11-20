@@ -48,6 +48,10 @@ data class ExtensionRepo(
 const val REPOSITORY_SECURITY_WARNING = "Extensions can run code on your device. Only add repositories you trust."
 
 interface SettingsRepository {
+    // Onboarding
+    val isOnboardingCompleted: StateFlow<Boolean>
+    fun setOnboardingCompleted(completed: Boolean)
+
     // Appearance
     val themeMode: StateFlow<ThemeMode>
     val accentColorIndex: StateFlow<Int>
@@ -65,12 +69,16 @@ interface SettingsRepository {
     val brightness: StateFlow<Float>
     val cropBorders: StateFlow<Boolean>
     val keepScreenOn: StateFlow<Boolean>
+    val splitDoubleSpread: StateFlow<Boolean>
+    val dualPageOffset: StateFlow<Boolean>
 
     fun setDefaultReadingMode(mode: DefaultReadingMode)
     fun setSidePadding(padding: Float)
     fun setBrightness(brightness: Float)
     fun setCropBorders(enabled: Boolean)
     fun setKeepScreenOn(enabled: Boolean)
+    fun setSplitDoubleSpread(enabled: Boolean)
+    fun setDualPageOffset(enabled: Boolean)
 
     // Novel Reader
     val novelFont: StateFlow<NovelFont>
@@ -129,6 +137,14 @@ interface SettingsRepository {
 }
 
 class FakeSettingsRepository : SettingsRepository {
+    // Onboarding
+    private val _isOnboardingCompleted = MutableStateFlow(false)
+    override val isOnboardingCompleted: StateFlow<Boolean> = _isOnboardingCompleted.asStateFlow()
+
+    override fun setOnboardingCompleted(completed: Boolean) {
+        _isOnboardingCompleted.value = completed
+    }
+
     // Appearance
     private val _themeMode = MutableStateFlow(ThemeMode.DARK)
     override val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
@@ -174,6 +190,12 @@ class FakeSettingsRepository : SettingsRepository {
     private val _keepScreenOn = MutableStateFlow(true)
     override val keepScreenOn: StateFlow<Boolean> = _keepScreenOn.asStateFlow()
 
+    private val _splitDoubleSpread = MutableStateFlow(true)
+    override val splitDoubleSpread: StateFlow<Boolean> = _splitDoubleSpread.asStateFlow()
+
+    private val _dualPageOffset = MutableStateFlow(false)
+    override val dualPageOffset: StateFlow<Boolean> = _dualPageOffset.asStateFlow()
+
     override fun setDefaultReadingMode(mode: DefaultReadingMode) {
         _defaultReadingMode.value = mode
     }
@@ -192,6 +214,14 @@ class FakeSettingsRepository : SettingsRepository {
 
     override fun setKeepScreenOn(enabled: Boolean) {
         _keepScreenOn.value = enabled
+    }
+
+    override fun setSplitDoubleSpread(enabled: Boolean) {
+        _splitDoubleSpread.value = enabled
+    }
+
+    override fun setDualPageOffset(enabled: Boolean) {
+        _dualPageOffset.value = enabled
     }
 
     // Novel Reader
@@ -262,7 +292,7 @@ class FakeSettingsRepository : SettingsRepository {
     private val _concurrentDownloads = MutableStateFlow(2)
     override val concurrentDownloads: StateFlow<Int> = _concurrentDownloads.asStateFlow()
 
-    private val _downloadLocation = MutableStateFlow("Internal Storage / Panel")
+    private val _downloadLocation = MutableStateFlow("Internal Storage / Dokuha")
     override val downloadLocation: StateFlow<String> = _downloadLocation.asStateFlow()
 
     override fun setDownloadOnlyOnWifi(enabled: Boolean) {
@@ -286,8 +316,8 @@ class FakeSettingsRepository : SettingsRepository {
         listOf(
             ExtensionRepo(
                 id = "repo-official",
-                name = "Official Panel Repository",
-                url = "https://raw.githubusercontent.com/panel-app/extensions/repo/index.min.json",
+                name = "Official Dokuha Repository",
+                url = "https://raw.githubusercontent.com/dokuha-app/extensions/repo/index.min.json",
                 isOfficial = true
             ),
             ExtensionRepo(

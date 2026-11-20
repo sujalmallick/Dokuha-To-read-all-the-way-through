@@ -1,6 +1,7 @@
 package ui.components
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,6 +26,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.MoreVert
@@ -50,6 +53,7 @@ import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import data.download.DownloadStatus
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
@@ -222,7 +226,8 @@ fun CategoryPillRow(
     categories: List<String>,
     selectedCategory: String,
     onCategorySelected: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onEditCategoriesClick: (() -> Unit)? = null
 ) {
     LazyRow(
         modifier = modifier,
@@ -233,10 +238,10 @@ fun CategoryPillRow(
             Box(
                 modifier = Modifier
                     .clip(CapsuleShape)
-                    .background(if (isSelected) ElectricBlue else PanelSurfaceGlass)
+                    .background(if (isSelected) Color.White else Color.White.copy(alpha = 0.06f))
                     .border(
                         width = 1.dp,
-                        color = if (isSelected) Color.Transparent else GlassBorder,
+                        color = if (isSelected) Color.White else Color.White.copy(alpha = 0.12f),
                         shape = CapsuleShape
                     )
                     .clickable(
@@ -244,20 +249,46 @@ fun CategoryPillRow(
                         indication = null,
                         onClick = { onCategorySelected(category) }
                     )
-                    .padding(horizontal = 18.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 7.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = category,
-                    color = if (isSelected) TextPrimary else TextSecondary,
+                    color = if (isSelected) Color(0xFF090D15) else TextSecondary,
                     fontSize = 13.sp,
-                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                 )
+            }
+        }
+
+        if (onEditCategoriesClick != null) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .clip(CapsuleShape)
+                        .background(Color.White.copy(alpha = 0.06f))
+                        .border(1.dp, Color.White.copy(alpha = 0.12f), CapsuleShape)
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = onEditCategoriesClick
+                        )
+                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "+ Edit",
+                        color = TextSecondary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MangaCoverCard(
     title: String,
@@ -265,16 +296,30 @@ fun MangaCoverCard(
     gradientIndex: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    thumbnailUrl: String? = null
+    thumbnailUrl: String? = null,
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
+    onLongClick: (() -> Unit)? = null
 ) {
+    val clickModifier = if (onLongClick != null) {
+        Modifier.combinedClickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = ripple(color = Color.White),
+            onClick = onClick,
+            onLongClick = onLongClick
+        )
+    } else {
+        Modifier.clickable(
+            interactionSource = remember { MutableInteractionSource() },
+            indication = ripple(color = Color.White),
+            onClick = onClick
+        )
+    }
+
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = Color.White),
-                onClick = onClick
-            )
+            .then(clickModifier)
     ) {
         Box(
             modifier = Modifier
@@ -286,7 +331,11 @@ fun MangaCoverCard(
                         CoverGradients[gradientIndex.mod(CoverGradients.size)]
                     )
                 )
-                .border(1.dp, GlassBorderStrong, CoverImageShape)
+                .border(
+                    width = if (isSelected) 2.dp else 1.dp,
+                    color = if (isSelected) Color.White else Color.White.copy(alpha = 0.22f),
+                    shape = CoverImageShape
+                )
         ) {
             val isRemoteImage = !thumbnailUrl.isNullOrBlank() &&
                 (thumbnailUrl.startsWith("http://", ignoreCase = true) || thumbnailUrl.startsWith("https://", ignoreCase = true))
@@ -318,6 +367,33 @@ fun MangaCoverCard(
                     fontWeight = FontWeight.Black,
                     modifier = Modifier.align(Alignment.Center)
                 )
+            }
+
+            // Selection indicator badge
+            if (isSelectionMode) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(if (isSelected) Color.White else Color.Black.copy(alpha = 0.55f))
+                        .border(
+                            1.dp,
+                            if (isSelected) Color.White else Color.White.copy(alpha = 0.45f),
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSelected) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = "Selected",
+                            tint = Color(0xFF090D15),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                }
             }
         }
         Spacer(modifier = Modifier.height(6.dp))
@@ -370,11 +446,18 @@ fun ChapterRowItem(
     title: String,
     date: String,
     isRead: Boolean = false,
+    isDownloaded: Boolean = false,
+    downloadStatus: DownloadStatus? = null,
     onClick: () -> Unit,
     onDownloadClick: () -> Unit = {},
     onOptionsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val isCompleted = isDownloaded || downloadStatus == DownloadStatus.COMPLETED
+    val isDownloading = downloadStatus == DownloadStatus.DOWNLOADING
+    val isQueued = downloadStatus == DownloadStatus.QUEUED
+    val isPaused = downloadStatus == DownloadStatus.PAUSED
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -415,9 +498,22 @@ fun ChapterRowItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             PanelCircleIconButton(
-                icon = Icons.Default.FileDownload,
+                icon = when {
+                    isCompleted -> Icons.Default.Check
+                    isPaused -> Icons.Default.PlayArrow
+                    isDownloading -> Icons.Default.Pause
+                    else -> Icons.Default.FileDownload
+                },
                 size = 36.dp,
                 iconSize = 18.dp,
+                tint = when {
+                    isCompleted -> ElectricBlue
+                    isDownloading -> ElectricBlue
+                    isQueued -> TextSecondary
+                    else -> TextPrimary
+                },
+                backgroundColor = if (isCompleted) ElectricBlue.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.08f),
+                borderColor = if (isCompleted) ElectricBlue.copy(alpha = 0.40f) else Color.White.copy(alpha = 0.18f),
                 onClick = onDownloadClick
             )
             PanelCircleIconButton(
@@ -1255,7 +1351,9 @@ fun DownloadQueueCard(
     gradientIndex: Int,
     onPauseToggle: () -> Unit,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    statusText: String? = null,
+    onCancel: (() -> Unit)? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val shape = RoundedCornerShape(18.dp)
@@ -1371,7 +1469,7 @@ fun DownloadQueueCard(
 
                 // Status text
                 Text(
-                    text = "$downloadedMb MB of $totalMb MB • $etaMinutes mins left",
+                    text = statusText ?: "$downloadedMb MB of $totalMb MB • $etaMinutes mins left",
                     fontSize = 11.sp,
                     color = TextTertiary
                 )
@@ -1379,15 +1477,30 @@ fun DownloadQueueCard(
 
             Spacer(modifier = Modifier.width(10.dp))
 
-            // Pause/Resume circular button
-            PanelCircleIconButton(
-                icon = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
-                size = 36.dp,
-                iconSize = 18.dp,
-                backgroundColor = Color.White.copy(alpha = 0.08f),
-                borderColor = Color.White.copy(alpha = 0.18f),
-                onClick = onPauseToggle
-            )
+            // Action Buttons
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                PanelCircleIconButton(
+                    icon = if (isPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
+                    size = 36.dp,
+                    iconSize = 18.dp,
+                    backgroundColor = Color.White.copy(alpha = 0.08f),
+                    borderColor = Color.White.copy(alpha = 0.18f),
+                    onClick = onPauseToggle
+                )
+                if (onCancel != null) {
+                    PanelCircleIconButton(
+                        icon = Icons.Default.Close,
+                        size = 36.dp,
+                        iconSize = 16.dp,
+                        backgroundColor = Color.White.copy(alpha = 0.08f),
+                        borderColor = Color.White.copy(alpha = 0.18f),
+                        onClick = onCancel
+                    )
+                }
+            }
         }
     }
 }

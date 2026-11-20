@@ -1,7 +1,13 @@
 package core.di
 
-import core.download.DownloadManager
+import core.download.DownloadManager as CoreDownloadManager
 import core.storage.platformStorageModule
+import data.download.DefaultDownloadManager
+import data.download.DownloadManager as DataDownloadManager
+import data.extension.DefaultExtensionRepository
+import data.extension.ExtensionRepository
+import data.library.CategoryRepository
+import data.library.DefaultCategoryRepository
 import data.db.DatabaseDriverFactory
 import data.mock.PanelRepository
 import data.profile.PersistentProfileRepository
@@ -31,7 +37,7 @@ val appModule = module {
         }
     }
     single { PanelDatabase(get<DatabaseDriverFactory>().createDriver()) }
-    single { DownloadManager(downloadStorage = get(), httpClient = getOrNull()) }
+    single { CoreDownloadManager(downloadStorage = get(), httpClient = getOrNull()) }
     single { AntiBotChallengeManager() }
     single<AntiBotResolver> { get<AntiBotChallengeManager>() }
     single<PanelRepository> { SqlDelightPanelRepository(database = get(), downloadManager = getOrNull(), downloadStorage = getOrNull()) }
@@ -39,4 +45,7 @@ val appModule = module {
     single<TrackerRepository> { ProductionTrackerRepository(getOrNull()) }
     single<SettingsRepository> { PersistentSettingsRepository(get()) }
     single<ProfileRepository> { PersistentProfileRepository(get(), get()) }
+    single<DataDownloadManager> { DefaultDownloadManager() }
+    single<ExtensionRepository> { DefaultExtensionRepository() }
+    single<CategoryRepository> { DefaultCategoryRepository() }
 }

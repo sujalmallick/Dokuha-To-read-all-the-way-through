@@ -305,8 +305,8 @@ fun MoreScreenContent(
                 Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                     SettingsGroup {
                         SettingsRow.Navigation(
-                            title = "About Panel",
-                            value = "v1.0.0 (Dokuha)",
+                            title = "About Dokuha",
+                            value = "v1.0.0",
                             icon = Icons.Default.Info,
                             onClick = onNavigateAbout
                         )

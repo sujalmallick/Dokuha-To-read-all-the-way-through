@@ -119,6 +119,7 @@ fun UpdatesScreenContent(
     ) {
         // Subtle ambient liquid glow orbs behind content for realistic glass refraction
         Canvas(modifier = Modifier.fillMaxSize()) {
+            if (size.width <= 0f || size.height <= 0f) return@Canvas
             drawCircle(
                 brush = Brush.radialGradient(
                     colors = listOf(
@@ -126,7 +127,7 @@ fun UpdatesScreenContent(
                         Color.Transparent
                     ),
                     center = Offset(size.width * 0.85f, size.height * 0.15f),
-                    radius = size.width * 0.7f
+                    radius = (size.width * 0.7f).coerceAtLeast(1f)
                 )
             )
             drawCircle(
@@ -136,7 +137,7 @@ fun UpdatesScreenContent(
                         Color.Transparent
                     ),
                     center = Offset(size.width * 0.15f, size.height * 0.65f),
-                    radius = size.width * 0.8f
+                    radius = (size.width * 0.8f).coerceAtLeast(1f)
                 )
             )
         }

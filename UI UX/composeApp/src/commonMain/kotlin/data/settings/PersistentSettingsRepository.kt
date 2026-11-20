@@ -22,6 +22,7 @@ class PersistentSettingsRepository(
         const val CURRENT_SCHEMA_VERSION = 1
 
         // Keys
+        private const val KEY_ONBOARDING_COMPLETED = "setting_onboarding_completed"
         private const val KEY_THEME_MODE = "setting_theme_mode"
         private const val KEY_ACCENT_COLOR_INDEX = "setting_accent_color_index"
         private const val KEY_REDUCE_GLASS = "setting_reduce_glass"
@@ -32,6 +33,8 @@ class PersistentSettingsRepository(
         private const val KEY_BRIGHTNESS = "setting_brightness"
         private const val KEY_CROP_BORDERS = "setting_crop_borders"
         private const val KEY_KEEP_SCREEN_ON = "setting_keep_screen_on"
+        private const val KEY_SPLIT_DOUBLE_SPREAD = "setting_split_double_spread"
+        private const val KEY_DUAL_PAGE_OFFSET = "setting_dual_page_offset"
 
         private const val KEY_NOVEL_FONT = "setting_novel_font"
         private const val KEY_NOVEL_FONT_SIZE = "setting_novel_font_size"
@@ -64,6 +67,17 @@ class PersistentSettingsRepository(
         if (currentVersion < CURRENT_SCHEMA_VERSION) {
             storage.putInt(KEY_SCHEMA_VERSION, CURRENT_SCHEMA_VERSION)
         }
+    }
+
+    // Onboarding
+    private val _isOnboardingCompleted = MutableStateFlow(
+        storage.getBoolean(KEY_ONBOARDING_COMPLETED, false)
+    )
+    override val isOnboardingCompleted: StateFlow<Boolean> = _isOnboardingCompleted.asStateFlow()
+
+    override fun setOnboardingCompleted(completed: Boolean) {
+        _isOnboardingCompleted.value = completed
+        storage.putBoolean(KEY_ONBOARDING_COMPLETED, completed)
     }
 
     // Appearance
@@ -138,6 +152,16 @@ class PersistentSettingsRepository(
     )
     override val keepScreenOn: StateFlow<Boolean> = _keepScreenOn.asStateFlow()
 
+    private val _splitDoubleSpread = MutableStateFlow(
+        storage.getBoolean(KEY_SPLIT_DOUBLE_SPREAD, true)
+    )
+    override val splitDoubleSpread: StateFlow<Boolean> = _splitDoubleSpread.asStateFlow()
+
+    private val _dualPageOffset = MutableStateFlow(
+        storage.getBoolean(KEY_DUAL_PAGE_OFFSET, false)
+    )
+    override val dualPageOffset: StateFlow<Boolean> = _dualPageOffset.asStateFlow()
+
     override fun setDefaultReadingMode(mode: DefaultReadingMode) {
         _defaultReadingMode.value = mode
         storage.putString(KEY_DEFAULT_READING_MODE, mode.name)
@@ -163,6 +187,16 @@ class PersistentSettingsRepository(
     override fun setKeepScreenOn(enabled: Boolean) {
         _keepScreenOn.value = enabled
         storage.putBoolean(KEY_KEEP_SCREEN_ON, enabled)
+    }
+
+    override fun setSplitDoubleSpread(enabled: Boolean) {
+        _splitDoubleSpread.value = enabled
+        storage.putBoolean(KEY_SPLIT_DOUBLE_SPREAD, enabled)
+    }
+
+    override fun setDualPageOffset(enabled: Boolean) {
+        _dualPageOffset.value = enabled
+        storage.putBoolean(KEY_DUAL_PAGE_OFFSET, enabled)
     }
 
     // Novel Reader
@@ -272,7 +306,7 @@ class PersistentSettingsRepository(
     override val concurrentDownloads: StateFlow<Int> = _concurrentDownloads.asStateFlow()
 
     private val _downloadLocation = MutableStateFlow(
-        storage.getString(KEY_DOWNLOAD_LOCATION, "Internal storage / Panel / Downloads")
+        storage.getString(KEY_DOWNLOAD_LOCATION, "Internal storage / Dokuha / Downloads")
     )
     override val downloadLocation: StateFlow<String> = _downloadLocation.asStateFlow()
 

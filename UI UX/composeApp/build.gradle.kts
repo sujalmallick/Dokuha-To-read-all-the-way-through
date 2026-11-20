@@ -131,12 +131,19 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "io.panel.reader"
+        applicationId = "com.dokuha.reader"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        getByName("debug") {
+            enableV1Signing = true
+            enableV2Signing = true
+        }
     }
 
     buildFeatures {

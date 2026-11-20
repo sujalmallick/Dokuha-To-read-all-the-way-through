@@ -59,6 +59,9 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import core.source.MangaStatus
 import core.source.SourceChapter
 import core.source.SourceManga
+import data.download.DefaultDownloadManager
+import data.download.DownloadManager
+import data.download.DownloadStatus
 import data.mock.PanelRepository
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
@@ -94,6 +97,7 @@ data class TitleDetailsScreen(
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repository: PanelRepository = koinInject()
+        val downloadManager: DownloadManager = koinInject()
         val scope = rememberCoroutineScope()
         var refreshTrigger by remember { mutableIntStateOf(0) }
 
@@ -117,6 +121,7 @@ data class TitleDetailsScreen(
         TitleDetailsScreenContent(
             manga = manga,
             chapters = chapters,
+            downloadManager = downloadManager,
             isInLibrary = isInLibrary,
             onRefresh = { refreshTrigger++ },
             onToggleLibrary = {
@@ -158,11 +163,16 @@ fun TitleDetailsScreenContent(
     onReadChapter: (SourceChapter) -> Unit,
     onDownloadChapter: (SourceChapter) -> Unit = {},
     onDownloadAll: () -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    downloadManager: DownloadManager = remember { DefaultDownloadManager(autoStartSimulation = false) }
 ) {
     val glassState = rememberPanelGlassState()
     var isBookmarked by remember { mutableStateOf(false) }
     var isDescriptionExpanded by remember { mutableStateOf(false) }
+    var showBatchDownloadSheet by remember { mutableStateOf(false) }
+
+    val downloadQueue by downloadManager.queue.collectAsState()
+    val completedDownloads by downloadManager.completedDownloads.collectAsState()
 
     val displayManga = manga ?: SourceManga(
         url = "manga/the-last-horizon",
@@ -279,7 +289,10 @@ fun TitleDetailsScreenContent(
                         ActionGlassButton(
                             icon = Icons.Default.FileDownload,
                             text = "Download",
-                            onClick = onDownloadAll,
+                            onClick = {
+                                showBatchDownloadSheet = true
+                                onDownloadAll()
+                            },
                             modifier = Modifier.weight(1f)
                         )
                         ActionGlassButton(
@@ -337,6 +350,15 @@ fun TitleDetailsScreenContent(
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
+                        )
+
+                        PanelCircleIconButton(
+                            icon = Icons.Default.FileDownload,
+                            size = 36.dp,
+                            iconSize = 18.dp,
+                            backgroundColor = Color.White.copy(alpha = 0.08f),
+                            borderColor = Color.White.copy(alpha = 0.16f),
+                            onClick = { showBatchDownloadSheet = true }
                         )
                     }
 
@@ -416,13 +438,31 @@ fun TitleDetailsScreenContent(
                     else -> "Recently"
                 }
 
+                val isDownloaded = remember(chapter.url, completedDownloads) {
+                    downloadManager.isChapterDownloaded(displayManga.url, chapter.url)
+                }
+                val chapterStatus = remember(chapter.url, downloadQueue, completedDownloads) {
+                    downloadManager.getChapterStatus(displayManga.url, chapter.url)
+                }
+
                 Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                     ChapterRowItem(
                         title = chapter.name,
                         date = dateStr,
                         isRead = chapter.name == "Ch. 208" || chapter.name == "Ch. 207",
+                        isDownloaded = isDownloaded,
+                        downloadStatus = chapterStatus,
                         onClick = { onReadChapter(chapter) },
-                        onDownloadClick = { onDownloadChapter(chapter) },
+                        onDownloadClick = {
+                            if (!isDownloaded && chapterStatus == null) {
+                                downloadManager.enqueue(displayManga, listOf(chapter))
+                                onDownloadChapter(chapter)
+                            } else if (chapterStatus == DownloadStatus.DOWNLOADING) {
+                                downloadManager.pause("${displayManga.url}::${chapter.url}")
+                            } else if (chapterStatus == DownloadStatus.PAUSED) {
+                                downloadManager.resume("${displayManga.url}::${chapter.url}")
+                            }
+                        },
                         onOptionsClick = {}
                     )
                 }
@@ -457,6 +497,15 @@ fun TitleDetailsScreenContent(
                 onClick = { isBookmarked = !isBookmarked }
             )
         }
+
+        // LAYER 3: Batch Download Bottom Sheet
+        BatchDownloadSheet(
+            visible = showBatchDownloadSheet,
+            manga = displayManga,
+            chapters = chapters,
+            downloadManager = downloadManager,
+            onDismiss = { showBatchDownloadSheet = false }
+        )
     }
 }
 
@@ -536,6 +585,7 @@ fun TitleHeroArtwork(
         Canvas(modifier = modifier) {
         val width = size.width
         val height = size.height
+        if (width <= 0f || height <= 0f) return@Canvas
 
         // Dark Crimson & Night Navy backdrop
         drawRect(
@@ -552,6 +602,7 @@ fun TitleHeroArtwork(
         )
 
         // Radial crimson energy flare on the right
+        val crimsonRadius = (width * 0.55f).coerceAtLeast(1f)
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
@@ -560,13 +611,14 @@ fun TitleHeroArtwork(
                     Color.Transparent
                 ),
                 center = Offset(width * 0.85f, height * 0.35f),
-                radius = width * 0.55f
+                radius = crimsonRadius
             ),
             center = Offset(width * 0.85f, height * 0.35f),
-            radius = width * 0.55f
+            radius = crimsonRadius
         )
 
         // Radial electric blue / cyan magic flare on the left
+        val cyanRadius = (width * 0.45f).coerceAtLeast(1f)
         drawCircle(
             brush = Brush.radialGradient(
                 colors = listOf(
@@ -575,10 +627,10 @@ fun TitleHeroArtwork(
                     Color.Transparent
                 ),
                 center = Offset(width * 0.15f, height * 0.5f),
-                radius = width * 0.45f
+                radius = cyanRadius
             ),
             center = Offset(width * 0.15f, height * 0.5f),
-            radius = width * 0.45f
+            radius = cyanRadius
         )
 
         // Stylized anime character silhouette: Cape

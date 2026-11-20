@@ -56,22 +56,28 @@ fun Modifier.glassSurface(
         GlassVariant.Clear -> GlassTuning.Clear
     }
 
+    val fallback = this
+        .clip(shape)
+        .background(effectiveTuning.tint)
+        .border(0.5.dp, Color.White.copy(alpha = 0.20f), shape)
+
     return if (reduceGlass || state == null) {
-        this
-            .clip(shape)
-            .background(effectiveTuning.tint)
-            .border(0.5.dp, Color.White.copy(alpha = 0.20f), shape)
+        fallback
     } else {
-        this.liquid(state.liquidState) {
-            this.frost = effectiveTuning.frost
-            this.refraction = effectiveTuning.refraction
-            this.curve = effectiveTuning.curve
-            this.edge = effectiveTuning.edge
-            this.dispersion = effectiveTuning.dispersion
-            this.saturation = effectiveTuning.saturation
-            this.contrast = effectiveTuning.contrast
-            this.tint = effectiveTuning.tint
-            this.shape = shape
+        try {
+            fallback.liquid(state.liquidState) {
+                this.frost = effectiveTuning.frost
+                this.refraction = effectiveTuning.refraction
+                this.curve = effectiveTuning.curve
+                this.edge = effectiveTuning.edge
+                this.dispersion = effectiveTuning.dispersion
+                this.saturation = effectiveTuning.saturation
+                this.contrast = effectiveTuning.contrast
+                this.tint = effectiveTuning.tint
+                this.shape = shape
+            }
+        } catch (_: Throwable) {
+            fallback
         }
     }
 }
