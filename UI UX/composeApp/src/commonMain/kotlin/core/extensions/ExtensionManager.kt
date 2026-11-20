@@ -37,7 +37,8 @@ class ExtensionManager(
     private val settingsRepository: SettingsRepository? = null,
     private val antiBotResolver: AntiBotResolver? = null,
     private val enginePool: JsEnginePool = JsEnginePool(),
-    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
+    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default),
+    private val autoSeedDefaults: Boolean = false
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -70,6 +71,9 @@ class ExtensionManager(
     init {
         loadRepositories()
         restoreInstalledExtensions()
+        if (autoSeedDefaults) {
+            seedDefaultsIfEmpty()
+        }
         settingsRepository?.let { settings ->
             coroutineScope.launch {
                 settings.extensionRepos.collect { repos ->
@@ -173,12 +177,22 @@ class ExtensionManager(
      * Downloads, validates, and installs an extension from a repository.
      */
     suspend fun installExtension(catalogItem: ExtensionCatalogItem, repoBaseUrl: String): Boolean {
-        if (catalogItem.pkg.startsWith("demo://")) {
-            val demoScript = SampleExtensions.getDemoBundle(catalogItem.id) ?: return false
-            return installExtensionFromBundle(demoScript)
+        if (catalogItem.pkg.startsWith("demo://") || catalogItem.pkg.isBlank()) {
+            val demoScript = SampleExtensions.getDemoBundle(catalogItem.id)
+            if (demoScript != null) {
+                return installExtensionFromBundle(demoScript)
+            }
+            if (catalogItem.pkg.startsWith("demo://")) return false
         }
 
-        val client = httpClient ?: return false
+        val client = httpClient
+        if (client == null) {
+            val demoScript = SampleExtensions.getDemoBundle(catalogItem.id)
+            if (demoScript != null) {
+                return installExtensionFromBundle(demoScript)
+            }
+            return false
+        }
         val pkgUrl = if (catalogItem.pkg.startsWith("http://") || catalogItem.pkg.startsWith("https://")) {
             catalogItem.pkg
         } else {
@@ -221,6 +235,11 @@ class ExtensionManager(
             true
         } catch (e: Exception) {
             println("[ExtensionManager] Failed to install extension ${catalogItem.id}: ${e.message}")
+            val fallbackScript = SampleExtensions.getDemoBundle(catalogItem.id)
+            if (fallbackScript != null) {
+                println("[ExtensionManager] Using bundled fallback script for ${catalogItem.id}")
+                return installExtensionFromBundle(fallbackScript)
+            }
             false
         }
     }
@@ -435,6 +454,31 @@ class ExtensionManager(
             mutableListOf()
         }
         _repoUrls.value = repos
+    }
+
+    fun seedDefaultsIfEmpty() {
+        if (getStoredInstalledIds().isEmpty()) {
+            for (bundle in SampleExtensions.DEFAULT_INSTALLED_BUNDLES) {
+                coroutineScope.launch {
+                    installExtensionFromBundle(bundle)
+                }
+            }
+        }
+        if (_repoUrls.value.isEmpty()) {
+            val defaultRepos = listOf(
+                "https://raw.githubusercontent.com/RitwikGupta-0501/dokuha-extensions/main",
+                "https://raw.githubusercontent.com/keiyoushi/extensions/repo"
+            )
+            val current = _repoUrls.value.toMutableList()
+            for (repo in defaultRepos) {
+                if (!current.contains(repo)) current.add(repo)
+            }
+            _repoUrls.value = current
+            saveRepositories(current)
+            coroutineScope.launch {
+                refreshCatalog()
+            }
+        }
     }
 
     private fun saveRepositories(repos: List<String>) {

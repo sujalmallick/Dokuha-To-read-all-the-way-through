@@ -67,6 +67,7 @@ fun ExtensionDetailSheet(
     onUpdate: (ExtensionItem) -> Unit,
     onUninstall: (ExtensionItem) -> Unit,
     onClearCache: (ExtensionItem) -> Unit,
+    onBrowse: ((ExtensionItem) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     if (extension == null) return
@@ -396,11 +397,31 @@ fun ExtensionDetailSheet(
                                 )
                             }
                             ExtensionStatus.INSTALLED -> {
-                                SecondarySheetButton(
-                                    text = "Uninstall Extension",
-                                    modifier = Modifier.fillMaxWidth(),
-                                    onClick = { onUninstall(extension) }
-                                )
+                                if (onBrowse != null) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        PrimarySheetButton(
+                                            text = "Browse Source",
+                                            backgroundColor = Color.White,
+                                            contentColor = Color(0xFF090D15),
+                                            modifier = Modifier.weight(1f),
+                                            onClick = { onBrowse(extension) }
+                                        )
+                                        SecondarySheetButton(
+                                            text = "Uninstall",
+                                            modifier = Modifier.weight(0.6f),
+                                            onClick = { onUninstall(extension) }
+                                        )
+                                    }
+                                } else {
+                                    SecondarySheetButton(
+                                        text = "Uninstall Extension",
+                                        modifier = Modifier.fillMaxWidth(),
+                                        onClick = { onUninstall(extension) }
+                                    )
+                                }
                             }
                             ExtensionStatus.INSTALLING -> {
                                 PrimarySheetButton(

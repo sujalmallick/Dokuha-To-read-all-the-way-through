@@ -90,6 +90,7 @@ import ui.glass.glassPress
 import ui.glass.glassSource
 import ui.glass.rememberPanelGlassState
 import ui.screens.browse.BrowseScreen
+import ui.screens.browse.SourceDetailScreen
 import ui.screens.library.LibraryScreen
 import ui.screens.more.MoreScreen
 import ui.screens.updates.UpdatesScreen
@@ -270,6 +271,9 @@ class ExtensionsScreen : Screen {
             onClearCache = { ext ->
                 repository.clearExtensionCache(ext.id)
             },
+            onBrowse = { ext ->
+                navigator.push(SourceDetailScreen(ext.id, ext.name))
+            },
             onAddRepo = { url, name ->
                 val result = extensionManager.addRepository(url)
                 repository.addRepository(url, name)
@@ -311,6 +315,7 @@ fun ExtensionsScreenContent(
     onUpdate: (ExtensionItem) -> Unit = {},
     onUninstall: (ExtensionItem) -> Unit = {},
     onClearCache: (ExtensionItem) -> Unit = {},
+    onBrowse: (ExtensionItem) -> Unit = {},
     onAddRepo: (url: String, name: String?) -> Boolean = { _, _ -> true },
     onRefresh: () -> Unit = {},
     onLongClick: (ExtensionItem) -> Unit = {},
@@ -604,6 +609,7 @@ fun ExtensionsScreenContent(
                     ExtensionCardItem(
                         extension = ext,
                         onCardClick = { selectedExtensionForSheet = ext },
+                        onBrowseClick = { onBrowse(ext) },
                         onInstallClick = { onInstall(ext) },
                         onUpdateClick = { onUpdate(ext) },
                         onSettingsClick = { selectedExtensionForSheet = ext },
@@ -632,6 +638,10 @@ fun ExtensionsScreenContent(
             extension = selectedExtensionForSheet,
             isVisible = selectedExtensionForSheet != null,
             onDismiss = { selectedExtensionForSheet = null },
+            onBrowse = { ext ->
+                selectedExtensionForSheet = null
+                onBrowse(ext)
+            },
             onInstall = { ext ->
                 onInstall(ext)
                 selectedExtensionForSheet = null
@@ -668,6 +678,7 @@ private fun ExtensionCardItem(
     onInstallClick: () -> Unit,
     onUpdateClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onBrowseClick: () -> Unit = {},
     onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -889,24 +900,45 @@ private fun ExtensionCardItem(
                 ExtensionStatus.INSTALLED -> {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(CapsuleShape)
-                            .clickable(onClick = onSettingsClick)
-                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text(
-                            text = "Installed",
-                            color = TextSecondary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings",
-                            tint = TextTertiary,
-                            modifier = Modifier.size(14.dp)
-                        )
+                        val browseInteraction = remember { MutableInteractionSource() }
+                        Box(
+                            modifier = Modifier
+                                .clip(CapsuleShape)
+                                .glassPress(browseInteraction)
+                                .background(Color.White.copy(alpha = 0.12f))
+                                .border(0.5.dp, Color.White.copy(alpha = 0.25f), CapsuleShape)
+                                .clickable(
+                                    interactionSource = browseInteraction,
+                                    indication = null,
+                                    onClick = onBrowseClick
+                                )
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Browse",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .clickable(onClick = onSettingsClick),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
                 ExtensionStatus.UNINSTALLING -> {
