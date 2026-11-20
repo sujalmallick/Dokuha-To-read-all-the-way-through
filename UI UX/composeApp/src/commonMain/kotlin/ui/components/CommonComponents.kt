@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -732,6 +733,7 @@ fun SourceCard(
     }
 }
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun ExtensionItemCard(
     name: String,
@@ -742,7 +744,8 @@ fun ExtensionItemCard(
     modifier: Modifier = Modifier,
     lang: String? = null,
     avatarColor: Color = Color.White,
-    onDeleteClick: (() -> Unit)? = null
+    onDeleteClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val shape = RoundedCornerShape(18.dp)
@@ -750,8 +753,23 @@ fun ExtensionItemCard(
     Box(
         modifier = modifier
             .fillMaxWidth()
+            .then(
+                // Long-press on the card body opens the repo picker; clip is applied first
+                // so the gesture stays bounded, and onClick is a no-op so the individual
+                // Install / Update buttons still handle primary taps on their own.
+                if (onLongClick != null)
+                    Modifier
+                        .clip(shape)
+                        .combinedClickable(
+                            interactionSource = interactionSource,
+                            indication = null,
+                            onClick = {},
+                            onLongClick = onLongClick
+                        )
+                else
+                    Modifier.clip(shape)
+            )
             .glassPress(interactionSource)
-            .clip(shape)
             .background(
                 brush = Brush.verticalGradient(
                     listOf(

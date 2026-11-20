@@ -93,6 +93,13 @@ class JsBridge(
             }
             null
         }
+        engine.setGlobalAsyncFunction("__dokuha_sleep") { args ->
+            val ms = args.getOrNull(0)?.toString()?.toLongOrNull() ?: 0L
+            if (ms > 0) {
+                kotlinx.coroutines.delay(ms)
+            }
+            null
+        }
         engine.setGlobalAsyncFunction("__dokuha_fetch") { args ->
             val url = args.getOrNull(0)?.toString() ?: ""
             val method = args.getOrNull(1)?.toString() ?: "GET"
@@ -312,6 +319,25 @@ class JsBridge(
         globalThis.crypto = {};
     }
     globalThis.crypto.sha256 = (str) => globalThis.__dokuha_sha256(str);
+
+    // Async Sleep & Timers
+    globalThis.dokuha.sleep = async (ms) => {
+        if (typeof globalThis.__dokuha_sleep === 'function') {
+            await globalThis.__dokuha_sleep(ms || 0);
+        }
+    };
+    if (typeof globalThis.setTimeout === 'undefined') {
+        globalThis.setTimeout = (fn, delay) => {
+            (async () => {
+                if (typeof globalThis.__dokuha_sleep === 'function') {
+                    await globalThis.__dokuha_sleep(delay || 0);
+                }
+                if (typeof fn === 'function') fn();
+            })();
+            return 0;
+        };
+        globalThis.clearTimeout = () => {};
+    }
 
     // Fetch Standard Headers Polyfill
     class Headers {

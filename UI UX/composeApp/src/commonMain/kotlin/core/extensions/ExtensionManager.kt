@@ -53,6 +53,15 @@ class ExtensionManager(
     private val _availableExtensions = MutableStateFlow<List<ExtensionCatalogItem>>(emptyList())
     val availableExtensions: StateFlow<List<ExtensionCatalogItem>> = _availableExtensions.asStateFlow()
 
+    /**
+     * Maps the deduplication key ("name::lang") to all catalog variants available for that
+     * extension across all configured repositories. Only populated when more than one repo
+     * provides the same extension, so the UI can offer a repo-picker instead of silently
+     * choosing the highest-version winner.
+     */
+    private val _extensionVariants = MutableStateFlow<Map<String, List<ExtensionCatalogItem>>>(emptyMap())
+    val extensionVariants: StateFlow<Map<String, List<ExtensionCatalogItem>>> = _extensionVariants.asStateFlow()
+
     private val _repoUrls = MutableStateFlow<List<String>>(emptyList())
     val repoUrls: StateFlow<List<String>> = _repoUrls.asStateFlow()
 
@@ -143,8 +152,18 @@ class ExtensionManager(
             }
         }
 
-        val allItems = items
-            .distinctBy { it.id }
+        // Deduplicate by id first
+        val deduplicatedById = items.distinctBy { it.id }
+
+        // Build variants map: group ALL repo variants by name::lang so the UI can offer a
+        // repo-picker when multiple repos provide the same extension name and language.
+        val variantsByKey = deduplicatedById
+            .groupBy { "${it.name.lowercase().trim()}::${it.lang.lowercase().trim()}" }
+            .filter { (_, group) -> group.map { it.repoBaseUrl }.distinct().size > 1 }
+        _extensionVariants.value = variantsByKey
+
+        // Collapse to the highest-version winner per name::lang::ecosystem for the main catalog
+        val allItems = deduplicatedById
             .groupBy { "${it.name.lowercase().trim()}::${it.lang.lowercase().trim()}::${it.ecosystem}" }
             .map { (_, group) -> group.maxByOrNull { it.version } ?: group.first() }
         _availableExtensions.value = allItems

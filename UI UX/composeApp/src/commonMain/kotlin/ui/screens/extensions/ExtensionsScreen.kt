@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -31,6 +32,7 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import core.extensions.ExtensionManager
+import core.extensions.js.ExtensionCatalogItem
 import data.mock.MockExtension
 import data.mock.PanelRepository
 import kotlinx.coroutines.launch
@@ -60,6 +62,7 @@ class ExtensionsScreen : Screen {
 
         val installedExts by extensionManager.installedExtensions.collectAsState(initial = emptyList())
         val availableCatalog by extensionManager.availableExtensions.collectAsState(initial = emptyList())
+        val extensionVariants by extensionManager.extensionVariants.collectAsState(initial = emptyMap())
 
         val effectiveExtensions = remember(installedExts, availableCatalog) {
             val installedKeys = installedExts.map { "${it.name.lowercase().trim()}::${it.lang.lowercase().trim()}" }.toSet()
@@ -99,9 +102,44 @@ class ExtensionsScreen : Screen {
             list
         }
 
+        // Pending install that needs repo selection (set when multiple repos are available)
+        var pendingInstallExt by remember { mutableStateOf<MockExtension?>(null) }
+
+        // Show repo picker dialog when triggered
+        val pendingVariants = remember(pendingInstallExt, extensionVariants) {
+            val ext = pendingInstallExt ?: return@remember emptyList()
+            val key = "${ext.name.lowercase().trim()}::${ext.lang.lowercase().trim()}"
+            extensionVariants[key] ?: emptyList()
+        }
+
+        if (pendingInstallExt != null && pendingVariants.isNotEmpty()) {
+            RepoPickerDialog(
+                extensionName = pendingInstallExt!!.name,
+                variants = pendingVariants,
+                onSelect = { chosen ->
+                    pendingInstallExt = null
+                    coroutineScope.launch {
+                        val success = extensionManager.installExtension(chosen, chosen.repoBaseUrl)
+                        println("[ExtensionsScreen] install from picker result: $success")
+                    }
+                },
+                onDismiss = { pendingInstallExt = null }
+            )
+        }
+
         ExtensionsScreenContent(
             initialExtensions = effectiveExtensions,
             onActionClick = { ext ->
+                if (!ext.isInstalled) {
+                    // Check if multiple repo variants exist for this extension
+                    val key = "${ext.name.lowercase().trim()}::${ext.lang.lowercase().trim()}"
+                    val variants = extensionVariants[key] ?: emptyList()
+                    if (variants.size > 1) {
+                        // Show repo picker instead of installing immediately
+                        pendingInstallExt = ext
+                        return@ExtensionsScreenContent
+                    }
+                }
                 coroutineScope.launch {
                     println("[ExtensionsScreen] onActionClick called for ${ext.name} (id: ${ext.id}, isInstalled: ${ext.isInstalled})")
                     if (ext.isInstalled) {
@@ -110,7 +148,9 @@ class ExtensionsScreen : Screen {
                         val catalogItem = availableCatalog.firstOrNull { it.id == ext.id }
                         println("[ExtensionsScreen] catalogItem found: ${catalogItem?.name} (pkg: ${catalogItem?.pkg})")
                         if (catalogItem != null) {
-                            val repoBase = extensionManager.repoUrls.value.firstOrNull() ?: ""
+                            val repoBase = catalogItem.repoBaseUrl.ifBlank {
+                                extensionManager.repoUrls.value.firstOrNull() ?: ""
+                            }
                             val success = extensionManager.installExtension(catalogItem, repoBase)
                             println("[ExtensionsScreen] install result: $success")
                         }
@@ -121,6 +161,16 @@ class ExtensionsScreen : Screen {
                 coroutineScope.launch {
                     println("[ExtensionsScreen] onDeleteClick called for ${ext.name} (id: ${ext.id})")
                     extensionManager.uninstallExtension(ext.id)
+                }
+            },
+            onLongClick = { ext ->
+                // Long-press always opens the repo picker for available extensions
+                if (!ext.isInstalled) {
+                    val key = "${ext.name.lowercase().trim()}::${ext.lang.lowercase().trim()}"
+                    val variants = extensionVariants[key] ?: emptyList()
+                    if (variants.isNotEmpty()) {
+                        pendingInstallExt = ext
+                    }
                 }
             },
             onAddRepository = { url ->
@@ -150,6 +200,7 @@ fun ExtensionsScreenContent(
     onTabSelected: (PanelTab) -> Unit,
     onActionClick: (MockExtension) -> Unit = {},
     onDeleteClick: (MockExtension) -> Unit = {},
+    onLongClick: (MockExtension) -> Unit = {},
     onAddRepository: (String) -> Boolean = { true },
     onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -413,6 +464,9 @@ fun ExtensionsScreenContent(
                             {
                                 extensionToUninstall = ext
                             }
+                        } else null,
+                        onLongClick = if (!ext.isInstalled) {
+                            { onLongClick(ext) }
                         } else null
                     )
                     Spacer(modifier = Modifier.height(10.dp))
@@ -552,6 +606,132 @@ private fun QuickPresetChip(title: String, onClick: () -> Unit) {
             fontWeight = FontWeight.Medium,
             color = ElectricBlue
         )
+    }
+}
+
+/**
+ * Modal dialog shown when multiple repositories provide the same extension.
+ * Lists each repo variant with its version so the user can consciously choose the source.
+ */
+@Composable
+private fun RepoPickerDialog(
+    extensionName: String,
+    variants: List<ExtensionCatalogItem>,
+    onSelect: (ExtensionCatalogItem) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFF161A22))
+                .padding(20.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Header
+                Text(
+                    text = "Choose Repository",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                Text(
+                    text = "Multiple repositories provide \"$extensionName\". Pick the version to install:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
+                // One row per repo variant
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    variants.forEach { variant ->
+                        RepoVariantRow(variant = variant, onClick = { onSelect(variant) })
+                    }
+                }
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
+                // Cancel
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel", color = TextSecondary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A single tappable row inside [RepoPickerDialog] representing one repo variant.
+ */
+@Composable
+private fun RepoVariantRow(
+    variant: ExtensionCatalogItem,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(12.dp))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                // Strip the scheme for readability: "github.com/user/repo"
+                val displayRepo = variant.repoBaseUrl
+                    .removePrefix("https://")
+                    .removePrefix("http://")
+                    .trimEnd('/')
+                Text(
+                    text = displayRepo.ifBlank { "Unknown repo" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = variant.version,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            // "Install" pill
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White)
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Install",
+                    color = Color(0xFF090D15),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }
 

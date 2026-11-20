@@ -51,7 +51,8 @@ class ExtensionCatalogParser(
                         lang = src.language,
                         type = ExtensionType.COMIC,
                         isNsfw = src.contentRating.equals("ADULT", ignoreCase = true),
-                        ecosystem = ExtensionEcosystem.PAPERBACK
+                        ecosystem = ExtensionEcosystem.PAPERBACK,
+                        repoBaseUrl = repoBaseUrl
                     )
                 }
             } catch (_: Exception) {
@@ -78,7 +79,8 @@ class ExtensionCatalogParser(
                             lang = item.lang,
                             type = ExtensionType.NOVEL,
                             isNsfw = false,
-                            ecosystem = ExtensionEcosystem.LNREADER
+                            ecosystem = ExtensionEcosystem.LNREADER,
+                            repoBaseUrl = repoBaseUrl
                         )
                     }
                 } catch (_: Exception) {
@@ -103,7 +105,8 @@ class ExtensionCatalogParser(
                                 lang = item.lang,
                                 type = if (isNovel) ExtensionType.NOVEL else ExtensionType.COMIC,
                                 isNsfw = item.isNsfw,
-                                ecosystem = ExtensionEcosystem.MANGAYOMI
+                                ecosystem = ExtensionEcosystem.MANGAYOMI,
+                                repoBaseUrl = repoBaseUrl
                             )
                         }
                 } catch (_: Exception) {
@@ -115,6 +118,7 @@ class ExtensionCatalogParser(
             if (first.containsKey("pkg")) {
                 return try {
                     json.decodeFromJsonElement<List<ExtensionCatalogItem>>(root)
+                        .map { it.copy(repoBaseUrl = repoBaseUrl) }
                 } catch (_: Exception) {
                     emptyList()
                 }

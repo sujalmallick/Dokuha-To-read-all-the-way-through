@@ -36,5 +36,7 @@ data class ExtensionCatalogItem(
     val isNsfw: Boolean = false,
     val pkg: String,
     val sha256: String = "",
-    val ecosystem: ExtensionEcosystem = ExtensionEcosystem.CUSTOM
+    val ecosystem: ExtensionEcosystem = ExtensionEcosystem.CUSTOM,
+    /** The base URL of the repository this item was fetched from. Used for repo-picker UI. */
+    val repoBaseUrl: String = ""
 )
