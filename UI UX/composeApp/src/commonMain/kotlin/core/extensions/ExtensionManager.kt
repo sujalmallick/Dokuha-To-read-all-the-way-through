@@ -178,21 +178,10 @@ class ExtensionManager(
      */
     suspend fun installExtension(catalogItem: ExtensionCatalogItem, repoBaseUrl: String): Boolean {
         if (catalogItem.pkg.startsWith("demo://") || catalogItem.pkg.isBlank()) {
-            val demoScript = SampleExtensions.getDemoBundle(catalogItem.id)
-            if (demoScript != null) {
-                return installExtensionFromBundle(demoScript)
-            }
-            if (catalogItem.pkg.startsWith("demo://")) return false
-        }
-
-        val client = httpClient
-        if (client == null) {
-            val demoScript = SampleExtensions.getDemoBundle(catalogItem.id)
-            if (demoScript != null) {
-                return installExtensionFromBundle(demoScript)
-            }
             return false
         }
+
+        val client = httpClient ?: return false
         val pkgUrl = if (catalogItem.pkg.startsWith("http://") || catalogItem.pkg.startsWith("https://")) {
             catalogItem.pkg
         } else {
@@ -235,11 +224,6 @@ class ExtensionManager(
             true
         } catch (e: Exception) {
             println("[ExtensionManager] Failed to install extension ${catalogItem.id}: ${e.message}")
-            val fallbackScript = SampleExtensions.getDemoBundle(catalogItem.id)
-            if (fallbackScript != null) {
-                println("[ExtensionManager] Using bundled fallback script for ${catalogItem.id}")
-                return installExtensionFromBundle(fallbackScript)
-            }
             false
         }
     }
@@ -457,13 +441,6 @@ class ExtensionManager(
     }
 
     fun seedDefaultsIfEmpty() {
-        if (getStoredInstalledIds().isEmpty()) {
-            for (bundle in SampleExtensions.DEFAULT_INSTALLED_BUNDLES) {
-                coroutineScope.launch {
-                    installExtensionFromBundle(bundle)
-                }
-            }
-        }
         if (_repoUrls.value.isEmpty()) {
             val defaultRepos = listOf(
                 "https://raw.githubusercontent.com/RitwikGupta-0501/dokuha-extensions/main",
