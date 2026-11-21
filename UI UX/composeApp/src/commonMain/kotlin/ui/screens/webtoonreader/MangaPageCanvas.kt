@@ -121,7 +121,18 @@ fun MangaPageCanvas(
                 model = imageRequest,
                 contentDescription = "Page $pageNumber",
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                onState = { state ->
+                    when (state) {
+                        is coil3.compose.AsyncImagePainter.State.Error -> {
+                            println("[MangaPageCanvas] Page $pageNumber FAILED: ${state.result.throwable.message}")
+                        }
+                        is coil3.compose.AsyncImagePainter.State.Success -> {
+                            println("[MangaPageCanvas] Page $pageNumber SUCCESS: ${state.result.image.width}x${state.result.image.height}")
+                        }
+                        else -> {}
+                    }
+                }
             )
         }
     } else {

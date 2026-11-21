@@ -140,7 +140,12 @@ data class WebtoonReaderScreen(
         val coroutineScope = rememberCoroutineScope()
 
         LaunchedEffect(currentChapterUrl) {
+            println("[WebtoonReaderScreen] LaunchedEffect for chapter: $currentChapterUrl, mangaUrl: $mangaUrl")
             repository.recordHistory(currentChapterUrl)
+        }
+
+        LaunchedEffect(pages) {
+            println("[WebtoonReaderScreen] pages state updated, count: ${pages.size}")
         }
 
         WebtoonReaderScreenContent(
@@ -1116,7 +1121,18 @@ fun WebtoonPanelSlice(
             model = imageRequest,
             contentDescription = "Slice ${sliceIndex + 1}",
             contentScale = ContentScale.FillWidth,
-            modifier = modifier.fillMaxWidth()
+            modifier = modifier.fillMaxWidth(),
+            onState = { state ->
+                when (state) {
+                    is coil3.compose.AsyncImagePainter.State.Error -> {
+                        println("[WebtoonPanelSlice] Page $sliceIndex FAILED: ${state.result.throwable.message}")
+                    }
+                    is coil3.compose.AsyncImagePainter.State.Success -> {
+                        println("[WebtoonPanelSlice] Page $sliceIndex SUCCESS: ${state.result.image.width}x${state.result.image.height}")
+                    }
+                    else -> {}
+                }
+            }
         )
     } else {
         Canvas(modifier = modifier) {

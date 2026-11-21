@@ -54,6 +54,7 @@ fun PanelApp(
 private fun PanelAppRoot() {
     val settingsRepository: SettingsRepository = koinInject()
     val antiBotManager = koinInject<AntiBotChallengeManager>()
+    val extensionManager: core.extensions.ExtensionManager = koinInject()
     val activeChallenge by antiBotManager.activeChallenge.collectAsState()
 
     val themeMode by settingsRepository.themeMode.collectAsState()

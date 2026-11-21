@@ -34,6 +34,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
@@ -276,29 +278,36 @@ class SqlDelightPanelRepository(
             .map { list -> list.map { it.toSourceChapter() } }
     }
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     override fun getPages(chapterUrl: String): Flow<List<SourcePage>> {
         val downloadedPages = downloadStorage?.getDownloadedPages(chapterUrl)
         if (!downloadedPages.isNullOrEmpty()) {
             return flowOf(downloadedPages)
         }
 
-        val matchingDynamic = (findMatchingDynamicSource(chapterUrl, null) as? ComicSource)
-            ?: _dynamicSources.value.values.filterIsInstance<ComicSource>().firstOrNull()
-
-        if (matchingDynamic != null) {
-            return flow {
-                val pages = try {
-                    matchingDynamic.getPageList(SourceChapter(url = chapterUrl, name = ""))
-                } catch (_: Exception) {
-                    emptyList()
+        return _dynamicSources
+            .filter { it.isNotEmpty() }
+            .flatMapLatest { registered ->
+                flow {
+                    val matching = (findMatchingDynamicSource(chapterUrl, null) as? ComicSource)
+                        ?: registered.values.filterIsInstance<ComicSource>().firstOrNull()
+                    if (matching != null) {
+                        val pages = try {
+                            matching.getPageList(SourceChapter(url = chapterUrl, name = ""))
+                        } catch (e: Exception) {
+                            println("[SqlDelightPanelRepository] Exception in getPageList for $chapterUrl: ${e.message}")
+                            e.printStackTrace()
+                            emptyList()
+                        }
+                        emit(pages)
+                    } else {
+                        emit(emptyList())
+                    }
                 }
-                emit(pages)
             }.flowOn(Dispatchers.Default)
-        }
-
-        return flowOf(emptyList())
     }
 
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     override fun getNovelContent(chapterUrl: String): Flow<NovelContent?> {
         val downloadedNovel = downloadStorage?.getDownloadedNovel(chapterUrl)
         if (downloadedNovel != null) {
@@ -312,28 +321,24 @@ class SqlDelightPanelRepository(
             )
         }
 
-        val matchingDynamic = (findMatchingDynamicSource(chapterUrl, null) as? NovelSource)
-            ?: _dynamicSources.value.values.filterIsInstance<NovelSource>().firstOrNull()
-
-        if (matchingDynamic != null) {
-            return flow {
-                val content = try {
-                    matchingDynamic.getChapterContent(SourceChapter(url = chapterUrl, name = ""))
-                } catch (_: Exception) {
-                    null
+        return _dynamicSources
+            .filter { it.isNotEmpty() }
+            .flatMapLatest { registered ->
+                flow {
+                    val matching = (findMatchingDynamicSource(chapterUrl, null) as? NovelSource)
+                        ?: registered.values.filterIsInstance<NovelSource>().firstOrNull()
+                    if (matching != null) {
+                        val content = try {
+                            matching.getChapterContent(SourceChapter(url = chapterUrl, name = ""))
+                        } catch (_: Exception) {
+                            null
+                        }
+                        emit(content)
+                    } else {
+                        emit(null)
+                    }
                 }
-                emit(content)
-            }
-        }
-
-        return flowOf(
-            NovelContent(
-                chapterUrl = chapterUrl,
-                title = "The Wind Rises",
-                htmlBody = "<p>The morning light filtered through the leaves...</p>",
-                plainText = "The morning light filtered through the leaves, casting moving shadows on the stone path."
-            )
-        )
+            }.flowOn(Dispatchers.Default)
     }
 
     override fun getTrending(): Flow<List<SourceManga>> {

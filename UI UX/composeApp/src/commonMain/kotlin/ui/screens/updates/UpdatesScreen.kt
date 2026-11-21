@@ -85,7 +85,7 @@ class UpdatesScreen : Screen {
                 if (manga.isNovel) {
                     navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name))
                 } else {
-                    navigator.push(WebtoonReaderScreen(manga.url, chapter.url))
+                    navigator.push(WebtoonReaderScreen(manga.url, chapter.url, chapter.name))
                 }
             },
             onTabSelected = { tab ->

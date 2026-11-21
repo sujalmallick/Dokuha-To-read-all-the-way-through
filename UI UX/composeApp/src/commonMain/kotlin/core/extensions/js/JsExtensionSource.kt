@@ -96,8 +96,18 @@ class JsExtensionSource(
     }
 
     override suspend fun getPageList(chapter: SourceChapter): List<SourcePage> {
-        val result = engine.callFunction("extension.getPages", chapter.url)
-        return parsePageList(result)
+        println("[JsExtensionSource] getPageList called with chapter.url=${chapter.url}")
+        return try {
+            val result = engine.callFunction("extension.getPages", chapter.url)
+            println("[JsExtensionSource] extension.getPages returned raw result length: ${result.length}")
+            val pages = parsePageList(result)
+            println("[JsExtensionSource] parsePageList parsed ${pages.size} pages")
+            pages
+        } catch (e: Exception) {
+            println("[JsExtensionSource] Error calling extension.getPages: ${e.message}")
+            e.printStackTrace()
+            emptyList()
+        }
     }
 
     override suspend fun getChapterContent(chapter: SourceChapter): NovelContent {
@@ -181,7 +191,9 @@ class JsExtensionSource(
                     scanlator = obj["scanlator"]?.jsonPrimitive?.contentOrNull
                 )
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            println("[JsExtensionSource] Error in parsePageList: ${e.message}")
+            e.printStackTrace()
             emptyList()
         }
     }
@@ -207,7 +219,9 @@ class JsExtensionSource(
                     headers = headersMap
                 )
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            println("[JsExtensionSource] Error in parsePageList: ${e.message}")
+            e.printStackTrace()
             emptyList()
         }
     }
