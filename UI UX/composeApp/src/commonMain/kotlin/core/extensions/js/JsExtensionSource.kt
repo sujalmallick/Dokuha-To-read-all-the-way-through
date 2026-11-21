@@ -159,7 +159,7 @@ class JsExtensionSource(
             val parsed = parseSourceManga(obj)
             parsed.copy(
                 url = if (parsed.url.isNotEmpty()) parsed.url else fallback.url,
-                title = if (parsed.title.isNotEmpty() && parsed.title != "Untitled") parsed.title else fallback.title,
+                title = if (parsed.title.isNotBlank() && parsed.title != "Untitled" && parsed.title != "Unknown") parsed.title else fallback.title,
                 thumbnailUrl = parsed.thumbnailUrl ?: fallback.thumbnailUrl,
                 sourceId = if (parsed.sourceId != 0L) parsed.sourceId else (if (fallback.sourceId != 0L) fallback.sourceId else this.id)
             )

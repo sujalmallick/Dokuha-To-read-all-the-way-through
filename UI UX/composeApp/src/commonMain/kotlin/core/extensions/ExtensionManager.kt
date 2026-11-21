@@ -171,6 +171,33 @@ class ExtensionManager(
             .groupBy { "${it.name.lowercase().trim()}::${it.lang.lowercase().trim()}::${it.ecosystem}" }
             .map { (_, group) -> group.maxByOrNull { it.version } ?: group.first() }
         _availableExtensions.value = allItems
+
+        // Auto-update installed extensions when a newer version exists in the refreshed catalog
+        for (installed in _installedExtensions.value) {
+            val catalogMatch = allItems.firstOrNull { it.id == installed.id }
+            if (catalogMatch != null && isNewerVersion(catalogMatch.version, installed.version)) {
+                val repoBase = catalogMatch.repoBaseUrl.ifBlank {
+                    _repoUrls.value.firstOrNull() ?: ""
+                }
+                coroutineScope.launch {
+                    println("[ExtensionManager] Auto-updating ${installed.name} from v${installed.version} to v${catalogMatch.version}")
+                    installExtension(catalogMatch, repoBase)
+                }
+            }
+        }
+    }
+
+    private fun isNewerVersion(newVer: String, currentVer: String): Boolean {
+        val newParts = newVer.split('.').mapNotNull { it.toIntOrNull() }
+        val curParts = currentVer.split('.').mapNotNull { it.toIntOrNull() }
+        val maxLen = maxOf(newParts.size, curParts.size)
+        for (i in 0 until maxLen) {
+            val n = newParts.getOrElse(i) { 0 }
+            val c = curParts.getOrElse(i) { 0 }
+            if (n > c) return true
+            if (n < c) return false
+        }
+        return false
     }
 
     /**

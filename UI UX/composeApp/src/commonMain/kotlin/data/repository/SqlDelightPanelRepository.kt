@@ -231,7 +231,9 @@ class SqlDelightPanelRepository(
 
         if (matchingDynamic != null) {
             return flow {
-                val cached = database.chapterQueries.getChaptersByMangaUrl(mangaUrl).executeAsList().map { it.toSourceChapter() }
+                val cached = mangaRecord?.let {
+                    database.chapterQueries.getChaptersByMangaId(it.id).executeAsList().map { ch -> ch.toSourceChapter() }
+                } ?: database.chapterQueries.getChaptersByMangaUrl(mangaUrl).executeAsList().map { it.toSourceChapter() }
                 if (cached.isNotEmpty()) emit(cached)
 
                 try {
@@ -259,7 +261,7 @@ class SqlDelightPanelRepository(
                             )
                         }
                     }
-                    val updated = database.chapterQueries.getChaptersByMangaUrl(mangaUrl).executeAsList().map { it.toSourceChapter() }
+                    val updated = database.chapterQueries.getChaptersByMangaId(mangaId).executeAsList().map { it.toSourceChapter() }
                     emit(updated)
                 } catch (e: Exception) {
                     println("[SqlDelightPanelRepository] Error getting chapters for $mangaUrl from source ${matchingDynamic.name}: ${e.message}")
