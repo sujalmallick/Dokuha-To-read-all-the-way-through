@@ -2,9 +2,12 @@ package core.webview
 
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
+import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.compose.runtime.Composable
@@ -19,6 +22,7 @@ actual fun ChallengeWebView(
     userAgent: String,
     onChallengeResolved: (cookies: Map<String, String>, userAgent: String) -> Unit,
     onError: (String) -> Unit,
+    onCookiesChanged: ((Map<String, String>) -> Unit)?,
     modifier: Modifier
 ) {
     var hasResolved = remember { false }
@@ -30,7 +34,18 @@ actual fun ChallengeWebView(
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.databaseEnabled = true
-                settings.userAgentString = userAgent
+                settings.javaScriptCanOpenWindowsAutomatically = true
+                settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+
+                val defaultUa = WebSettings.getDefaultUserAgent(context)
+                // On Android, always ensure a mobile Android User-Agent is used to prevent
+                // Cloudflare from rejecting the request due to desktop UA vs Android client hints mismatch.
+                val resolvedUa = if (userAgent.isNotBlank() && userAgent.contains("Android", ignoreCase = true) && !userAgent.startsWith("Dokuha/")) {
+                    userAgent
+                } else {
+                    defaultUa
+                }
+                settings.userAgentString = resolvedUa
                 settings.useWideViewPort = true
                 settings.loadWithOverviewMode = true
 
@@ -38,15 +53,55 @@ actual fun ChallengeWebView(
                 cookieManager.setAcceptCookie(true)
                 cookieManager.setAcceptThirdPartyCookies(this, true)
 
+                fun checkClearance(currentUrl: String, isPageFinished: Boolean) {
+                    if (hasResolved) return
+                    val rawCookies = cookieManager.getCookie(currentUrl) ?: return
+                    val cookieMap = parseCookies(rawCookies)
+
+                    // Notify parent of updated cookies in real time
+                    onCookiesChanged?.invoke(cookieMap)
+
+                    val hasCfClearance = cookieMap.containsKey("cf_clearance")
+                    val currentTitle = title ?: ""
+                    val isChallengeTitle = currentTitle.contains("Just a moment", ignoreCase = true) ||
+                        currentTitle.contains("Cloudflare", ignoreCase = true) ||
+                        currentTitle.contains("Attention Required", ignoreCase = true) ||
+                        currentTitle.contains("Security Check", ignoreCase = true)
+                    val isChallengeUrl = currentUrl.contains("challenge-platform", ignoreCase = true) ||
+                        currentUrl.contains("/cdn-cgi/", ignoreCase = true)
+
+                    val isNormalFinishedPage = isPageFinished &&
+                        currentTitle.isNotBlank() &&
+                        !isChallengeTitle &&
+                        !isChallengeUrl
+
+                    // Only resolve if cf_clearance cookie is present OR if navigation finished on a verified destination page
+                    if (hasCfClearance || (isNormalFinishedPage && cookieMap.containsKey("__cf_bm"))) {
+                        hasResolved = true
+                        onChallengeResolved(cookieMap, resolvedUa)
+                    }
+                }
+
+                webChromeClient = object : WebChromeClient() {
+                    override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                        return super.onConsoleMessage(consoleMessage)
+                    }
+
+                    override fun onReceivedTitle(view: WebView?, title: String?) {
+                        super.onReceivedTitle(view, title)
+                        checkClearance(view?.url ?: url, isPageFinished = false)
+                    }
+                }
+
                 webViewClient = object : WebViewClient() {
                     override fun onPageStarted(view: WebView?, targetUrl: String?, favicon: Bitmap?) {
                         super.onPageStarted(view, targetUrl, favicon)
-                        checkClearance(targetUrl ?: url)
+                        checkClearance(targetUrl ?: url, isPageFinished = false)
                     }
 
                     override fun onPageFinished(view: WebView?, targetUrl: String?) {
                         super.onPageFinished(view, targetUrl)
-                        checkClearance(targetUrl ?: url)
+                        checkClearance(targetUrl ?: url, isPageFinished = true)
                     }
 
                     override fun onReceivedError(
@@ -57,25 +112,6 @@ actual fun ChallengeWebView(
                         super.onReceivedError(view, request, error)
                         if (request?.isForMainFrame == true) {
                             onError(error?.description?.toString() ?: "WebView connection error")
-                        }
-                    }
-
-                    private fun checkClearance(currentUrl: String) {
-                        if (hasResolved) return
-                        val rawCookies = cookieManager.getCookie(currentUrl) ?: return
-                        val cookieMap = parseCookies(rawCookies)
-
-                        val hasCfClearance = cookieMap.containsKey("cf_clearance")
-                        val hasBm = cookieMap.containsKey("__cf_bm")
-                        val currentTitle = title ?: ""
-                        val isNormalPage = !currentTitle.contains("Just a moment", ignoreCase = true) &&
-                            !currentTitle.contains("Cloudflare", ignoreCase = true) &&
-                            !currentTitle.contains("Attention Required", ignoreCase = true) &&
-                            !currentUrl.contains("challenge", ignoreCase = true)
-
-                        if (hasCfClearance || (hasBm && isNormalPage) || (cookieMap.isNotEmpty() && isNormalPage)) {
-                            hasResolved = true
-                            onChallengeResolved(cookieMap, userAgent)
                         }
                     }
                 }

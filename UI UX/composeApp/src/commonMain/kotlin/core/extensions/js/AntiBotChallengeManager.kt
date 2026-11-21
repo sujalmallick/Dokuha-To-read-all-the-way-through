@@ -22,10 +22,13 @@ data class AntiBotChallengeRequest(
 
 /**
  * Coordinates and coalesces Cloudflare Turnstile / anti-bot challenges across scrapers.
- * When multiple concurrent scraper requests hit challenges on the same domain,
- * single-flight coalescing ensures only a single interactive challenge prompt is presented.
+ * Implements two-stage resolution:
+ * 1. Silent background headless WebView resolution (Mihon pattern) for automated JS challenges.
+ * 2. Interactive modal sheet presentation strictly when an interactive checkbox is detected.
  */
-class AntiBotChallengeManager : AntiBotResolver {
+class AntiBotChallengeManager(
+    private val headlessSolver: HeadlessSolver? = null
+) : AntiBotResolver {
 
     private val mutex = Mutex()
     private val inFlightChallenges = mutableMapOf<String, CompletableDeferred<AntiBotResolutionResult>>()
@@ -35,7 +38,7 @@ class AntiBotChallengeManager : AntiBotResolver {
 
     override suspend fun resolveChallenge(url: String, userAgent: String): AntiBotResolutionResult {
         val domain = extractDomain(url)
-        val (deferred, shouldPrompt) = mutex.withLock {
+        val (deferred, shouldResolve) = mutex.withLock {
             val existing = inFlightChallenges[domain]
             if (existing != null && !existing.isCompleted) {
                 Pair(existing, false)
@@ -46,27 +49,58 @@ class AntiBotChallengeManager : AntiBotResolver {
             }
         }
 
-        if (shouldPrompt) {
-            val requestId = "${domain}_${currentTimeMillis()}"
-            _activeChallenge.value = AntiBotChallengeRequest(
-                id = requestId,
-                url = url,
-                domain = domain,
-                userAgent = userAgent,
-                onCompleted = { result ->
-                    deferred.complete(result)
-                    _activeChallenge.value = null
-                },
-                onDismiss = {
+        if (shouldResolve) {
+            // Stage 1: Silent background resolution (Mihon pattern)
+            var silentResult: HeadlessSolverResult? = null
+            if (headlessSolver != null) {
+                try {
+                    silentResult = headlessSolver.solve(url, userAgent)
+                    if (silentResult.success) {
+                        deferred.complete(
+                            AntiBotResolutionResult(
+                                success = true,
+                                cookies = silentResult.cookies,
+                                userAgent = silentResult.userAgent
+                            )
+                        )
+                    }
+                } catch (_: Exception) {
+                }
+            }
+
+            // Stage 2: Present interactive modal UI ONLY if an interactive checkbox is required
+            if (!deferred.isCompleted) {
+                val isInteractiveRequired = silentResult?.isInteractiveChallengeRequired ?: true
+                if (isInteractiveRequired) {
+                    val requestId = "${domain}_${currentTimeMillis()}"
+                    _activeChallenge.value = AntiBotChallengeRequest(
+                        id = requestId,
+                        url = url,
+                        domain = domain,
+                        userAgent = userAgent,
+                        onCompleted = { result ->
+                            deferred.complete(result)
+                            _activeChallenge.value = null
+                        },
+                        onDismiss = {
+                            deferred.complete(
+                                AntiBotResolutionResult(
+                                    success = false,
+                                    errorMessage = "Challenge dismissed by user"
+                                )
+                            )
+                            _activeChallenge.value = null
+                        }
+                    )
+                } else {
                     deferred.complete(
                         AntiBotResolutionResult(
                             success = false,
-                            errorMessage = "Challenge dismissed by user"
+                            errorMessage = silentResult?.errorMessage ?: "No interactive challenge detected"
                         )
                     )
-                    _activeChallenge.value = null
                 }
-            )
+            }
         }
 
         try {

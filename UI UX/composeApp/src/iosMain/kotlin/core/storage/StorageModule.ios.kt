@@ -2,6 +2,7 @@ package core.storage
 
 import core.download.DownloadStorage
 import core.download.IosDownloadStorage
+import core.extensions.js.HeadlessCloudflareSolver
 import data.db.DatabaseDriverFactory
 import org.koin.core.module.Module
 import org.koin.dsl.module
@@ -11,4 +12,5 @@ actual val platformStorageModule: Module = module {
     single<KeyValueStorage> { IosKeyValueStorage() }
     single<SecureStorage> { IosSecureStorage() }
     single<DownloadStorage> { IosDownloadStorage() }
+    single { HeadlessCloudflareSolver() }
 }

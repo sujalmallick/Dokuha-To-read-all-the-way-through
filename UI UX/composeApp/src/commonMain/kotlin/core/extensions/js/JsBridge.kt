@@ -1,6 +1,7 @@
 package core.extensions.js
 
 import core.extensions.Sha256
+import core.platform.currentTimeMillis
 import core.storage.KeyValueStorage
 import core.storage.SecureStorage
 import io.ktor.client.HttpClient
@@ -40,8 +41,9 @@ class JsBridge(
     private val inMemoryStorage = mutableMapOf<String, String>()
     private val inMemorySecureStorage = mutableMapOf<String, String>()
     private val json = Json { ignoreUnknownKeys = true }
+    val domainCooldowns = mutableMapOf<String, Long>()
     private var currentUserAgent: String =
-        "Dokuha/1.0.0 (https://github.com/RitwikGupta-0501/dokuha)"
+        "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
 
     /**
      * Registers host functions into a JsEngine instance for this bridge.
@@ -143,6 +145,7 @@ class JsBridge(
         }
 
         val domain = extractDomain(url)
+        val apexDomain = extractApexDomain(domain)
         val relevantCookies = cookieJar.filter {
             val cookieDomain = it.key.substringBefore(':')
             isDomainMatch(cookieDomain, domain)
@@ -153,14 +156,22 @@ class JsBridge(
 
         var response = performRequest(client, url, method, mergedHeaders, body, timeoutMs)
 
-        // Cloudflare / Anti-bot challenge detection (403, 503 or HTML challenge markers)
-        if ((response.status == 403 || response.status == 503 || isCloudflareChallenge(response.body)) && antiBotResolver != null) {
-            diagnosticLogs.add("[JsBridge] Anti-bot challenge detected at $url (Status: ${response.status}). Suspending coroutine to summon resolver...")
-            val result = antiBotResolver.resolveChallenge(url, currentUserAgent)
-            if (result.success) {
+        // Cloudflare / Anti-bot challenge detection (with single-attempt guard & domain cooldown)
+        if (isCloudflareChallengeResponse(response) && antiBotResolver != null && !isDomainInCooldown(domain)) {
+            val verificationUrl = getHumanVerificationUrl(url)
+            val requestUserAgent = mergedHeaders.entries
+                .firstOrNull { it.key.equals("User-Agent", ignoreCase = true) }?.value
+                ?: currentUserAgent
+
+            diagnosticLogs.add("[JsBridge] Anti-bot challenge detected at $url (Status: ${response.status}). Suspending coroutine to summon resolver for $verificationUrl...")
+            val result = antiBotResolver.resolveChallenge(verificationUrl, requestUserAgent)
+            if (result.success && result.cookies.isNotEmpty()) {
                 diagnosticLogs.add("[JsBridge] Anti-bot challenge resolved! Updating cookies and retrying request...")
                 result.cookies.forEach { (name, value) ->
                     cookieJar["$domain:$name"] = "$name=$value"
+                    if (apexDomain.isNotEmpty() && apexDomain != domain) {
+                        cookieJar["$apexDomain:$name"] = "$name=$value"
+                    }
                 }
                 if (result.userAgent != null) {
                     currentUserAgent = result.userAgent
@@ -172,8 +183,16 @@ class JsBridge(
                 }
                 mergedHeaders["Cookie"] = updatedCookies.values.joinToString("; ")
                 response = performRequest(client, url, method, mergedHeaders, body, timeoutMs)
+
+                // If the retried request is STILL blocked by a challenge, apply domain cooldown
+                // to prevent immediate loop / popups from sequential scraper calls
+                if (isCloudflareChallengeResponse(response)) {
+                    diagnosticLogs.add("[JsBridge] Retried request at $url was still blocked by challenge. Applying 30s cooldown for $domain.")
+                    setDomainCooldown(domain, 30_000L)
+                }
             } else {
-                diagnosticLogs.add("[JsBridge] Anti-bot resolution failed or cancelled: ${result.errorMessage}")
+                diagnosticLogs.add("[JsBridge] Anti-bot resolution failed, empty, or cancelled: ${result.errorMessage}. Applying 30s cooldown for $domain.")
+                setDomainCooldown(domain, 30_000L)
             }
         }
 
@@ -243,6 +262,74 @@ class JsBridge(
         } catch (_: Exception) {
             ""
         }
+    }
+
+    fun extractApexDomain(domain: String): String {
+        val clean = domain.removePrefix(".").lowercase()
+        val parts = clean.split('.')
+        if (parts.size <= 2) return clean
+
+        val secondToLast = parts[parts.size - 2]
+        val last = parts.last()
+        val isCcTld = (last.length == 2 && (secondToLast == "co" || secondToLast == "com" || secondToLast == "org" || secondToLast == "net"))
+        return if (isCcTld && parts.size >= 3) {
+            "${parts[parts.size - 3]}.$secondToLast.$last"
+        } else {
+            "${parts[parts.size - 2]}.$last"
+        }
+    }
+
+    fun isDomainInCooldown(domain: String): Boolean {
+        val targetDomain = extractApexDomain(domain).ifEmpty { domain }
+        val expiry = domainCooldowns[targetDomain] ?: return false
+        val now = currentTimeMillis()
+        if (now < expiry) return true
+        domainCooldowns.remove(targetDomain)
+        return false
+    }
+
+    fun setDomainCooldown(domain: String, durationMs: Long = 30_000L) {
+        val targetDomain = extractApexDomain(domain).ifEmpty { domain }
+        domainCooldowns[targetDomain] = currentTimeMillis() + durationMs
+    }
+
+    fun getHumanVerificationUrl(url: String): String {
+        return try {
+            val scheme = if (url.contains("://")) url.substringBefore("://") + "://" else "https://"
+            val domain = extractDomain(url)
+            val apex = extractApexDomain(domain)
+            "$scheme$apex/"
+        } catch (_: Exception) {
+            url
+        }
+    }
+
+    fun isCloudflareChallengeResponse(response: JsHttpResponse): Boolean {
+        // Only 403 Forbidden and 503 Service Unavailable can indicate a Cloudflare anti-bot challenge.
+        // Never trigger for 400, 401, 404, 429, 500, 502, 504.
+        if (response.status !in listOf(403, 503)) {
+            return false
+        }
+        if (isCloudflareChallenge(response.body)) {
+            return true
+        }
+        val serverHeader = response.headers.entries.firstOrNull { it.key.equals("server", ignoreCase = true) }?.value ?: ""
+        val isCloudflareServer = serverHeader.contains("cloudflare", ignoreCase = true)
+        val hasCfRay = response.headers.keys.any { it.equals("cf-ray", ignoreCase = true) }
+        val hasCfMitigated = response.headers.keys.any { it.equals("cf-mitigated", ignoreCase = true) }
+
+        if (hasCfMitigated) {
+            return true
+        }
+        val trimmedBody = response.body.trim()
+        val isJson = trimmedBody.startsWith("{") || trimmedBody.startsWith("[")
+        if (isJson) {
+            return false
+        }
+        if (isCloudflareServer && (hasCfRay || trimmedBody.contains("cloudflare", ignoreCase = true))) {
+            return true
+        }
+        return false
     }
 
     fun isDomainMatch(cookieDomain: String, requestDomain: String): Boolean {

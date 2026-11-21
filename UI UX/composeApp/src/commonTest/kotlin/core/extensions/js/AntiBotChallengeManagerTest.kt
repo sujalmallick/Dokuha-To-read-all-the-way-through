@@ -95,4 +95,80 @@ class AntiBotChallengeManagerTest {
         ch2.onCompleted(AntiBotResolutionResult(success = true))
         assertTrue(deferred2.await().success)
     }
+
+    @Test
+    fun testSilentBackgroundResolutionSuccessDoesNotPromptUser() = runBlocking {
+        val mockSolver = object : HeadlessSolver {
+            override suspend fun solve(url: String, userAgent: String, timeoutMs: Long): HeadlessSolverResult {
+                return HeadlessSolverResult(
+                    success = true,
+                    cookies = mapOf("cf_clearance" to "silent_token_999"),
+                    userAgent = "MockAndroidUA"
+                )
+            }
+        }
+
+        val manager = AntiBotChallengeManager(headlessSolver = mockSolver)
+
+        val result = manager.resolveChallenge("https://asurascans.com/comics/test", "UA")
+
+        assertTrue(result.success, "Silent resolution should succeed")
+        assertEquals("silent_token_999", result.cookies["cf_clearance"])
+        assertEquals("MockAndroidUA", result.userAgent)
+        assertNull(manager.activeChallenge.value, "Zero popups should be shown for silent resolution")
+    }
+
+    @Test
+    fun testNonInteractiveChallengeFailureDoesNotPromptUser() = runBlocking {
+        val mockSolver = object : HeadlessSolver {
+            override suspend fun solve(url: String, userAgent: String, timeoutMs: Long): HeadlessSolverResult {
+                return HeadlessSolverResult(
+                    success = false,
+                    isInteractiveChallengeRequired = false,
+                    errorMessage = "Automated check failed without interactive challenge"
+                )
+            }
+        }
+
+        val manager = AntiBotChallengeManager(headlessSolver = mockSolver)
+
+        val result = manager.resolveChallenge("https://asurascans.com/comics/test", "UA")
+
+        assertFalse(result.success)
+        assertNull(manager.activeChallenge.value, "Popup must NOT be shown when no interactive challenge is present")
+    }
+
+    @Test
+    fun testInteractiveTurnstileChallengePromptsUser() = runBlocking {
+        val mockSolver = object : HeadlessSolver {
+            override suspend fun solve(url: String, userAgent: String, timeoutMs: Long): HeadlessSolverResult {
+                return HeadlessSolverResult(
+                    success = false,
+                    isInteractiveChallengeRequired = true,
+                    errorMessage = "Turnstile checkbox detected"
+                )
+            }
+        }
+
+        val manager = AntiBotChallengeManager(headlessSolver = mockSolver)
+
+        val deferred = async { manager.resolveChallenge("https://protected-site.com/entry", "UA") }
+        kotlinx.coroutines.yield()
+
+        val challenge = manager.activeChallenge.value
+        assertNotNull(challenge, "Active challenge popup SHOULD be presented for Turnstile checkbox")
+        assertEquals("protected-site.com", challenge.domain)
+
+        challenge.onCompleted(
+            AntiBotResolutionResult(
+                success = true,
+                cookies = mapOf("cf_clearance" to "turnstile_solved_token")
+            )
+        )
+
+        val result = deferred.await()
+        assertTrue(result.success)
+        assertEquals("turnstile_solved_token", result.cookies["cf_clearance"])
+        assertNull(manager.activeChallenge.value)
+    }
 }

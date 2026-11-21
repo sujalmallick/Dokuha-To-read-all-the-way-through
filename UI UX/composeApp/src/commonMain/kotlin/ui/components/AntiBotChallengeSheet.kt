@@ -8,6 +8,10 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -115,6 +119,9 @@ fun AntiBotChallengeSheet(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                var currentCookies by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+                var currentUa by remember { mutableStateOf(challenge.userAgent) }
+
                 // Embedded Multiplatform Challenge WebView
                 Box(
                     modifier = Modifier
@@ -127,6 +134,8 @@ fun AntiBotChallengeSheet(
                         url = challenge.url,
                         userAgent = challenge.userAgent,
                         onChallengeResolved = { cookies, userAgent ->
+                            currentCookies = cookies
+                            currentUa = userAgent
                             challenge.onCompleted(
                                 AntiBotResolutionResult(
                                     success = true,
@@ -138,22 +147,61 @@ fun AntiBotChallengeSheet(
                         onError = { _ ->
                             // Errors logged; user can retry or cancel
                         },
+                        onCookiesChanged = { cookies ->
+                            currentCookies = cookies
+                        },
                         modifier = Modifier.fillMaxSize()
                     )
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Cancel button
-                TextButton(
-                    onClick = { challenge.onDismiss() },
-                    modifier = Modifier.fillMaxWidth()
+                // Action Buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        text = "Cancel Verification",
-                        color = TextSecondary,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    OutlinedButton(
+                        onClick = { challenge.onDismiss() },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "Cancel",
+                            color = TextSecondary,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+
+                    Button(
+                        onClick = {
+                            if (currentCookies.isNotEmpty()) {
+                                challenge.onCompleted(
+                                    AntiBotResolutionResult(
+                                        success = true,
+                                        cookies = currentCookies,
+                                        userAgent = currentUa
+                                    )
+                                )
+                            } else {
+                                // If no clearance was collected, complete with failure to prevent infinite retry loops
+                                challenge.onCompleted(
+                                    AntiBotResolutionResult(
+                                        success = false,
+                                        errorMessage = "Verification challenge was not completed"
+                                    )
+                                )
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "I'm Verified",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }

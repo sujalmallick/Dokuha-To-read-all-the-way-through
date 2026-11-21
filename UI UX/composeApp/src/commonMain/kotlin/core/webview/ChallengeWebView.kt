@@ -14,5 +14,6 @@ expect fun ChallengeWebView(
     userAgent: String,
     onChallengeResolved: (cookies: Map<String, String>, userAgent: String) -> Unit,
     onError: (String) -> Unit,
+    onCookiesChanged: ((Map<String, String>) -> Unit)? = null,
     modifier: Modifier = Modifier
 )

@@ -383,4 +383,96 @@ class JsBridgeTest {
 
         engine.close()
     }
+
+    @Test
+    fun testApexDomainAndVerificationUrlNormalization() {
+        val bridge = JsBridge()
+
+        assertEquals("asurascans.com", bridge.extractApexDomain("asurascans.com"))
+        assertEquals("asurascans.com", bridge.extractApexDomain("api.asurascans.com"))
+        assertEquals("asurascans.com", bridge.extractApexDomain("www.api.asurascans.com"))
+        assertEquals("mangadex.org", bridge.extractApexDomain("api.mangadex.org"))
+        assertEquals("site.co.uk", bridge.extractApexDomain("api.site.co.uk"))
+
+        assertEquals("https://asurascans.com/", bridge.getHumanVerificationUrl("https://api.asurascans.com/api/series?offset=0&limit=20"))
+        assertEquals("https://asurascans.com/", bridge.getHumanVerificationUrl("https://asurascans.com/comics/my-title"))
+        assertEquals("https://site.co.uk/", bridge.getHumanVerificationUrl("https://api.site.co.uk/data"))
+    }
+
+    @Test
+    fun testIsCloudflareChallengeResponse() {
+        val bridge = JsBridge()
+
+        // 403 with Cloudflare server header
+        val cfHeaderResp = JsHttpResponse(
+            status = 403,
+            ok = false,
+            headers = mapOf("Server" to "cloudflare", "cf-ray" to "12345"),
+            body = "error"
+        )
+        assertTrue(bridge.isCloudflareChallengeResponse(cfHeaderResp))
+
+        // 403 with Turnstile HTML
+        val cfHtmlResp = JsHttpResponse(
+            status = 403,
+            ok = false,
+            headers = emptyMap(),
+            body = "<html><title>Just a moment...</title></html>"
+        )
+        assertTrue(bridge.isCloudflareChallengeResponse(cfHtmlResp))
+
+        // Generic 403 JSON error without Cloudflare markers - should NOT trigger challenge
+        val json403 = JsHttpResponse(
+            status = 403,
+            ok = false,
+            headers = mapOf("Server" to "nginx"),
+            body = "{\"error\": \"Unauthorized\", \"message\": \"Token expired\"}"
+        )
+        assertFalse(bridge.isCloudflareChallengeResponse(json403))
+
+        // Non-challenge status codes must never trigger challenge response
+        val notFound404 = JsHttpResponse(status = 404, ok = false, headers = emptyMap(), body = "Not Found")
+        assertFalse(bridge.isCloudflareChallengeResponse(notFound404))
+
+        val unauthorized401 = JsHttpResponse(status = 401, ok = false, headers = emptyMap(), body = "Unauthorized")
+        assertFalse(bridge.isCloudflareChallengeResponse(unauthorized401))
+
+        val rateLimit429 = JsHttpResponse(status = 429, ok = false, headers = emptyMap(), body = "Too Many Requests")
+        assertFalse(bridge.isCloudflareChallengeResponse(rateLimit429))
+
+        val serverError500 = JsHttpResponse(status = 500, ok = false, headers = emptyMap(), body = "Internal Server Error")
+        assertFalse(bridge.isCloudflareChallengeResponse(serverError500))
+    }
+
+    @Test
+    fun testDomainCooldownPreventsRepeatedResolverInvocations() = runBlocking {
+        var resolverCallCount = 0
+        val resolver = AntiBotResolver { url, ua ->
+            resolverCallCount++
+            AntiBotResolutionResult(success = false, errorMessage = "Failed to solve")
+        }
+
+        val mockEngine = MockEngine { _ ->
+            respond(
+                content = "<html><title>Just a moment...</title></html>",
+                status = HttpStatusCode.Forbidden,
+                headers = headersOf("Server", "cloudflare")
+            )
+        }
+        val client = HttpClient(mockEngine)
+        val bridge = JsBridge(httpClient = client, antiBotResolver = resolver)
+
+        // First call triggers resolver
+        bridge.fetch("https://protected.example.com/api/data")
+        assertEquals(1, resolverCallCount)
+
+        // Domain should now be in cooldown
+        assertTrue(bridge.isDomainInCooldown("protected.example.com"))
+        assertTrue(bridge.isDomainInCooldown("example.com"))
+
+        // Second call to same domain during cooldown must NOT invoke resolver
+        val secondResp = bridge.fetch("https://protected.example.com/api/other")
+        assertEquals(1, resolverCallCount, "Resolver should NOT be invoked when domain is in cooldown")
+        assertEquals(403, secondResp.status)
+    }
 }

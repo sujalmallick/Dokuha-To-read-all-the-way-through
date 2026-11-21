@@ -32,13 +32,13 @@ val appModule = module {
     single<HttpClient> {
         HttpClient {
             defaultRequest {
-                header(HttpHeaders.UserAgent, "Dokuha/1.0.0 (https://github.com/RitwikGupta-0501/dokuha)")
+                header(HttpHeaders.UserAgent, "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
             }
         }
     }
     single { PanelDatabase(get<DatabaseDriverFactory>().createDriver()) }
     single { CoreDownloadManager(downloadStorage = get(), httpClient = getOrNull()) }
-    single { AntiBotChallengeManager() }
+    single { AntiBotChallengeManager(headlessSolver = getOrNull()) }
     single<AntiBotResolver> { get<AntiBotChallengeManager>() }
     single<PanelRepository> { SqlDelightPanelRepository(database = get(), downloadManager = getOrNull(), downloadStorage = getOrNull()) }
     single<ExtensionManager> { ExtensionManager(storage = get(), panelRepository = get(), httpClient = getOrNull(), settingsRepository = getOrNull(), antiBotResolver = getOrNull(), autoSeedDefaults = true) }
