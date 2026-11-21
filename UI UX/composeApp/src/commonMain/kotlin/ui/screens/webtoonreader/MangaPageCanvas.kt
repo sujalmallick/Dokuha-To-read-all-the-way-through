@@ -102,12 +102,11 @@ fun MangaPageCanvas(
                 .data(imageUrl)
                 .apply {
                     val headers = page?.headers
-                    if (!headers.isNullOrEmpty()) {
-                        val networkHeaders = NetworkHeaders.Builder().apply {
-                            headers.forEach { (k, v) -> add(k, v) }
-                        }.build()
-                        httpHeaders(networkHeaders)
-                    }
+                    val networkHeaders = NetworkHeaders.Builder().apply {
+                        add("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
+                        headers?.forEach { (k, v) -> add(k, v) }
+                    }.build()
+                    httpHeaders(networkHeaders)
                 }
                 .build()
         }
@@ -122,7 +121,18 @@ fun MangaPageCanvas(
                 model = imageRequest,
                 contentDescription = "Page $pageNumber",
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize(),
+                onState = { state ->
+                    when (state) {
+                        is coil3.compose.AsyncImagePainter.State.Error -> {
+                            println("[MangaPageCanvas] Page $pageNumber FAILED: ${state.result.throwable.message}")
+                        }
+                        is coil3.compose.AsyncImagePainter.State.Success -> {
+                            println("[MangaPageCanvas] Page $pageNumber SUCCESS: ${state.result.image.width}x${state.result.image.height}")
+                        }
+                        else -> {}
+                    }
+                }
             )
         }
     } else {

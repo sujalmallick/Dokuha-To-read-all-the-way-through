@@ -12,7 +12,8 @@ data class SourceManga(
     val genres: List<String> = emptyList(),
     val status: MangaStatus = MangaStatus.UNKNOWN,
     val thumbnailUrl: String? = null,
-    val isNovel: Boolean = false
+    val isNovel: Boolean = false,
+    val sourceId: Long = 0L
 )
 
 @Serializable

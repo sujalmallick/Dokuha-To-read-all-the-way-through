@@ -46,59 +46,15 @@ class JsExtensionSource(
 
     suspend fun initialize() {
         if (bridge != null) {
-            setupBridgeFunctions(engine, bridge)
-            engine.evaluate(bridge.getPreambleScript())
+            bridge.registerFunctions(engine, id)
+            engine.evaluate(bridge.getPreambleScript(id))
         }
         engine.evaluate(manifest.script)
     }
 
-    private fun setupBridgeFunctions(engine: JsEngine, bridge: JsBridge) {
-        engine.setGlobalFunction("__dokuha_log") { args ->
-            val lvl = args.getOrNull(0)?.toString() ?: "LOG"
-            val msg = args.getOrNull(1)?.toString() ?: ""
-            bridge.log(lvl, msg)
-            null
-        }
-        engine.setGlobalFunction("__dokuha_btoa") { args ->
-            val str = args.getOrNull(0)?.toString() ?: ""
-            bridge.btoa(str)
-        }
-        engine.setGlobalFunction("__dokuha_atob") { args ->
-            val str = args.getOrNull(0)?.toString() ?: ""
-            bridge.atob(str)
-        }
-        engine.setGlobalFunction("__dokuha_sha256") { args ->
-            val str = args.getOrNull(0)?.toString() ?: ""
-            bridge.sha256(str)
-        }
-        engine.setGlobalAsyncFunction("__dokuha_fetch") { args ->
-            val url = args.getOrNull(0)?.toString() ?: ""
-            val method = args.getOrNull(1)?.toString() ?: "GET"
-            val headersJson = args.getOrNull(2)?.toString() ?: "{}"
-            val body = args.getOrNull(3)?.toString()
-            val headersMap = try {
-                if (headersJson.isNotEmpty() && headersJson != "{}") {
-                    val elem = json.parseToJsonElement(headersJson).jsonObject
-                    elem.mapValues { it.value.jsonPrimitive.content }
-                } else emptyMap()
-            } catch (_: Exception) {
-                emptyMap()
-            }
-            val res = bridge.fetch(url, method, headersMap, body)
-            val resJson = buildJsonObject {
-                put("status", res.status)
-                put("ok", res.ok)
-                putJsonObject("headers") {
-                    res.headers.forEach { (k, v) -> put(k, v) }
-                }
-                put("body", res.body)
-            }.toString()
-            resJson
-        }
-    }
-
     override suspend fun getPopular(page: Int): MangasPage {
         val result = engine.callFunction("extension.getPopular", page)
+        println("[JsExtensionSource] getPopular result: $result")
         return parseMangasPage(result)
     }
 
@@ -140,8 +96,18 @@ class JsExtensionSource(
     }
 
     override suspend fun getPageList(chapter: SourceChapter): List<SourcePage> {
-        val result = engine.callFunction("extension.getPages", chapter.url)
-        return parsePageList(result)
+        println("[JsExtensionSource] getPageList called with chapter.url=${chapter.url}")
+        return try {
+            val result = engine.callFunction("extension.getPages", chapter.url)
+            println("[JsExtensionSource] extension.getPages returned raw result length: ${result.length}")
+            val pages = parsePageList(result)
+            println("[JsExtensionSource] parsePageList parsed ${pages.size} pages")
+            pages
+        } catch (e: Exception) {
+            println("[JsExtensionSource] Error calling extension.getPages: ${e.message}")
+            e.printStackTrace()
+            emptyList()
+        }
     }
 
     override suspend fun getChapterContent(chapter: SourceChapter): NovelContent {
@@ -192,7 +158,8 @@ class JsExtensionSource(
             genres = genres,
             status = status,
             thumbnailUrl = obj["thumbnailUrl"]?.jsonPrimitive?.contentOrNull,
-            isNovel = isNovel
+            isNovel = isNovel,
+            sourceId = this.id
         )
     }
 
@@ -202,11 +169,12 @@ class JsExtensionSource(
             val parsed = parseSourceManga(obj)
             parsed.copy(
                 url = if (parsed.url.isNotEmpty()) parsed.url else fallback.url,
-                title = if (parsed.title.isNotEmpty() && parsed.title != "Untitled") parsed.title else fallback.title,
-                thumbnailUrl = parsed.thumbnailUrl ?: fallback.thumbnailUrl
+                title = if (parsed.title.isNotBlank() && parsed.title != "Untitled" && parsed.title != "Unknown") parsed.title else fallback.title,
+                thumbnailUrl = parsed.thumbnailUrl ?: fallback.thumbnailUrl,
+                sourceId = if (parsed.sourceId != 0L) parsed.sourceId else (if (fallback.sourceId != 0L) fallback.sourceId else this.id)
             )
         } catch (_: Exception) {
-            fallback
+            fallback.copy(sourceId = if (fallback.sourceId != 0L) fallback.sourceId else this.id)
         }
     }
 
@@ -223,7 +191,9 @@ class JsExtensionSource(
                     scanlator = obj["scanlator"]?.jsonPrimitive?.contentOrNull
                 )
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            println("[JsExtensionSource] Error in parsePageList: ${e.message}")
+            e.printStackTrace()
             emptyList()
         }
     }
@@ -234,13 +204,24 @@ class JsExtensionSource(
             val array = if (element is JsonArray) element else element.jsonObject["pages"]?.jsonArray ?: JsonArray(emptyList())
             array.mapIndexed { idx, item ->
                 val obj = item.jsonObject
+                val headersMap = obj["headers"]?.let { h ->
+                    if (h is JsonObject) {
+                        h.mapValues { it.value.jsonPrimitive.content }
+                    } else null
+                } ?: mapOf(
+                    "User-Agent" to "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
+                    "Referer" to manifest.baseUrl
+                )
                 SourcePage(
                     index = obj["index"]?.jsonPrimitive?.floatOrNull?.toInt() ?: (idx + 1),
                     url = obj["url"]?.jsonPrimitive?.contentOrNull ?: "",
-                    imageUrl = obj["imageUrl"]?.jsonPrimitive?.contentOrNull
+                    imageUrl = obj["imageUrl"]?.jsonPrimitive?.contentOrNull,
+                    headers = headersMap
                 )
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            println("[JsExtensionSource] Error in parsePageList: ${e.message}")
+            e.printStackTrace()
             emptyList()
         }
     }

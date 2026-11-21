@@ -175,12 +175,9 @@ class ScreenshotsTest {
 
     @Test
     fun capture_08_extensions_screen() {
-        val extensions = runBlocking { repository.getExtensions().first() }
-
         composeTestRule.setContent {
             PanelTheme {
                 ExtensionsScreenContent(
-                    initialExtensions = extensions,
                     onTabSelected = {}
                 )
             }

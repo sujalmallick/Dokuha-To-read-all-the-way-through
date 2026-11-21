@@ -1,11 +1,13 @@
 package core.extensions
 
-import core.extensions.js.ExtensionCatalogItem
-import core.extensions.js.ExtensionType
-import core.extensions.js.JsBridge
-import core.extensions.js.JsEngine
-import core.extensions.js.JsExtensionManifest
-import core.extensions.js.JsExtensionSource
+import core.extensions.js.*
+import core.extensions.lnreader.LNReaderManifest
+import core.extensions.lnreader.LNReaderSourceAdapter
+import core.extensions.mangayomi.MangayomiManifest
+import core.extensions.mangayomi.MangayomiSourceAdapter
+import core.extensions.model.ExtensionEcosystem
+import core.extensions.paperback.PaperbackManifest
+import core.extensions.paperback.PaperbackSourceAdapter
 import core.source.ContentSource
 import core.storage.KeyValueStorage
 import data.mock.PanelRepository
@@ -24,35 +26,54 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 /**
- * Manages the lifecycle of JavaScript extensions: installing, updating,
- * persisting bundles to storage, and dynamically registering sources into PanelRepository.
+ * Manages the lifecycle of extensions across all supported ecosystems (Mangayomi, LNReader,
+ * Paperback, and Dokuha native): indexing repositories, downloading scripts, validating SHA-256
+ * checksums, persisting bundles, pooled sandbox activation, and registering dynamic sources into PanelRepository.
  */
 class ExtensionManager(
     private val storage: KeyValueStorage,
     private val panelRepository: PanelRepository? = null,
     private val httpClient: HttpClient? = null,
     private val settingsRepository: SettingsRepository? = null,
-    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
+    private val antiBotResolver: AntiBotResolver? = null,
+    private val enginePool: JsEnginePool = JsEnginePool(),
+    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default),
+    private val autoSeedDefaults: Boolean = false
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
     }
 
+    private val catalogParser = ExtensionCatalogParser(json)
+    private val bridge = JsBridge(httpClient = httpClient, antiBotResolver = antiBotResolver)
+
     private val _installedExtensions = MutableStateFlow<List<JsExtensionManifest>>(emptyList())
     val installedExtensions: StateFlow<List<JsExtensionManifest>> = _installedExtensions.asStateFlow()
 
-    private val _availableExtensions = MutableStateFlow<List<ExtensionCatalogItem>>(SampleExtensions.DEMO_CATALOG_ITEMS)
+    private val _availableExtensions = MutableStateFlow<List<ExtensionCatalogItem>>(emptyList())
     val availableExtensions: StateFlow<List<ExtensionCatalogItem>> = _availableExtensions.asStateFlow()
+
+    /**
+     * Maps the deduplication key ("name::lang") to all catalog variants available for that
+     * extension across all configured repositories. Only populated when more than one repo
+     * provides the same extension, so the UI can offer a repo-picker instead of silently
+     * choosing the highest-version winner.
+     */
+    private val _extensionVariants = MutableStateFlow<Map<String, List<ExtensionCatalogItem>>>(emptyMap())
+    val extensionVariants: StateFlow<Map<String, List<ExtensionCatalogItem>>> = _extensionVariants.asStateFlow()
 
     private val _repoUrls = MutableStateFlow<List<String>>(emptyList())
     val repoUrls: StateFlow<List<String>> = _repoUrls.asStateFlow()
 
-    private val activeSources = mutableMapOf<String, JsExtensionSource>()
+    private val activeSources = mutableMapOf<String, ContentSource>()
 
     init {
         loadRepositories()
         restoreInstalledExtensions()
+        if (autoSeedDefaults) {
+            seedDefaultsIfEmpty()
+        }
         settingsRepository?.let { settings ->
             coroutineScope.launch {
                 settings.extensionRepos.collect { repos ->
@@ -92,46 +113,99 @@ class ExtensionManager(
     }
 
     /**
-     * Refreshes the extension catalog from all configured repository URLs.
+     * Refreshes the extension catalog from all configured repository URLs across all ecosystems.
      */
     suspend fun refreshCatalog() {
         val client = httpClient
         val items = mutableListOf<ExtensionCatalogItem>()
 
         if (client != null) {
+            val candidateEndpoints = listOf(
+                "index.min.json",
+                "index.json",
+                "novel_index.json",
+                "plugins.min.json",
+                "versioning.json"
+            )
+
             for (repoUrl in _repoUrls.value) {
-                try {
-                    val indexUrl = "$repoUrl/index.min.json"
-                    val response = client.get(indexUrl)
-                    val body = response.bodyAsText()
-                    val parsed = json.decodeFromString<List<ExtensionCatalogItem>>(body)
-                    items.addAll(parsed)
-                } catch (_: Exception) {
-                    // Try fallback to index.json
+                val endpoints = if (repoUrl.endsWith(".json")) {
+                    listOf("", "index.json", "novel_index.json", "plugins.min.json", "versioning.json")
+                } else {
+                    candidateEndpoints
+                }
+
+                for (endpoint in endpoints) {
                     try {
-                        val indexUrl = "$repoUrl/index.json"
-                        val response = client.get(indexUrl)
-                        val body = response.bodyAsText()
-                        val parsed = json.decodeFromString<List<ExtensionCatalogItem>>(body)
-                        items.addAll(parsed)
+                        val fullUrl = if (endpoint.isEmpty()) repoUrl else "${repoUrl.trimEnd('/')}/$endpoint"
+                        val response = client.get(fullUrl)
+                        if (response.status.value in 200..299) {
+                            val body = response.bodyAsText()
+                            if (body.isNotBlank()) {
+                                val parsed = catalogParser.parseCatalog(body, repoUrl)
+                                if (parsed.isNotEmpty()) {
+                                    println("[ExtensionManager] Discovered ${parsed.size} extensions from $fullUrl")
+                                    items.addAll(parsed)
+                                }
+                            }
+                        }
                     } catch (_: Exception) {
-                        // Skip unreachable repo
+                        // Skip unreachable endpoint or 404
                     }
                 }
             }
         }
 
-        val allItems = (SampleExtensions.DEMO_CATALOG_ITEMS + items).distinctBy { it.id }
+        // Deduplicate by id first
+        val deduplicatedById = items.distinctBy { it.id }
+
+        // Build variants map: group ALL repo variants by name::lang so the UI can offer a
+        // repo-picker when multiple repos provide the same extension name and language.
+        val variantsByKey = deduplicatedById
+            .groupBy { "${it.name.lowercase().trim()}::${it.lang.lowercase().trim()}" }
+            .filter { (_, group) -> group.map { it.repoBaseUrl }.distinct().size > 1 }
+        _extensionVariants.value = variantsByKey
+
+        // Collapse to the highest-version winner per name::lang::ecosystem for the main catalog
+        val allItems = deduplicatedById
+            .groupBy { "${it.name.lowercase().trim()}::${it.lang.lowercase().trim()}::${it.ecosystem}" }
+            .map { (_, group) -> group.maxByOrNull { it.version } ?: group.first() }
         _availableExtensions.value = allItems
+
+        // Auto-update installed extensions when a newer version exists in the refreshed catalog
+        for (installed in _installedExtensions.value) {
+            val catalogMatch = allItems.firstOrNull { it.id == installed.id }
+            if (catalogMatch != null && isNewerVersion(catalogMatch.version, installed.version)) {
+                val repoBase = catalogMatch.repoBaseUrl.ifBlank {
+                    _repoUrls.value.firstOrNull() ?: ""
+                }
+                coroutineScope.launch {
+                    println("[ExtensionManager] Auto-updating ${installed.name} from v${installed.version} to v${catalogMatch.version}")
+                    installExtension(catalogMatch, repoBase)
+                }
+            }
+        }
+    }
+
+    private fun isNewerVersion(newVer: String, currentVer: String): Boolean {
+        val newParts = newVer.split('.').mapNotNull { it.toIntOrNull() }
+        val curParts = currentVer.split('.').mapNotNull { it.toIntOrNull() }
+        val maxLen = maxOf(newParts.size, curParts.size)
+        for (i in 0 until maxLen) {
+            val n = newParts.getOrElse(i) { 0 }
+            val c = curParts.getOrElse(i) { 0 }
+            if (n > c) return true
+            if (n < c) return false
+        }
+        return false
     }
 
     /**
-     * Downloads and installs an extension from a repository.
+     * Downloads, validates, and installs an extension from a repository.
      */
     suspend fun installExtension(catalogItem: ExtensionCatalogItem, repoBaseUrl: String): Boolean {
-        if (catalogItem.pkg.startsWith("demo://")) {
-            val demoScript = SampleExtensions.getDemoBundle(catalogItem.id) ?: return false
-            return installExtensionFromBundle(demoScript)
+        if (catalogItem.pkg.startsWith("demo://") || catalogItem.pkg.isBlank()) {
+            return false
         }
 
         val client = httpClient ?: return false
@@ -154,7 +228,27 @@ class ExtensionManager(
                 }
             }
 
-            installExtensionFromBundle(script)
+            val manifest = JsExtensionManifest(
+                id = catalogItem.id,
+                name = catalogItem.name,
+                version = catalogItem.version,
+                lang = catalogItem.lang,
+                baseUrl = catalogItem.baseUrl,
+                type = catalogItem.type,
+                iconUrl = catalogItem.iconUrl,
+                isNsfw = catalogItem.isNsfw,
+                script = script,
+                ecosystem = catalogItem.ecosystem
+            )
+
+            saveManifest(manifest)
+            registerAndActivateSource(manifest)
+
+            val updated = _installedExtensions.value.filter { it.id != manifest.id }.toMutableList()
+            updated.add(manifest)
+            _installedExtensions.value = updated
+
+            true
         } catch (e: Exception) {
             println("[ExtensionManager] Failed to install extension ${catalogItem.id}: ${e.message}")
             false
@@ -187,7 +281,14 @@ class ExtensionManager(
         val source = activeSources.remove(extensionId)
         if (source != null) {
             panelRepository?.unregisterSource(source.id)
-            source.close()
+            if (source is AutoCloseable) {
+                try {
+                    source.close()
+                } catch (_: Exception) {}
+            }
+            coroutineScope.launch {
+                enginePool.evict(source.id)
+            }
         }
 
         storage.remove(storageManifestKey(extensionId))
@@ -204,14 +305,113 @@ class ExtensionManager(
 
     private suspend fun registerAndActivateSource(manifest: JsExtensionManifest) {
         try {
-            val engine = JsEngine()
-            val bridge = JsBridge(httpClient = httpClient)
-            val source = JsExtensionSource(manifest = manifest, engine = engine, bridge = bridge)
-
-            source.initialize()
-
-            activeSources[manifest.id] = source
-            panelRepository?.registerSource(source)
+            when (manifest.ecosystem) {
+                ExtensionEcosystem.MANGAYOMI -> {
+                    val numericId = manifest.id.toLongOrNull() ?: ((manifest.id.hashCode().toLong() and 0x7FFFFFFF) + 10_000L)
+                    val mManifest = MangayomiManifest(
+                        id = numericId,
+                        name = manifest.name,
+                        baseUrl = manifest.baseUrl,
+                        lang = manifest.lang,
+                        version = manifest.version,
+                        isNovel = manifest.type == ExtensionType.NOVEL,
+                        isNsfw = manifest.isNsfw,
+                        script = manifest.script,
+                        iconUrl = manifest.iconUrl
+                    )
+                    val adapter = MangayomiSourceAdapter(mManifest, enginePool, bridge)
+                    activeSources[manifest.id] = adapter
+                    panelRepository?.registerSource(adapter)
+                }
+                ExtensionEcosystem.LNREADER -> {
+                    val lnManifest = LNReaderManifest(
+                        id = manifest.id,
+                        name = manifest.name,
+                        site = manifest.baseUrl,
+                        lang = manifest.lang,
+                        version = manifest.version,
+                        script = manifest.script,
+                        iconUrl = manifest.iconUrl
+                    )
+                    val adapter = LNReaderSourceAdapter(lnManifest, enginePool, bridge)
+                    activeSources[manifest.id] = adapter
+                    panelRepository?.registerSource(adapter)
+                }
+                ExtensionEcosystem.PAPERBACK -> {
+                    val pbManifest = PaperbackManifest(
+                        id = manifest.id,
+                        name = manifest.name,
+                        websiteBaseURL = manifest.baseUrl,
+                        language = manifest.lang,
+                        version = manifest.version,
+                        contentRating = if (manifest.isNsfw) "ADULT" else "EVERYONE",
+                        script = manifest.script,
+                        iconUrl = manifest.iconUrl
+                    )
+                    val isV9 = !manifest.script.contains("Sources") && !manifest.script.contains("window.Sources")
+                    val adapter = PaperbackSourceAdapter(pbManifest, enginePool, bridge, isV9 = isV9)
+                    activeSources[manifest.id] = adapter
+                    panelRepository?.registerSource(adapter)
+                }
+                ExtensionEcosystem.CUSTOM -> {
+                    // Auto-detect based on script tokens
+                    when {
+                        manifest.script.contains("DefaultExtension") || manifest.script.contains("MProvider") -> {
+                            val numericId = manifest.id.toLongOrNull() ?: ((manifest.id.hashCode().toLong() and 0x7FFFFFFF) + 10_000L)
+                            val mManifest = MangayomiManifest(
+                                id = numericId,
+                                name = manifest.name,
+                                baseUrl = manifest.baseUrl,
+                                lang = manifest.lang,
+                                version = manifest.version,
+                                isNovel = manifest.type == ExtensionType.NOVEL,
+                                isNsfw = manifest.isNsfw,
+                                script = manifest.script,
+                                iconUrl = manifest.iconUrl
+                            )
+                            val adapter = MangayomiSourceAdapter(mManifest, enginePool, bridge)
+                            activeSources[manifest.id] = adapter
+                            panelRepository?.registerSource(adapter)
+                        }
+                        manifest.script.contains("module.exports") -> {
+                            val lnManifest = LNReaderManifest(
+                                id = manifest.id,
+                                name = manifest.name,
+                                site = manifest.baseUrl,
+                                lang = manifest.lang,
+                                version = manifest.version,
+                                script = manifest.script,
+                                iconUrl = manifest.iconUrl
+                            )
+                            val adapter = LNReaderSourceAdapter(lnManifest, enginePool, bridge)
+                            activeSources[manifest.id] = adapter
+                            panelRepository?.registerSource(adapter)
+                        }
+                        manifest.script.contains("globalThis.Sources") || manifest.script.contains("Sources[") -> {
+                            val pbManifest = PaperbackManifest(
+                                id = manifest.id,
+                                name = manifest.name,
+                                websiteBaseURL = manifest.baseUrl,
+                                language = manifest.lang,
+                                version = manifest.version,
+                                contentRating = if (manifest.isNsfw) "ADULT" else "EVERYONE",
+                                script = manifest.script,
+                                iconUrl = manifest.iconUrl
+                            )
+                            val adapter = PaperbackSourceAdapter(pbManifest, enginePool, bridge, isV9 = false)
+                            activeSources[manifest.id] = adapter
+                            panelRepository?.registerSource(adapter)
+                        }
+                        else -> {
+                            val engine = JsEngine()
+                            val source = JsExtensionSource(manifest = manifest, engine = engine, bridge = bridge)
+                            source.initialize()
+                            activeSources[manifest.id] = source
+                            panelRepository?.registerSource(source)
+                        }
+                    }
+                }
+            }
         } catch (e: Exception) {
             println("[ExtensionManager] Failed to initialize source ${manifest.id}: ${e.message}")
         }
@@ -264,11 +464,25 @@ class ExtensionManager(
         } catch (_: Exception) {
             mutableListOf()
         }
-        if (!repos.contains(OFFICIAL_REPO_URL)) {
-            repos.add(OFFICIAL_REPO_URL)
-            saveRepositories(repos)
-        }
         _repoUrls.value = repos
+    }
+
+    fun seedDefaultsIfEmpty() {
+        if (_repoUrls.value.isEmpty()) {
+            val defaultRepos = listOf(
+                "https://raw.githubusercontent.com/RitwikGupta-0501/dokuha-extensions/main",
+                "https://raw.githubusercontent.com/keiyoushi/extensions/repo"
+            )
+            val current = _repoUrls.value.toMutableList()
+            for (repo in defaultRepos) {
+                if (!current.contains(repo)) current.add(repo)
+            }
+            _repoUrls.value = current
+            saveRepositories(current)
+            coroutineScope.launch {
+                refreshCatalog()
+            }
+        }
     }
 
     private fun saveRepositories(repos: List<String>) {
@@ -321,7 +535,8 @@ class ExtensionManager(
         val baseUrl: String,
         val type: String,
         val iconUrl: String? = null,
-        val isNsfw: Boolean = false
+        val isNsfw: Boolean = false,
+        val ecosystem: ExtensionEcosystem = ExtensionEcosystem.CUSTOM
     ) {
         fun toManifest(script: String): JsExtensionManifest = JsExtensionManifest(
             id = id,
@@ -332,12 +547,12 @@ class ExtensionManager(
             type = try { ExtensionType.valueOf(type.uppercase()) } catch (_: Exception) { ExtensionType.COMIC },
             iconUrl = iconUrl,
             isNsfw = isNsfw,
-            script = script
+            script = script,
+            ecosystem = ecosystem
         )
     }
 
     companion object {
-        const val OFFICIAL_REPO_URL = "https://raw.githubusercontent.com/RitwikGupta-0501/dokuha-extensions/main"
         private const val KEY_INSTALLED_IDS = "dokuha_installed_ext_ids"
         private const val KEY_REPO_URLS = "dokuha_repo_urls"
     }

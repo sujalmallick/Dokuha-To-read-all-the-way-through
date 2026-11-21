@@ -144,11 +144,45 @@ fun AddRepoDialog(
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Enter an HTTPS repository URL. Private networks and insecure HTTP are strictly blocked for security.",
+                        text = "Enter an HTTPS repository URL or choose a preset below. Private networks and insecure HTTP are strictly blocked for security.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary,
                         lineHeight = 18.sp
                     )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Popular Community Presets
+                    Text(
+                        text = "Quick Presets",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextTertiary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        RepoPresetChip("Dokuha Official", "https://raw.githubusercontent.com/RitwikGupta-0501/dokuha-extensions/main") {
+                            rawUrl = "https://raw.githubusercontent.com/RitwikGupta-0501/dokuha-extensions/main"
+                            customName = "Dokuha Official"
+                        }
+                        RepoPresetChip("Keiyoushi Community", "https://raw.githubusercontent.com/keiyoushi/extensions/repo") {
+                            rawUrl = "https://raw.githubusercontent.com/keiyoushi/extensions/repo"
+                            customName = "Keiyoushi Community"
+                        }
+                        RepoPresetChip("Mangayomi (Manga & Novels)", "https://kodjodevf.github.io/mangayomi-extensions") {
+                            rawUrl = "https://kodjodevf.github.io/mangayomi-extensions"
+                            customName = "Mangayomi"
+                        }
+                        RepoPresetChip("LNReader (370+ Web Novels)", "https://raw.githubusercontent.com/LNReader/lnreader-plugins/plugins/v3.0.0/.dist") {
+                            rawUrl = "https://raw.githubusercontent.com/LNReader/lnreader-plugins/plugins/v3.0.0/.dist"
+                            customName = "LNReader"
+                        }
+                        RepoPresetChip("Paperback (Default Comics)", "https://paperback-ios.github.io/extensions-default/0.8") {
+                            rawUrl = "https://paperback-ios.github.io/extensions-default/0.8"
+                            customName = "Paperback"
+                        }
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -327,6 +361,42 @@ fun AddRepoDialog(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun RepoPresetChip(
+    title: String,
+    url: String,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .border(0.5.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "+ $title",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF38BDF8)
+            )
+            Text(
+                text = url.substringAfter("://").substringBefore('/'),
+                style = MaterialTheme.typography.bodySmall,
+                fontSize = 10.sp,
+                color = TextSecondary.copy(alpha = 0.6f)
+            )
         }
     }
 }

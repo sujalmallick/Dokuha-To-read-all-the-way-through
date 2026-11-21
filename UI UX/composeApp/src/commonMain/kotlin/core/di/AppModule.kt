@@ -1,8 +1,9 @@
 package core.di
 
+import core.download.DownloadManager as CoreDownloadManager
 import core.storage.platformStorageModule
 import data.download.DefaultDownloadManager
-import data.download.DownloadManager
+import data.download.DownloadManager as DataDownloadManager
 import data.extension.DefaultExtensionRepository
 import data.extension.ExtensionRepository
 import data.library.CategoryRepository
@@ -17,20 +18,34 @@ import data.settings.SettingsRepository
 import data.tracker.ProductionTrackerRepository
 import data.tracker.TrackerRepository
 import core.extensions.ExtensionManager
+import core.extensions.js.AntiBotChallengeManager
+import core.extensions.js.AntiBotResolver
 import io.panel.reader.db.PanelDatabase
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.request.header
+import io.ktor.http.HttpHeaders
 import org.koin.dsl.module
 
 val appModule = module {
     includes(platformStorageModule)
-    single<HttpClient> { HttpClient() }
+    single<HttpClient> {
+        HttpClient {
+            defaultRequest {
+                header(HttpHeaders.UserAgent, "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
+            }
+        }
+    }
     single { PanelDatabase(get<DatabaseDriverFactory>().createDriver()) }
-    single<PanelRepository> { SqlDelightPanelRepository(database = get()) }
-    single<ExtensionManager> { ExtensionManager(storage = get(), panelRepository = get(), httpClient = getOrNull(), settingsRepository = getOrNull()) }
+    single { CoreDownloadManager(downloadStorage = get(), httpClient = getOrNull()) }
+    single { AntiBotChallengeManager(headlessSolver = getOrNull()) }
+    single<AntiBotResolver> { get<AntiBotChallengeManager>() }
+    single<PanelRepository> { SqlDelightPanelRepository(database = get(), downloadManager = getOrNull(), downloadStorage = getOrNull()) }
+    single<ExtensionManager>(createdAtStart = true) { ExtensionManager(storage = get(), panelRepository = get(), httpClient = getOrNull(), settingsRepository = getOrNull(), antiBotResolver = getOrNull(), autoSeedDefaults = true) }
     single<TrackerRepository> { ProductionTrackerRepository(getOrNull()) }
     single<SettingsRepository> { PersistentSettingsRepository(get()) }
     single<ProfileRepository> { PersistentProfileRepository(get(), get()) }
-    single<DownloadManager> { DefaultDownloadManager() }
+    single<DataDownloadManager> { DefaultDownloadManager() }
     single<ExtensionRepository> { DefaultExtensionRepository() }
     single<CategoryRepository> { DefaultCategoryRepository() }
 }

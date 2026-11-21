@@ -29,13 +29,17 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -61,16 +65,19 @@ import data.download.DefaultDownloadManager
 import data.download.DownloadManager
 import data.download.DownloadStatus
 import data.mock.PanelRepository
+import kotlinx.coroutines.flow.onEach
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.ChapterRowItem
 import ui.components.PanelCircleIconButton
 import ui.components.PanelPillButton
+import ui.glass.glassPress
 import ui.glass.glassSource
 import ui.glass.nonGlassPress
 import ui.glass.rememberPanelGlassState
 import ui.screens.novelreader.NovelReaderScreen
 import ui.screens.webtoonreader.WebtoonReaderScreen
+import ui.theme.CapsuleShape
 import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
 import ui.theme.PanelBackground
@@ -82,7 +89,12 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import ui.theme.TextSecondary
 
-data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") : Screen {
+data class TitleDetailsScreen(
+    val mangaUrl: String = "manga/the-last-horizon",
+    val initialTitle: String = "",
+    val initialThumbnailUrl: String? = null,
+    val sourceId: String? = null
+) : Screen {
 
     @Composable
     override fun Content() {
@@ -90,19 +102,39 @@ data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") :
         val repository: PanelRepository = koinInject()
         val downloadManager: DownloadManager = koinInject()
         val scope = rememberCoroutineScope()
+        var refreshTrigger by remember { mutableIntStateOf(0) }
+        var isLoadingDetails by remember(mangaUrl, sourceId, refreshTrigger) { mutableStateOf(true) }
+        var isLoadingChapters by remember(mangaUrl, sourceId, refreshTrigger) { mutableStateOf(true) }
 
-        val manga by repository.getMangaDetails(mangaUrl).collectAsState(initial = null)
-        val chapters by repository.getChapters(mangaUrl).collectAsState(initial = emptyList())
-        val library by repository.getLibrary("All").collectAsState(initial = emptyList())
+        val manga by remember(mangaUrl, sourceId, refreshTrigger) {
+            repository.getMangaDetails(mangaUrl, sourceId, initialTitle)
+                .onEach { isLoadingDetails = false }
+        }.collectAsState(
+            initial = if (initialTitle.isNotBlank()) {
+                SourceManga(url = mangaUrl, title = initialTitle, thumbnailUrl = initialThumbnailUrl, sourceId = sourceId?.toLongOrNull() ?: 0L)
+            } else {
+                null
+            }
+        )
+
+        val chapters by remember(mangaUrl, sourceId, refreshTrigger) {
+            repository.getChapters(mangaUrl, sourceId)
+                .onEach { isLoadingChapters = false }
+        }.collectAsState(initial = emptyList())
+
+        val library by remember { repository.getLibrary("All") }.collectAsState(initial = emptyList())
         val isInLibrary = library.any { it.url == mangaUrl }
 
         TitleDetailsScreenContent(
             manga = manga,
             chapters = chapters,
+            isLoadingDetails = isLoadingDetails,
+            isLoadingChapters = isLoadingChapters,
             downloadManager = downloadManager,
             isInLibrary = isInLibrary,
+            onRefresh = { refreshTrigger++ },
             onToggleLibrary = {
-                val currentManga = manga ?: SourceManga(url = mangaUrl, title = "Unknown")
+                val currentManga = manga ?: SourceManga(url = mangaUrl, title = initialTitle.ifBlank { "Unknown" }, thumbnailUrl = initialThumbnailUrl)
                 scope.launch {
                     repository.toggleFavorite(currentManga, !isInLibrary)
                 }
@@ -112,7 +144,17 @@ data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") :
                 if (manga?.isNovel == true) {
                     navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name))
                 } else {
-                    navigator.push(WebtoonReaderScreen(mangaUrl, chapter.url))
+                    navigator.push(WebtoonReaderScreen(mangaUrl, chapter.url, chapter.name))
+                }
+            },
+            onDownloadChapter = { chapter ->
+                val currentManga = manga ?: SourceManga(url = mangaUrl, title = initialTitle.ifBlank { "Unknown" }, thumbnailUrl = initialThumbnailUrl)
+                repository.enqueueDownload(currentManga, chapter)
+            },
+            onDownloadAll = {
+                val currentManga = manga ?: SourceManga(url = mangaUrl, title = initialTitle.ifBlank { "Unknown" }, thumbnailUrl = initialThumbnailUrl)
+                chapters.forEach { ch ->
+                    repository.enqueueDownload(currentManga, ch)
                 }
             }
         )
@@ -123,10 +165,15 @@ data class TitleDetailsScreen(val mangaUrl: String = "manga/the-last-horizon") :
 fun TitleDetailsScreenContent(
     manga: SourceManga?,
     chapters: List<SourceChapter>,
+    isLoadingDetails: Boolean = false,
+    isLoadingChapters: Boolean = false,
     isInLibrary: Boolean = false,
+    onRefresh: () -> Unit = {},
     onToggleLibrary: () -> Unit = {},
     onBack: () -> Unit,
     onReadChapter: (SourceChapter) -> Unit,
+    onDownloadChapter: (SourceChapter) -> Unit = {},
+    onDownloadAll: () -> Unit = {},
     modifier: Modifier = Modifier,
     downloadManager: DownloadManager = remember { DefaultDownloadManager(autoStartSimulation = false) }
 ) {
@@ -230,7 +277,8 @@ fun TitleDetailsScreenContent(
                         icon = Icons.Default.PlayArrow,
                         onClick = {
                             if (chapters.isNotEmpty()) {
-                                onReadChapter(chapters.first())
+                                val firstChapter = chapters.lastOrNull() ?: chapters.first()
+                                onReadChapter(firstChapter)
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
@@ -252,7 +300,10 @@ fun TitleDetailsScreenContent(
                         ActionGlassButton(
                             icon = Icons.Default.FileDownload,
                             text = "Download",
-                            onClick = { showBatchDownloadSheet = true },
+                            onClick = {
+                                showBatchDownloadSheet = true
+                                onDownloadAll()
+                            },
                             modifier = Modifier.weight(1f)
                         )
                         ActionGlassButton(
@@ -275,26 +326,29 @@ fun TitleDetailsScreenContent(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    val description = displayManga.description ?: ""
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = TextSecondary,
-                        maxLines = if (isDescriptionExpanded) Int.MAX_VALUE else 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (description.length > 80) {
-                        Spacer(modifier = Modifier.height(4.dp))
+                    val description = displayManga.description?.takeIf { it.isNotBlank() }
+                        ?: if (isLoadingDetails) "Loading synopsis..." else ""
+                    if (description.isNotEmpty()) {
                         Text(
-                            text = if (isDescriptionExpanded) "Show Less" else "More",
-                            color = ElectricBlue,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { isDescriptionExpanded = !isDescriptionExpanded }
-                                .padding(vertical = 2.dp)
+                            text = description,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = TextSecondary,
+                            maxLines = if (isDescriptionExpanded) Int.MAX_VALUE else 2,
+                            overflow = TextOverflow.Ellipsis
                         )
+                        if (description.length > 80) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (isDescriptionExpanded) "Show Less" else "More",
+                                color = ElectricBlue,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { isDescriptionExpanded = !isDescriptionExpanded }
+                                    .padding(vertical = 2.dp)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
@@ -306,7 +360,7 @@ fun TitleDetailsScreenContent(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Chapters (${chapters.size.takeIf { it > 0 } ?: 210})",
+                            text = if (isLoadingChapters && chapters.isEmpty()) "Chapters" else "Chapters (${chapters.size})",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
@@ -323,6 +377,72 @@ fun TitleDetailsScreenContent(
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
+                }
+            }
+
+            if (isLoadingChapters && chapters.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 40.dp, horizontal = 20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(32.dp),
+                                color = ElectricBlue,
+                                strokeWidth = 2.5.dp
+                            )
+                            Text(
+                                text = "Loading chapters...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                }
+            } else if (chapters.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 28.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val retryInteraction = remember { MutableInteractionSource() }
+                        Row(
+                            modifier = Modifier
+                                .clip(CapsuleShape)
+                                .glassPress(retryInteraction)
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .border(1.dp, GlassBorder, CapsuleShape)
+                                .clickable(
+                                    interactionSource = retryInteraction,
+                                    indication = null,
+                                    onClick = onRefresh
+                                )
+                                .padding(horizontal = 20.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                tint = ElectricBlue,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "No chapters found. Tap to reload",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextSecondary
+                            )
+                        }
+                    }
                 }
             }
 
@@ -354,6 +474,7 @@ fun TitleDetailsScreenContent(
                         onDownloadClick = {
                             if (!isDownloaded && chapterStatus == null) {
                                 downloadManager.enqueue(displayManga, listOf(chapter))
+                                onDownloadChapter(chapter)
                             } else if (chapterStatus == DownloadStatus.DOWNLOADING) {
                                 downloadManager.pause("${displayManga.url}::${chapter.url}")
                             } else if (chapterStatus == DownloadStatus.PAUSED) {

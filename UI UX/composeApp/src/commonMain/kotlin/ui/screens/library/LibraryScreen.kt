@@ -108,13 +108,20 @@ class LibraryScreen : Screen {
             repository = repository,
             categoryRepository = categoryRepo,
             onOpenManga = { manga ->
-                navigator.push(TitleDetailsScreen(manga.url))
+                navigator.push(
+                    TitleDetailsScreen(
+                        mangaUrl = manga.url,
+                        initialTitle = manga.title,
+                        initialThumbnailUrl = manga.thumbnailUrl,
+                        sourceId = if (manga.sourceId != 0L) manga.sourceId.toString() else null
+                    )
+                )
             },
             onResumeChapter = { manga, chapter ->
                 if (manga.isNovel) {
                     navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name))
                 } else {
-                    navigator.push(WebtoonReaderScreen(manga.url, chapter.url))
+                    navigator.push(WebtoonReaderScreen(manga.url, chapter.url, chapter.name))
                 }
             },
             onTabSelected = { tab ->
@@ -342,7 +349,7 @@ fun LibraryScreenContent(
             }
 
             // Empty Library State
-            if (libraryItems.isEmpty() && continueReadingPair == null) {
+            if (filteredLibraryItems.isEmpty() && continueReadingPair == null) {
                 item(span = { GridItemSpan(3) }) {
                     Box(
                         modifier = Modifier

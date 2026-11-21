@@ -4,9 +4,11 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -30,21 +32,24 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,15 +63,24 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import core.extensions.ExtensionManager
+import core.extensions.js.ExtensionCatalogItem
+import core.extensions.js.ExtensionType
+import core.extensions.js.JsExtensionManifest
+import core.extensions.model.ExtensionEcosystem
 import data.extension.DefaultExtensionRepository
 import data.extension.ExtensionItem
 import data.extension.ExtensionRepository
+import data.extension.ExtensionSourceInfo
 import data.extension.ExtensionStatus
 import data.extension.ExtensionTrustLevel
 import data.mock.MockExtension
+import data.mock.PanelRepository
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.GlassSegmentedControl
@@ -76,10 +90,12 @@ import ui.glass.glassPress
 import ui.glass.glassSource
 import ui.glass.rememberPanelGlassState
 import ui.screens.browse.BrowseScreen
+import ui.screens.browse.SourceDetailScreen
 import ui.screens.library.LibraryScreen
 import ui.screens.more.MoreScreen
 import ui.screens.updates.UpdatesScreen
 import ui.theme.CapsuleShape
+import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
 import ui.theme.PanelBackground
 import ui.theme.PanelTheme
@@ -88,76 +104,194 @@ import ui.theme.TextPrimary
 import ui.theme.TextSecondary
 import ui.theme.TextTertiary
 
-import androidx.compose.runtime.rememberCoroutineScope
-import core.extensions.ExtensionManager
-import kotlinx.coroutines.launch
-
 class ExtensionsScreen : Screen {
 
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repository: ExtensionRepository = koinInject()
-        val panelRepository: PanelRepository = koinInject()
         val extensionManager: ExtensionManager = koinInject()
         val coroutineScope = rememberCoroutineScope()
 
-        val mockExtensions by panelRepository.getExtensions().collectAsState(initial = emptyList())
         val installedExts by extensionManager.installedExtensions.collectAsState(initial = emptyList())
         val availableCatalog by extensionManager.availableExtensions.collectAsState(initial = emptyList())
+        val extensionVariants by extensionManager.extensionVariants.collectAsState(initial = emptyMap())
+        val fallbackMockExtensions by repository.extensions.collectAsState(initial = emptyList())
 
-        val effectiveExtensions = remember(mockExtensions, installedExts, availableCatalog) {
-            if (installedExts.isNotEmpty() || availableCatalog.isNotEmpty()) {
-                val installedIds = installedExts.map { it.id }.toSet()
-                val list = mutableListOf<MockExtension>()
-                for (inst in installedExts) {
-                    list.add(
-                        MockExtension(
-                            id = inst.id,
-                            name = inst.name,
-                            version = inst.version,
-                            lang = inst.lang.uppercase(),
-                            isInstalled = true,
-                            hasUpdate = false,
-                            iconUrl = inst.iconUrl
-                        )
+        // Map live ExtensionManager data to upstream ExtensionItem models
+        val effectiveExtensions = remember(installedExts, availableCatalog, fallbackMockExtensions) {
+            val list = mutableListOf<ExtensionItem>()
+            val installedIds = installedExts.map { it.id }.toSet()
+            val installedKeys = installedExts.map { "${it.name.lowercase().trim()}::${it.lang.lowercase().trim()}" }.toSet()
+
+            // 1. Installed extensions
+            for (inst in installedExts) {
+                // Check if an update is available in catalog
+                val catalogMatch = availableCatalog.firstOrNull { it.id == inst.id }
+                val hasUpdate = catalogMatch != null && catalogMatch.version != inst.version
+
+                list.add(
+                    ExtensionItem(
+                        id = inst.id,
+                        name = inst.name,
+                        pkgName = "dokuha.extension.${inst.id.replace('-', '.')}",
+                        versionName = inst.version,
+                        versionCode = 1L,
+                        lang = inst.lang.uppercase(),
+                        isNsfw = inst.isNsfw,
+                        trustLevel = trustLevelFor(inst.ecosystem, inst.baseUrl),
+                        repoUrl = inst.baseUrl,
+                        status = if (hasUpdate) ExtensionStatus.UPDATE_AVAILABLE else ExtensionStatus.INSTALLED,
+                        updateVersion = if (hasUpdate) catalogMatch?.version else null,
+                        iconColorHex = brandColorFor(inst.name),
+                        description = "Installed extension for reading ${if (inst.type == ExtensionType.NOVEL) "web novels" else "manga & comics"} from ${inst.name}.",
+                        sources = listOf(
+                            ExtensionSourceInfo(
+                                id = inst.id,
+                                name = inst.name,
+                                baseUrl = inst.baseUrl,
+                                languages = listOf(inst.lang.uppercase()),
+                                contentType = if (inst.type == ExtensionType.NOVEL) "Novel" else "Manga"
+                            )
+                        ),
+                        networkDomains = listOf(inst.baseUrl.substringAfter("://").substringBefore('/'))
                     )
+                )
+            }
+
+            // 2. Available extensions (deduplicated against installed and other catalog variants)
+            val seenKeys = mutableSetOf<String>()
+            for (avail in availableCatalog) {
+                val key = "${avail.name.lowercase().trim()}::${avail.lang.lowercase().trim()}"
+                if (installedIds.contains(avail.id) || installedKeys.contains(key) || seenKeys.contains(key)) {
+                    continue
                 }
-                for (avail in availableCatalog) {
-                    if (!installedIds.contains(avail.id)) {
-                        list.add(
-                            MockExtension(
+                seenKeys.add(key)
+                list.add(
+                    ExtensionItem(
+                        id = avail.id,
+                        name = avail.name,
+                        pkgName = avail.pkg.ifBlank { "dokuha.extension.${avail.id.replace('-', '.')}" },
+                        versionName = avail.version,
+                        versionCode = 1L,
+                        lang = avail.lang.uppercase(),
+                        isNsfw = avail.isNsfw,
+                        trustLevel = trustLevelFor(avail.ecosystem, avail.repoBaseUrl),
+                        repoUrl = avail.repoBaseUrl,
+                        status = ExtensionStatus.AVAILABLE,
+                        iconColorHex = brandColorFor(avail.name),
+                        description = "Community extension for ${if (avail.type == ExtensionType.NOVEL) "web novels" else "manga"} from ${avail.name}.",
+                        sources = listOf(
+                            ExtensionSourceInfo(
                                 id = avail.id,
                                 name = avail.name,
-                                version = avail.version,
-                                lang = avail.lang.uppercase(),
-                                isInstalled = false,
-                                hasUpdate = false,
-                                iconUrl = avail.iconUrl
+                                baseUrl = avail.baseUrl,
+                                languages = listOf(avail.lang.uppercase()),
+                                contentType = if (avail.type == ExtensionType.NOVEL) "Novel" else "Manga"
                             )
-                        )
-                    }
-                }
-                list
+                        ),
+                        networkDomains = listOf(avail.baseUrl.substringAfter("://").substringBefore('/'))
+                    )
+                )
+            }
+
+            // Fallback to repository mock extensions if catalog has not yet populated
+            if (list.isEmpty()) {
+                fallbackMockExtensions
             } else {
-                mockExtensions
+                list
             }
         }
 
+        // Pending install that needs repo selection (set when multiple repos provide the extension)
+        var pendingInstallItem by remember { mutableStateOf<ExtensionItem?>(null) }
+
+        val pendingVariants = remember(pendingInstallItem, extensionVariants) {
+            val item = pendingInstallItem ?: return@remember emptyList()
+            val key = "${item.name.lowercase().trim()}::${item.lang.lowercase().trim()}"
+            extensionVariants[key] ?: emptyList()
+        }
+
+        if (pendingInstallItem != null && pendingVariants.isNotEmpty()) {
+            RepoPickerDialog(
+                extensionName = pendingInstallItem!!.name,
+                variants = pendingVariants,
+                onSelect = { chosen ->
+                    pendingInstallItem = null
+                    coroutineScope.launch {
+                        val success = extensionManager.installExtension(chosen, chosen.repoBaseUrl)
+                        println("[ExtensionsScreen] Install from repo picker result: $success")
+                    }
+                },
+                onDismiss = { pendingInstallItem = null }
+            )
+        }
+
         ExtensionsScreenContent(
-            initialExtensions = effectiveExtensions,
+            extensions = effectiveExtensions,
             extensionRepository = repository,
-            onActionClick = { ext ->
-                coroutineScope.launch {
-                    if (ext.isInstalled) {
-                        extensionManager.uninstallExtension(ext.id)
-                    } else {
+            onInstall = { ext ->
+                val key = "${ext.name.lowercase().trim()}::${ext.lang.lowercase().trim()}"
+                val variants = extensionVariants[key] ?: emptyList()
+                if (variants.size > 1) {
+                    pendingInstallItem = ext
+                } else {
+                    coroutineScope.launch {
                         val catalogItem = availableCatalog.firstOrNull { it.id == ext.id }
                         if (catalogItem != null) {
-                            val repoBase = extensionManager.repoUrls.value.firstOrNull() ?: ""
+                            val repoBase = catalogItem.repoBaseUrl.ifBlank {
+                                extensionManager.repoUrls.value.firstOrNull() ?: ""
+                            }
                             extensionManager.installExtension(catalogItem, repoBase)
+                        } else {
+                            repository.installExtension(ext.id)
                         }
                     }
+                }
+            },
+            onUpdate = { ext ->
+                coroutineScope.launch {
+                    val catalogItem = availableCatalog.firstOrNull { it.id == ext.id }
+                    if (catalogItem != null) {
+                        val repoBase = catalogItem.repoBaseUrl.ifBlank {
+                            extensionManager.repoUrls.value.firstOrNull() ?: ""
+                        }
+                        extensionManager.installExtension(catalogItem, repoBase)
+                    } else {
+                        repository.updateExtension(ext.id)
+                    }
+                }
+            },
+            onUninstall = { ext ->
+                coroutineScope.launch {
+                    extensionManager.uninstallExtension(ext.id)
+                    repository.uninstallExtension(ext.id)
+                }
+            },
+            onClearCache = { ext ->
+                repository.clearExtensionCache(ext.id)
+            },
+            onBrowse = { ext ->
+                navigator.push(SourceDetailScreen(ext.id, ext.name))
+            },
+            onAddRepo = { url, name ->
+                val result = extensionManager.addRepository(url)
+                repository.addRepository(url, name)
+                coroutineScope.launch {
+                    extensionManager.refreshCatalog()
+                }
+                result.isValid
+            },
+            onRefresh = {
+                coroutineScope.launch {
+                    extensionManager.refreshCatalog()
+                }
+            },
+            onLongClick = { ext ->
+                val key = "${ext.name.lowercase().trim()}::${ext.lang.lowercase().trim()}"
+                val variants = extensionVariants[key] ?: emptyList()
+                if (variants.isNotEmpty()) {
+                    pendingInstallItem = ext
                 }
             },
             onTabSelected = { tab ->
@@ -174,10 +308,17 @@ class ExtensionsScreen : Screen {
 
 @Composable
 fun ExtensionsScreenContent(
-    initialExtensions: List<MockExtension> = emptyList(),
+    extensions: List<ExtensionItem> = emptyList(),
     extensionRepository: ExtensionRepository? = null,
     onTabSelected: (PanelTab) -> Unit = {},
-    onActionClick: (MockExtension) -> Unit = {},
+    onInstall: (ExtensionItem) -> Unit = {},
+    onUpdate: (ExtensionItem) -> Unit = {},
+    onUninstall: (ExtensionItem) -> Unit = {},
+    onClearCache: (ExtensionItem) -> Unit = {},
+    onBrowse: (ExtensionItem) -> Unit = {},
+    onAddRepo: (url: String, name: String?) -> Boolean = { _, _ -> true },
+    onRefresh: () -> Unit = {},
+    onLongClick: (ExtensionItem) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val repository = remember(extensionRepository) {
@@ -185,17 +326,22 @@ fun ExtensionsScreenContent(
     }
 
     val glassState = rememberPanelGlassState()
-    val extensions by repository.extensions.collectAsState()
-    val selectedLang by repository.selectedLanguage.collectAsState()
-    val searchQuery by repository.searchQuery.collectAsState()
 
-    var selectedStatusTab by remember { mutableStateOf("Installed") }
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedLang by remember { mutableStateOf("ALL") }
+    val hasInstalled = extensions.any { it.status == ExtensionStatus.INSTALLED || it.status == ExtensionStatus.UPDATE_AVAILABLE }
+    var selectedStatusTab by remember { mutableStateOf(if (hasInstalled) "Installed" else "Available") }
+
     var selectedExtensionForSheet by remember { mutableStateOf<ExtensionItem?>(null) }
     var isAddRepoVisible by remember { mutableStateOf(false) }
 
-    val languages = listOf("ALL", "EN", "JA", "KO", "ES", "FR")
+    // Derive languages from actual extensions list + standard defaults
+    val languages = remember(extensions) {
+        val extra = extensions.map { it.lang }.filter { it.isNotBlank() && it != "ALL" }.distinct().sorted()
+        (listOf("ALL", "EN", "JA", "KO", "ES", "FR") + extra).distinct()
+    }
 
-    // Filter by tab, language, and search query
+    // Tab counts
     val installedCount = extensions.count { it.status == ExtensionStatus.INSTALLED || it.status == ExtensionStatus.UPDATE_AVAILABLE }
     val updatesCount = extensions.count { it.status == ExtensionStatus.UPDATE_AVAILABLE }
     val availableCount = extensions.count { it.status == ExtensionStatus.AVAILABLE || it.status == ExtensionStatus.INSTALLING }
@@ -286,37 +432,60 @@ fun ExtensionsScreenContent(
                             letterSpacing = (-0.5).sp
                         )
 
-                        // Add Repo Pill Button
-                        Box(
-                            modifier = Modifier
-                                .clip(CapsuleShape)
-                                .background(Color.White.copy(alpha = 0.08f))
-                                .border(1.dp, Color.White.copy(alpha = 0.16f), CapsuleShape)
-                                .clickable { isAddRepoVisible = true }
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            // Refresh Button
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.06f))
+                                    .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape)
+                                    .clickable { onRefresh() },
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = null,
-                                    tint = Color.White,
-                                    modifier = Modifier.size(14.dp)
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Refresh Catalog",
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(16.dp)
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Repo",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color.White
-                                )
+                            }
+
+                            // Add Repo Pill Button
+                            Box(
+                                modifier = Modifier
+                                    .clip(CapsuleShape)
+                                    .background(Color.White.copy(alpha = 0.08f))
+                                    .border(1.dp, Color.White.copy(alpha = 0.16f), CapsuleShape)
+                                    .clickable { isAddRepoVisible = true }
+                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = null,
+                                        tint = Color.White,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Repo",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color.White
+                                    )
+                                }
                             }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Search Field
+                    // Glass Search Field
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -343,7 +512,7 @@ fun ExtensionsScreenContent(
                                 }
                                 BasicTextField(
                                     value = searchQuery,
-                                    onValueChange = { repository.setSearchQuery(it) },
+                                    onValueChange = { searchQuery = it },
                                     textStyle = TextStyle(
                                         color = TextPrimary,
                                         fontSize = 14.sp
@@ -360,7 +529,7 @@ fun ExtensionsScreenContent(
                                     tint = TextSecondary,
                                     modifier = Modifier
                                         .size(16.dp)
-                                        .clickable { repository.setSearchQuery("") }
+                                        .clickable { searchQuery = "" }
                                 )
                             }
                         }
@@ -401,7 +570,7 @@ fun ExtensionsScreenContent(
                                         if (isSelected) Color.White else Color.White.copy(alpha = 0.12f),
                                         CapsuleShape
                                     )
-                                    .clickable { repository.setLanguageFilter(lang) }
+                                    .clickable { selectedLang = lang }
                                     .padding(horizontal = 14.dp, vertical = 6.dp),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -440,9 +609,13 @@ fun ExtensionsScreenContent(
                     ExtensionCardItem(
                         extension = ext,
                         onCardClick = { selectedExtensionForSheet = ext },
-                        onInstallClick = { repository.installExtension(ext.id) },
-                        onUpdateClick = { repository.updateExtension(ext.id) },
-                        onSettingsClick = { selectedExtensionForSheet = ext }
+                        onBrowseClick = { onBrowse(ext) },
+                        onInstallClick = { onInstall(ext) },
+                        onUpdateClick = { onUpdate(ext) },
+                        onSettingsClick = { selectedExtensionForSheet = ext },
+                        onLongClick = if (ext.status == ExtensionStatus.AVAILABLE) {
+                            { onLongClick(ext) }
+                        } else null
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -465,20 +638,24 @@ fun ExtensionsScreenContent(
             extension = selectedExtensionForSheet,
             isVisible = selectedExtensionForSheet != null,
             onDismiss = { selectedExtensionForSheet = null },
+            onBrowse = { ext ->
+                selectedExtensionForSheet = null
+                onBrowse(ext)
+            },
             onInstall = { ext ->
-                repository.installExtension(ext.id)
+                onInstall(ext)
                 selectedExtensionForSheet = null
             },
             onUpdate = { ext ->
-                repository.updateExtension(ext.id)
+                onUpdate(ext)
                 selectedExtensionForSheet = null
             },
             onUninstall = { ext ->
-                repository.uninstallExtension(ext.id)
+                onUninstall(ext)
                 selectedExtensionForSheet = null
             },
             onClearCache = { ext ->
-                repository.clearExtensionCache(ext.id)
+                onClearCache(ext)
             }
         )
 
@@ -487,12 +664,13 @@ fun ExtensionsScreenContent(
             isVisible = isAddRepoVisible,
             onDismiss = { isAddRepoVisible = false },
             onAddRepo = { url, name ->
-                repository.addRepository(url, name)
+                onAddRepo(url, name)
             }
         )
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ExtensionCardItem(
     extension: ExtensionItem,
@@ -500,6 +678,8 @@ private fun ExtensionCardItem(
     onInstallClick: () -> Unit,
     onUpdateClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onBrowseClick: () -> Unit = {},
+    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -530,7 +710,22 @@ private fun ExtensionCardItem(
                 ),
                 shape = shape
             )
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onCardClick)
+            .then(
+                if (onLongClick != null) {
+                    Modifier.combinedClickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onCardClick,
+                        onLongClick = onLongClick
+                    )
+                } else {
+                    Modifier.clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onCardClick
+                    )
+                }
+            )
             .padding(horizontal = 16.dp, vertical = 14.dp)
     ) {
         Row(
@@ -705,24 +900,45 @@ private fun ExtensionCardItem(
                 ExtensionStatus.INSTALLED -> {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(CapsuleShape)
-                            .clickable(onClick = onSettingsClick)
-                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text(
-                            text = "Installed",
-                            color = TextSecondary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings",
-                            tint = TextTertiary,
-                            modifier = Modifier.size(14.dp)
-                        )
+                        val browseInteraction = remember { MutableInteractionSource() }
+                        Box(
+                            modifier = Modifier
+                                .clip(CapsuleShape)
+                                .glassPress(browseInteraction)
+                                .background(Color.White.copy(alpha = 0.12f))
+                                .border(0.5.dp, Color.White.copy(alpha = 0.25f), CapsuleShape)
+                                .clickable(
+                                    interactionSource = browseInteraction,
+                                    indication = null,
+                                    onClick = onBrowseClick
+                                )
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Browse",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .clickable(onClick = onSettingsClick),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = "Settings",
+                                tint = TextSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
                 }
                 ExtensionStatus.UNINSTALLING -> {
@@ -735,6 +951,155 @@ private fun ExtensionCardItem(
                 }
             }
         }
+    }
+}
+
+/**
+ * Liquid glass dialog shown when multiple repositories provide the same extension.
+ * Lists each repo variant with its version and repository URL.
+ */
+@Composable
+private fun RepoPickerDialog(
+    extensionName: String,
+    variants: List<ExtensionCatalogItem>,
+    onSelect: (ExtensionCatalogItem) -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color(0xFF131720))
+                .border(1.dp, GlassBorder, RoundedCornerShape(24.dp))
+                .padding(22.dp)
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                // Header
+                Text(
+                    text = "Choose Repository",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = TextPrimary
+                )
+                Text(
+                    text = "Multiple repositories provide \"$extensionName\". Pick the variant to install:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
+                // One row per repo variant
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    variants.forEach { variant ->
+                        RepoVariantRow(variant = variant, onClick = { onSelect(variant) })
+                    }
+                }
+
+                HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
+
+                // Cancel Button
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel", color = TextSecondary)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RepoVariantRow(
+    variant: ExtensionCatalogItem,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.White.copy(alpha = 0.05f))
+            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(14.dp))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                val displayRepo = variant.repoBaseUrl
+                    .removePrefix("https://")
+                    .removePrefix("http://")
+                    .trimEnd('/')
+                Text(
+                    text = displayRepo.ifBlank { "Unknown Repository" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "v${variant.version} • ${variant.lang.uppercase()}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Box(
+                modifier = Modifier
+                    .clip(CapsuleShape)
+                    .background(Color.White)
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Install",
+                    color = Color(0xFF090D15),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+private fun brandColorFor(name: String): Long {
+    val lower = name.lowercase()
+    return when {
+        lower.contains("mangadex") -> 0xFFFF6740
+        lower.contains("comick") -> 0xFF60A5FA
+        lower.contains("asura") -> 0xFFA855F7
+        lower.contains("webnovel") -> 0xFFEC4899
+        lower.contains("flame") -> 0xFFF97316
+        lower.contains("mangayomi") || lower.contains("kodjodevf") -> 0xFF00DC64
+        lower.contains("lnreader") -> 0xFF8B5CF6
+        lower.contains("paperback") -> 0xFFF59E0B
+        else -> {
+            val palette = listOf(0xFF38BDF8, 0xFFA855F7, 0xFFEC4899, 0xFF10B981, 0xFFF59E0B, 0xFF6366F1, 0xFF06B6D4)
+            palette[kotlin.math.abs(name.hashCode()) % palette.size]
+        }
+    }
+}
+
+private fun trustLevelFor(ecosystem: ExtensionEcosystem, repoUrl: String): ExtensionTrustLevel {
+    val lower = repoUrl.lowercase()
+    return when {
+        lower.contains("dokuha") || lower.contains("tachiyomi") || ecosystem == ExtensionEcosystem.CUSTOM -> ExtensionTrustLevel.OFFICIAL
+        lower.contains("keiyoushi") || lower.contains("mangayomi") || lower.contains("lnreader") || lower.contains("paperback") -> ExtensionTrustLevel.COMMUNITY
+        else -> ExtensionTrustLevel.COMMUNITY
     }
 }
 

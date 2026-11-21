@@ -41,6 +41,7 @@ import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -139,10 +140,16 @@ data class WebtoonReaderScreen(
         val coroutineScope = rememberCoroutineScope()
 
         LaunchedEffect(currentChapterUrl) {
+            println("[WebtoonReaderScreen] LaunchedEffect for chapter: $currentChapterUrl, mangaUrl: $mangaUrl")
             repository.recordHistory(currentChapterUrl)
         }
 
+        LaunchedEffect(pages) {
+            println("[WebtoonReaderScreen] pages state updated, count: ${pages.size}")
+        }
+
         WebtoonReaderScreenContent(
+            chapterUrl = currentChapterUrl,
             chapterTitle = currentChapterTitle,
             pages = pages,
             onBack = { navigator.pop() },
@@ -183,6 +190,7 @@ data class WebtoonReaderScreen(
 
 @Composable
 fun WebtoonReaderScreenContent(
+    chapterUrl: String = "",
     chapterTitle: String,
     pages: List<SourcePage>,
     onBack: () -> Unit,
@@ -212,9 +220,7 @@ fun WebtoonReaderScreenContent(
     var areControlsVisible by remember { mutableStateOf(true) }
     var isBookmarked by remember { mutableStateOf(false) }
 
-    val displayPages = if (pages.isNotEmpty()) pages else (1..6).map {
-        SourcePage(index = it, url = "slice_$it")
-    }
+    val displayPages = pages
 
     val isRtl = readingMode == DefaultReadingMode.RIGHT_TO_LEFT
 
@@ -337,7 +343,60 @@ fun WebtoonReaderScreenContent(
                 .padding(horizontal = horizontalPadding)
                 .glassSource(glassState)
         ) {
-            when (readingMode) {
+            if (displayPages.isEmpty()) {
+                val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                val isExternal = chapterUrl.startsWith("http://", ignoreCase = true) || chapterUrl.startsWith("https://", ignoreCase = true)
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isExternal) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Text(
+                                text = "Official External Chapter",
+                                style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "This chapter is officially hosted externally.\nTap below to open and read on the official site.",
+                                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(24.dp))
+                            ui.components.PanelPillButton(
+                                text = "Open in Browser",
+                                icon = Icons.Default.PlayArrow,
+                                onClick = { uriHandler.openUri(chapterUrl) }
+                            )
+                        }
+                    } else {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                color = ElectricBlue,
+                                modifier = Modifier.size(40.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Loading chapter pages...",
+                                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary
+                            )
+                        }
+                    }
+                }
+            } else {
+                when (readingMode) {
                 DefaultReadingMode.WEBTOON -> {
                     LazyColumn(
                         state = listState,
@@ -525,6 +584,7 @@ fun WebtoonReaderScreenContent(
                         }
                     }
                 }
+            }
             }
         }
 
@@ -1049,12 +1109,11 @@ fun WebtoonPanelSlice(
                 .data(imageUrl)
                 .apply {
                     val headers = page?.headers
-                    if (!headers.isNullOrEmpty()) {
-                        val networkHeaders = NetworkHeaders.Builder().apply {
-                            headers.forEach { (k, v) -> add(k, v) }
-                        }.build()
-                        httpHeaders(networkHeaders)
-                    }
+                    val networkHeaders = NetworkHeaders.Builder().apply {
+                        add("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
+                        headers?.forEach { (k, v) -> add(k, v) }
+                    }.build()
+                    httpHeaders(networkHeaders)
                 }
                 .build()
         }
@@ -1062,7 +1121,18 @@ fun WebtoonPanelSlice(
             model = imageRequest,
             contentDescription = "Slice ${sliceIndex + 1}",
             contentScale = ContentScale.FillWidth,
-            modifier = modifier.fillMaxWidth()
+            modifier = modifier.fillMaxWidth(),
+            onState = { state ->
+                when (state) {
+                    is coil3.compose.AsyncImagePainter.State.Error -> {
+                        println("[WebtoonPanelSlice] Page $sliceIndex FAILED: ${state.result.throwable.message}")
+                    }
+                    is coil3.compose.AsyncImagePainter.State.Success -> {
+                        println("[WebtoonPanelSlice] Page $sliceIndex SUCCESS: ${state.result.image.width}x${state.result.image.height}")
+                    }
+                    else -> {}
+                }
+            }
         )
     } else {
         Canvas(modifier = modifier) {

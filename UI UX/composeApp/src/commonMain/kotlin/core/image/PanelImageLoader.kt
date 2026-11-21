@@ -6,6 +6,9 @@ import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
 import coil3.network.ktor3.KtorNetworkFetcherFactory
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.request.header
+import io.ktor.http.HttpHeaders
 import okio.Path
 
 expect fun getCacheDirectory(context: PlatformContext): Path
@@ -14,13 +17,14 @@ fun newPanelImageLoader(
     context: PlatformContext,
     httpClient: HttpClient? = null
 ): ImageLoader {
+    val client = httpClient ?: HttpClient {
+        defaultRequest {
+            header(HttpHeaders.UserAgent, "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
+        }
+    }
     return ImageLoader.Builder(context)
         .components {
-            if (httpClient != null) {
-                add(KtorNetworkFetcherFactory(httpClient))
-            } else {
-                add(KtorNetworkFetcherFactory())
-            }
+            add(KtorNetworkFetcherFactory(client))
         }
         .memoryCache {
             MemoryCache.Builder()

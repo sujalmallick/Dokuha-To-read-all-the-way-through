@@ -1,7 +1,7 @@
 CREATE TABLE mangas (
     id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     source_id INTEGER NOT NULL,
-    url TEXT NOT NULL UNIQUE,
+    url TEXT NOT NULL,
     title TEXT NOT NULL,
     artist TEXT,
     author TEXT,
@@ -17,9 +17,11 @@ CREATE TABLE mangas (
     chapter_flags INTEGER NOT NULL DEFAULT 0,
     cover_last_modified INTEGER NOT NULL DEFAULT 0,
     date_added INTEGER NOT NULL DEFAULT 0,
-    is_novel INTEGER NOT NULL DEFAULT 0
+    is_novel INTEGER NOT NULL DEFAULT 0,
+    CONSTRAINT mangas_source_id_url_unique UNIQUE (source_id, url)
 );
 
+CREATE INDEX mangas_source_id_url_idx ON mangas(source_id, url);
 CREATE INDEX mangas_url_idx ON mangas(url);
 CREATE INDEX mangas_favorite_idx ON mangas(favorite);
 
@@ -40,6 +42,12 @@ getMangaByUrl:
 SELECT *
 FROM mangas
 WHERE url = :url
+LIMIT 1;
+
+getMangaBySourceAndUrl:
+SELECT *
+FROM mangas
+WHERE source_id = :sourceId AND url = :url
 LIMIT 1;
 
 getMangaById:

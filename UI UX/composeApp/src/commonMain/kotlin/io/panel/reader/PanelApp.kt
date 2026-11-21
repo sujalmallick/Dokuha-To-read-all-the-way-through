@@ -11,12 +11,14 @@ import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.transitions.FadeTransition
 import cafe.adriel.voyager.transitions.SlideTransition
 import core.di.appModule
+import core.extensions.js.AntiBotChallengeManager
 import data.settings.SettingsRepository
 import org.koin.compose.KoinApplication
 import org.koin.compose.KoinContext
 import org.koin.compose.koinInject
 import org.koin.mp.KoinPlatformTools
 import org.koin.dsl.KoinAppDeclaration
+import ui.components.AntiBotChallengeSheet
 import ui.screens.library.LibraryScreen
 import ui.screens.splash.SplashScreenContent
 import ui.screens.welcome.WelcomeScreen
@@ -45,13 +47,16 @@ fun PanelApp(
             PanelAppRoot()
         }
     }
-    }
 }
 
 @OptIn(cafe.adriel.voyager.core.annotation.ExperimentalVoyagerApi::class)
 @Composable
 private fun PanelAppRoot() {
     val settingsRepository: SettingsRepository = koinInject()
+    val antiBotManager = koinInject<AntiBotChallengeManager>()
+    val extensionManager: core.extensions.ExtensionManager = koinInject()
+    val activeChallenge by antiBotManager.activeChallenge.collectAsState()
+
     val themeMode by settingsRepository.themeMode.collectAsState()
     val accentIndex by settingsRepository.accentColorIndex.collectAsState()
     val reduceGlass by settingsRepository.reduceGlass.collectAsState()
@@ -94,5 +99,7 @@ private fun PanelAppRoot() {
                 }
             }
         }
+
+        AntiBotChallengeSheet(activeChallenge)
     }
 }
