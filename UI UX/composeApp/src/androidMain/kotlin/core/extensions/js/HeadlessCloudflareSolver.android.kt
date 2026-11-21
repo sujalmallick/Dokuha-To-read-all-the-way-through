@@ -60,7 +60,7 @@ actual class HeadlessCloudflareSolver(private val context: Context) : HeadlessSo
                             !isChallengeTitle &&
                             !isChallengeUrl
 
-                        if (hasCfClearance || (isNormalFinishedPage && cookieMap.containsKey("__cf_bm"))) {
+                        if (hasCfClearance || (isNormalFinishedPage && cookieMap.isNotEmpty())) {
                             deferred.complete(
                                 HeadlessSolverResult(
                                     success = true,
@@ -81,6 +81,18 @@ actual class HeadlessCloudflareSolver(private val context: Context) : HeadlessSo
                     webViewClient = object : WebViewClient() {
                         override fun onPageStarted(view: WebView?, targetUrl: String?, favicon: Bitmap?) {
                             super.onPageStarted(view, targetUrl, favicon)
+                            view?.evaluateJavascript(
+                                """
+                                window.addEventListener("message", function(e) {
+                                    if (e.data && e.data.source === "cloudflare-challenge") {
+                                        if (e.data.event === "interactiveBegin") {
+                                            window.__dokuha_interactive = true;
+                                        }
+                                    }
+                                });
+                                """.trimIndent(),
+                                null
+                            )
                             checkClearance(targetUrl ?: url, isPageFinished = false)
                         }
 
@@ -143,6 +155,7 @@ actual class HeadlessCloudflareSolver(private val context: Context) : HeadlessSo
             val evalDeferred = CompletableDeferred<Boolean>()
             val script = """
                 (function() {
+                    if (window.__dokuha_interactive) return 'true';
                     var hasTurnstileIframe = !!document.querySelector('iframe[src*="challenges.cloudflare.com"]');
                     var hasTurnstileEl = !!document.querySelector('#cf-turnstile, .cf-turnstile, [name="cf-turnstile-response"]');
                     var hasStage = !!document.querySelector('#challenge-stage');

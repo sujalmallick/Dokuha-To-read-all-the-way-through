@@ -395,7 +395,8 @@ class JsBridgeTest {
         assertEquals("site.co.uk", bridge.extractApexDomain("api.site.co.uk"))
 
         assertEquals("https://asurascans.com/", bridge.getHumanVerificationUrl("https://api.asurascans.com/api/series?offset=0&limit=20"))
-        assertEquals("https://asurascans.com/", bridge.getHumanVerificationUrl("https://asurascans.com/comics/my-title"))
+        assertEquals("https://asurascans.com/comics/my-title", bridge.getHumanVerificationUrl("https://asurascans.com/comics/my-title", "GET"))
+        assertEquals("https://asurascans.com/", bridge.getHumanVerificationUrl("https://asurascans.com/comics/my-title", "POST"))
         assertEquals("https://site.co.uk/", bridge.getHumanVerificationUrl("https://api.site.co.uk/data"))
     }
 

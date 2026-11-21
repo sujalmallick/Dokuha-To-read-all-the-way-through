@@ -1105,7 +1105,7 @@ fun WebtoonPanelSlice(
                 .apply {
                     val headers = page?.headers
                     val networkHeaders = NetworkHeaders.Builder().apply {
-                        add("User-Agent", "Dokuha/1.0.0 (https://github.com/RitwikGupta-0501/dokuha)")
+                        add("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
                         headers?.forEach { (k, v) -> add(k, v) }
                     }.build()
                     httpHeaders(networkHeaders)

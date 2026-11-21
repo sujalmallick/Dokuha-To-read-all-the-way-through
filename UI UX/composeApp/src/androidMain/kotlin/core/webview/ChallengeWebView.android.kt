@@ -76,7 +76,7 @@ actual fun ChallengeWebView(
                         !isChallengeUrl
 
                     // Only resolve if cf_clearance cookie is present OR if navigation finished on a verified destination page
-                    if (hasCfClearance || (isNormalFinishedPage && cookieMap.containsKey("__cf_bm"))) {
+                    if (hasCfClearance || (isNormalFinishedPage && cookieMap.isNotEmpty())) {
                         hasResolved = true
                         onChallengeResolved(cookieMap, resolvedUa)
                     }
@@ -102,6 +102,11 @@ actual fun ChallengeWebView(
                     override fun onPageFinished(view: WebView?, targetUrl: String?) {
                         super.onPageFinished(view, targetUrl)
                         checkClearance(targetUrl ?: url, isPageFinished = true)
+                    }
+
+                    override fun doUpdateVisitedHistory(view: WebView?, targetUrl: String?, isReload: Boolean) {
+                        super.doUpdateVisitedHistory(view, targetUrl, isReload)
+                        checkClearance(targetUrl ?: view?.url ?: url, isPageFinished = false)
                     }
 
                     override fun onReceivedError(

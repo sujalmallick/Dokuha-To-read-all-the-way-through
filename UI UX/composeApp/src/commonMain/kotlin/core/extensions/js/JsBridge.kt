@@ -158,7 +158,7 @@ class JsBridge(
 
         // Cloudflare / Anti-bot challenge detection (with single-attempt guard & domain cooldown)
         if (isCloudflareChallengeResponse(response) && antiBotResolver != null && !isDomainInCooldown(domain)) {
-            val verificationUrl = getHumanVerificationUrl(url)
+            val verificationUrl = getHumanVerificationUrl(url, method)
             val requestUserAgent = mergedHeaders.entries
                 .firstOrNull { it.key.equals("User-Agent", ignoreCase = true) }?.value
                 ?: currentUserAgent
@@ -293,12 +293,20 @@ class JsBridge(
         domainCooldowns[targetDomain] = currentTimeMillis() + durationMs
     }
 
-    fun getHumanVerificationUrl(url: String): String {
+    fun getHumanVerificationUrl(url: String, method: String = "GET"): String {
         return try {
             val scheme = if (url.contains("://")) url.substringBefore("://") + "://" else "https://"
             val domain = extractDomain(url)
             val apex = extractApexDomain(domain)
-            "$scheme$apex/"
+            val path = if (url.contains("://")) url.substringAfter("://").substringAfter('/', "") else ""
+
+            if (domain.startsWith("api.") || path.startsWith("api/")) {
+                "$scheme$apex/"
+            } else if (method.equals("GET", ignoreCase = true)) {
+                url
+            } else {
+                "$scheme$apex/"
+            }
         } catch (_: Exception) {
             url
         }
