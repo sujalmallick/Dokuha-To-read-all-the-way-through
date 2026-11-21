@@ -403,4 +403,85 @@ class SqlDelightPanelRepositoryTest {
         assertEquals(101L, ch1.manga_id)
         assertEquals(102L, ch2.manga_id)
     }
+
+    @Test
+    fun testBrowseMangaResolutionWithAndWithoutSourceId() = runBlocking {
+        val testSource = object : ComicSource {
+            override val id: Long = 2001L
+            override val name: String = "Asura Scans"
+            override val baseUrl: String = "https://asurascans.com"
+            override val lang: String = "en"
+            override val isNsfw: Boolean = false
+            override suspend fun getPopular(page: Int) = core.source.MangasPage(
+                listOf(
+                    SourceManga(url = "/comics/bad-born-blood", title = "Bad Born Blood", isNovel = false)
+                ),
+                false
+            )
+            override suspend fun getLatestUpdates(page: Int) = core.source.MangasPage(emptyList(), false)
+            override suspend fun search(query: String, page: Int, filters: List<core.source.SourceFilter>) = core.source.MangasPage(
+                listOf(
+                    SourceManga(url = "/comics/bad-born-blood", title = "Bad Born Blood", isNovel = false)
+                ),
+                false
+            )
+            override suspend fun getMangaDetails(manga: SourceManga) = manga.copy(
+                title = "Bad Born Blood (Resolved)",
+                description = "Deep in the slums, a monster was born.",
+                genres = listOf("Action", "Fantasy")
+            )
+            override suspend fun getChapterList(manga: SourceManga) = listOf(
+                core.source.SourceChapter(url = "/comics/bad-born-blood/chapter-1", name = "Chapter 1", chapterNumber = 1f),
+                core.source.SourceChapter(url = "/comics/bad-born-blood/chapter-2", name = "Chapter 2", chapterNumber = 2f)
+            )
+            override suspend fun getPageList(chapter: core.source.SourceChapter) = emptyList<core.source.SourcePage>()
+        }
+
+        repository.registerSource(testSource)
+
+        // 1. Verify getTrending() stamps the manga with sourceId
+        val trending = repository.getTrending().first()
+        assertTrue(trending.isNotEmpty(), "Trending should not be empty")
+        val trendingManga = trending.first()
+        assertEquals(2001L, trendingManga.sourceId, "Trending manga must carry its sourceId")
+
+        // 2. Open manga with sourceId (as BrowseScreen now does)
+        val detailsWithSourceId = repository.getMangaDetails(
+            url = trendingManga.url,
+            sourceId = trendingManga.sourceId.toString(),
+            fallbackTitle = trendingManga.title
+        ).take(2).toList()
+
+        val resolvedManga = detailsWithSourceId.last()
+        assertNotNull(resolvedManga)
+        assertEquals("Bad Born Blood (Resolved)", resolvedManga.title)
+        assertEquals("Deep in the slums, a monster was born.", resolvedManga.description)
+
+        val chaptersWithSourceId = repository.getChapters(
+            mangaUrl = trendingManga.url,
+            sourceId = trendingManga.sourceId.toString()
+        ).first()
+        assertEquals(2, chaptersWithSourceId.size)
+        assertEquals("Chapter 2", chaptersWithSourceId.first().name)
+        assertEquals("Chapter 1", chaptersWithSourceId.last().name)
+
+        // 3. Open manga WITHOUT sourceId (via single installed source fallback)
+        val detailsWithoutSourceId = repository.getMangaDetails(
+            url = "/comics/another-relative-title",
+            sourceId = null,
+            fallbackTitle = "Fallback"
+        ).take(2).toList()
+
+        val resolvedWithoutId = detailsWithoutSourceId.last()
+        assertNotNull(resolvedWithoutId)
+        assertEquals("Deep in the slums, a monster was born.", resolvedWithoutId.description)
+
+        val chaptersWithoutSourceId = repository.getChapters(
+            mangaUrl = "/comics/another-relative-title",
+            sourceId = null
+        ).first()
+        assertEquals(2, chaptersWithoutSourceId.size)
+
+        repository.unregisterSource(2001L)
+    }
 }

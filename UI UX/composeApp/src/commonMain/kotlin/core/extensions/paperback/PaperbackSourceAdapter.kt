@@ -147,7 +147,8 @@ class PaperbackSourceAdapter(
             description = info["desc"]?.jsonPrimitive?.contentOrNull ?: info["synopsis"]?.jsonPrimitive?.contentOrNull,
             author = info["author"]?.jsonPrimitive?.contentOrNull,
             artist = info["artist"]?.jsonPrimitive?.contentOrNull,
-            status = mapStatus(info["status"]?.jsonPrimitive?.contentOrNull)
+            status = mapStatus(info["status"]?.jsonPrimitive?.contentOrNull),
+            sourceId = this.id
         )
     }
 
@@ -215,7 +216,8 @@ class PaperbackSourceAdapter(
                 url = url,
                 title = title,
                 thumbnailUrl = image,
-                isNovel = false
+                isNovel = false,
+                sourceId = this.id
             )
         }
         return MangasPage(mangas = mangas, hasNextPage = mangas.isNotEmpty())

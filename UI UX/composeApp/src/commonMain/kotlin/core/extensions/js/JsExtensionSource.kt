@@ -148,7 +148,8 @@ class JsExtensionSource(
             genres = genres,
             status = status,
             thumbnailUrl = obj["thumbnailUrl"]?.jsonPrimitive?.contentOrNull,
-            isNovel = isNovel
+            isNovel = isNovel,
+            sourceId = this.id
         )
     }
 
@@ -159,10 +160,11 @@ class JsExtensionSource(
             parsed.copy(
                 url = if (parsed.url.isNotEmpty()) parsed.url else fallback.url,
                 title = if (parsed.title.isNotEmpty() && parsed.title != "Untitled") parsed.title else fallback.title,
-                thumbnailUrl = parsed.thumbnailUrl ?: fallback.thumbnailUrl
+                thumbnailUrl = parsed.thumbnailUrl ?: fallback.thumbnailUrl,
+                sourceId = if (parsed.sourceId != 0L) parsed.sourceId else (if (fallback.sourceId != 0L) fallback.sourceId else this.id)
             )
         } catch (_: Exception) {
-            fallback
+            fallback.copy(sourceId = if (fallback.sourceId != 0L) fallback.sourceId else this.id)
         }
     }
 

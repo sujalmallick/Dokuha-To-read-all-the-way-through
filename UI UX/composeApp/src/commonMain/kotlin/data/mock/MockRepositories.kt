@@ -311,45 +311,56 @@ class FakePanelRepository : PanelRepository {
         return flowOf(Pair(lastHorizon, chapter))
     }
 
-    override fun getMangaDetails(url: String, sourceId: String?, fallbackTitle: String): Flow<SourceManga?> {
-        val sourceFromParam = sourceId?.let { idStr ->
-            dynamicSources.values.firstOrNull {
-                it.id.toString() == idStr ||
-                it.name.equals(idStr, ignoreCase = true) ||
-                (it as? core.extensions.js.JsExtensionSource)?.manifest?.id.equals(idStr, ignoreCase = true)
+    private fun findMatchingDynamic(url: String, sourceId: String?): core.source.ContentSource? {
+        val registered = dynamicSources
+        if (registered.isEmpty()) return null
+
+        if (sourceId != null) {
+            val fromParam = registered.values.firstOrNull {
+                it.id.toString() == sourceId ||
+                it.name.equals(sourceId, ignoreCase = true) ||
+                (it as? core.extensions.js.JsExtensionSource)?.manifest?.id.equals(sourceId, ignoreCase = true)
             }
+            if (fromParam != null) return fromParam
         }
-        val matchingDynamic = sourceFromParam ?: dynamicSources.values.firstOrNull { src ->
-            url.startsWith(src.baseUrl)
+
+        val fromBaseUrl = registered.values.firstOrNull { src -> url.startsWith(src.baseUrl) }
+        if (fromBaseUrl != null) return fromBaseUrl
+
+        val fromDomain = registered.values.firstOrNull { src ->
+            val host = src.baseUrl.removePrefix("https://").removePrefix("http://").split("/").firstOrNull() ?: ""
+            host.isNotEmpty() && url.contains(host)
         }
+        if (fromDomain != null) return fromDomain
+
+        if (registered.size == 1) {
+            return registered.values.first()
+        }
+
+        return null
+    }
+
+    override fun getMangaDetails(url: String, sourceId: String?, fallbackTitle: String): Flow<SourceManga?> {
+        val matchingDynamic = findMatchingDynamic(url, sourceId)
         if (matchingDynamic != null) {
             return kotlinx.coroutines.flow.flow {
                 val details = try {
-                    matchingDynamic.getMangaDetails(SourceManga(url = url, title = fallbackTitle))
+                    matchingDynamic.getMangaDetails(SourceManga(url = url, title = fallbackTitle, sourceId = matchingDynamic.id))
                 } catch (_: Exception) {
                     null
                 }
-                emit(details ?: if (fallbackTitle.isNotBlank()) SourceManga(url = url, title = fallbackTitle) else null)
+                emit(details ?: if (fallbackTitle.isNotBlank()) SourceManga(url = url, title = fallbackTitle, sourceId = matchingDynamic.id) else null)
             }
         }
         return flowOf(allMangaList.find { it.url == url } ?: lastHorizon)
     }
 
     override fun getChapters(mangaUrl: String, sourceId: String?): Flow<List<SourceChapter>> {
-        val sourceFromParam = sourceId?.let { idStr ->
-            dynamicSources.values.firstOrNull {
-                it.id.toString() == idStr ||
-                it.name.equals(idStr, ignoreCase = true) ||
-                (it as? core.extensions.js.JsExtensionSource)?.manifest?.id.equals(idStr, ignoreCase = true)
-            }
-        }
-        val matchingDynamic = sourceFromParam ?: dynamicSources.values.firstOrNull { src ->
-            mangaUrl.startsWith(src.baseUrl)
-        }
+        val matchingDynamic = findMatchingDynamic(mangaUrl, sourceId)
         if (matchingDynamic != null) {
             return kotlinx.coroutines.flow.flow {
                 val chapters = try {
-                    matchingDynamic.getChapterList(SourceManga(url = mangaUrl, title = ""))
+                    matchingDynamic.getChapterList(SourceManga(url = mangaUrl, title = "", sourceId = matchingDynamic.id))
                 } catch (_: Exception) {
                     emptyList()
                 }

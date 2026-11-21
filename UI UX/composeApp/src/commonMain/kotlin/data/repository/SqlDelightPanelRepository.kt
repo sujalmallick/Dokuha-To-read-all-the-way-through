@@ -136,21 +136,61 @@ class SqlDelightPanelRepository(
             .map { it?.toPair() }
     }
 
-    override fun getMangaDetails(url: String, sourceId: String?, fallbackTitle: String): Flow<SourceManga?> {
+    private fun findMatchingDynamicSource(url: String, sourceId: String?): ContentSource? {
+        val registered = _dynamicSources.value
+        if (registered.isEmpty()) return null
+
+        // 1. Direct routing via sourceId parameter
+        if (sourceId != null) {
+            val fromParam = registered.values.firstOrNull {
+                it.id.toString() == sourceId ||
+                it.name.equals(sourceId, ignoreCase = true) ||
+                (it as? core.extensions.js.JsExtensionSource)?.manifest?.id.equals(sourceId, ignoreCase = true)
+            }
+            if (fromParam != null) return fromParam
+        }
+
+        // 2. Routing via existing database record
         val mangaRecord = database.mangaQueries.getMangaByUrl(url).executeAsOneOrNull()
-        val sourceFromParam = sourceId?.let { idStr ->
-            _dynamicSources.value.values.firstOrNull {
-                it.id.toString() == idStr ||
-                it.name.equals(idStr, ignoreCase = true) ||
-                (it as? core.extensions.js.JsExtensionSource)?.manifest?.id.equals(idStr, ignoreCase = true)
+        if (mangaRecord != null) {
+            val fromDb = registered[mangaRecord.source_id]
+            if (fromDb != null) return fromDb
+        }
+
+        // 3. Routing via chapter record if url is a chapter URL
+        val chapterRecord = database.chapterQueries.getChapterByUrl(url).executeAsOneOrNull()
+        if (chapterRecord != null) {
+            val manga = database.mangaQueries.getMangaById(chapterRecord.manga_id).executeAsOneOrNull()
+            if (manga != null) {
+                val fromDb = registered[manga.source_id]
+                if (fromDb != null) return fromDb
             }
         }
-        val sourceFromDb = mangaRecord?.let { _dynamicSources.value[it.source_id] }
-        val matchingDynamic = sourceFromParam
-            ?: sourceFromDb
-            ?: _dynamicSources.value.values.firstOrNull { src ->
-                url.startsWith(src.baseUrl) || (url.length == 36 && url.contains("-"))
-            }
+
+        // 4. Exact prefix match against source baseUrl
+        val fromBaseUrl = registered.values.firstOrNull { src ->
+            url.startsWith(src.baseUrl)
+        }
+        if (fromBaseUrl != null) return fromBaseUrl
+
+        // 5. Host/domain match if url is absolute
+        val fromDomain = registered.values.firstOrNull { src ->
+            val host = src.baseUrl.removePrefix("https://").removePrefix("http://").split("/").firstOrNull() ?: ""
+            host.isNotEmpty() && url.contains(host)
+        }
+        if (fromDomain != null) return fromDomain
+
+        // 6. Single installed source fallback
+        if (registered.size == 1) {
+            return registered.values.first()
+        }
+
+        return null
+    }
+
+    override fun getMangaDetails(url: String, sourceId: String?, fallbackTitle: String): Flow<SourceManga?> {
+        val mangaRecord = database.mangaQueries.getMangaByUrl(url).executeAsOneOrNull()
+        val matchingDynamic = findMatchingDynamicSource(url, sourceId)
 
         if (matchingDynamic != null) {
             return flow {
@@ -158,17 +198,17 @@ class SqlDelightPanelRepository(
                 if (cached != null) {
                     emit(cached)
                 } else if (fallbackTitle.isNotBlank()) {
-                    emit(SourceManga(url = url, title = fallbackTitle))
+                    emit(SourceManga(url = url, title = fallbackTitle, sourceId = matchingDynamic.id))
                 }
 
                 try {
                     val fresh = matchingDynamic.getMangaDetails(
-                        cached ?: SourceManga(url = url, title = fallbackTitle)
+                        cached ?: SourceManga(url = url, title = fallbackTitle, sourceId = matchingDynamic.id)
                     )
                     val effectiveFresh = if (fresh.title.isBlank() && fallbackTitle.isNotBlank()) {
-                        fresh.copy(title = fallbackTitle)
+                        fresh.copy(title = fallbackTitle, sourceId = matchingDynamic.id)
                     } else {
-                        fresh
+                        if (fresh.sourceId == 0L) fresh.copy(sourceId = matchingDynamic.id) else fresh
                     }
                     insertOrUpdateMangaInternal(effectiveFresh, sourceId = matchingDynamic.id, forceFavorite = null)
                     emit(effectiveFresh)
@@ -187,19 +227,7 @@ class SqlDelightPanelRepository(
 
     override fun getChapters(mangaUrl: String, sourceId: String?): Flow<List<SourceChapter>> {
         val mangaRecord = database.mangaQueries.getMangaByUrl(mangaUrl).executeAsOneOrNull()
-        val sourceFromParam = sourceId?.let { idStr ->
-            _dynamicSources.value.values.firstOrNull {
-                it.id.toString() == idStr ||
-                it.name.equals(idStr, ignoreCase = true) ||
-                (it as? core.extensions.js.JsExtensionSource)?.manifest?.id.equals(idStr, ignoreCase = true)
-            }
-        }
-        val sourceFromDb = mangaRecord?.let { _dynamicSources.value[it.source_id] }
-        val matchingDynamic = sourceFromParam
-            ?: sourceFromDb
-            ?: _dynamicSources.value.values.firstOrNull { src ->
-                mangaUrl.startsWith(src.baseUrl) || (mangaUrl.length == 36 && mangaUrl.contains("-"))
-            }
+        val matchingDynamic = findMatchingDynamicSource(mangaUrl, sourceId)
 
         if (matchingDynamic != null) {
             return flow {
@@ -207,9 +235,9 @@ class SqlDelightPanelRepository(
                 if (cached.isNotEmpty()) emit(cached)
 
                 try {
-                    val fresh = matchingDynamic.getChapterList(SourceManga(url = mangaUrl, title = ""))
+                    val fresh = matchingDynamic.getChapterList(SourceManga(url = mangaUrl, title = "", sourceId = matchingDynamic.id))
                     val mangaId = mangaRecord?.id
-                        ?: insertOrUpdateMangaInternal(SourceManga(url = mangaUrl, title = ""), matchingDynamic.id, forceFavorite = null)
+                        ?: insertOrUpdateMangaInternal(SourceManga(url = mangaUrl, title = "", sourceId = matchingDynamic.id), matchingDynamic.id, forceFavorite = null)
 
                     database.transaction {
                         for ((idx, ch) in fresh.withIndex()) {
@@ -252,17 +280,7 @@ class SqlDelightPanelRepository(
             return flowOf(downloadedPages)
         }
 
-        val chapterRecord = database.chapterQueries.getChapterByUrl(chapterUrl).executeAsOneOrNull()
-        val sourceFromDb = chapterRecord?.let { ch ->
-            database.mangaQueries.getMangaById(ch.manga_id).executeAsOneOrNull()?.let { manga ->
-                _dynamicSources.value[manga.source_id]
-            }
-        }
-
-        val matchingDynamic = (sourceFromDb as? ComicSource)
-            ?: _dynamicSources.value.values.filterIsInstance<ComicSource>().firstOrNull { src ->
-                chapterUrl.startsWith(src.baseUrl) || (chapterUrl.length == 36 && chapterUrl.contains("-"))
-            }
+        val matchingDynamic = (findMatchingDynamicSource(chapterUrl, null) as? ComicSource)
             ?: _dynamicSources.value.values.filterIsInstance<ComicSource>().firstOrNull()
 
         if (matchingDynamic != null) {
@@ -292,17 +310,7 @@ class SqlDelightPanelRepository(
             )
         }
 
-        val chapterRecord = database.chapterQueries.getChapterByUrl(chapterUrl).executeAsOneOrNull()
-        val sourceFromDb = chapterRecord?.let { ch ->
-            database.mangaQueries.getMangaById(ch.manga_id).executeAsOneOrNull()?.let { manga ->
-                _dynamicSources.value[manga.source_id]
-            }
-        }
-
-        val matchingDynamic = (sourceFromDb as? NovelSource)
-            ?: _dynamicSources.value.values.filterIsInstance<NovelSource>().firstOrNull { src ->
-                chapterUrl.startsWith(src.baseUrl)
-            }
+        val matchingDynamic = (findMatchingDynamicSource(chapterUrl, null) as? NovelSource)
             ?: _dynamicSources.value.values.filterIsInstance<NovelSource>().firstOrNull()
 
         if (matchingDynamic != null) {
@@ -333,7 +341,9 @@ class SqlDelightPanelRepository(
                 val results = mutableListOf<SourceManga>()
                 for (src in sources) {
                     try {
-                        val popular = src.getPopular(1).mangas.take(5)
+                        val popular = src.getPopular(1).mangas.take(5).map { manga ->
+                            if (manga.sourceId == 0L) manga.copy(sourceId = src.id) else manga
+                        }
                         results.addAll(popular)
                     } catch (_: Exception) {
                     }
@@ -460,15 +470,13 @@ class SqlDelightPanelRepository(
         sourceId: String?,
         filters: BrowseFilters
     ): Flow<List<SourceManga>> {
-        val matchingDynamic = _dynamicSources.value.values.firstOrNull {
-            it.id.toString() == sourceId ||
-            it.name.equals(sourceId, ignoreCase = true) ||
-            (it as? core.extensions.js.JsExtensionSource)?.manifest?.id.equals(sourceId, ignoreCase = true)
-        }
+        val matchingDynamic = findMatchingDynamicSource(query, sourceId)
         if (matchingDynamic != null) {
             return flow {
                 val results = try {
-                    matchingDynamic.search(query, 1, emptyList()).mangas
+                    matchingDynamic.search(query, 1, emptyList()).mangas.map { manga ->
+                        if (manga.sourceId == 0L) manga.copy(sourceId = matchingDynamic.id) else manga
+                    }
                 } catch (_: Exception) {
                     emptyList()
                 }
@@ -483,7 +491,9 @@ class SqlDelightPanelRepository(
                 val remoteResults = mutableListOf<SourceManga>()
                 for (src in sources) {
                     try {
-                        val res = src.search(query, 1, emptyList()).mangas
+                        val res = src.search(query, 1, emptyList()).mangas.map { manga ->
+                            if (manga.sourceId == 0L) manga.copy(sourceId = src.id) else manga
+                        }
                         remoteResults.addAll(res)
                     } catch (_: Exception) {
                     }
@@ -515,11 +525,7 @@ class SqlDelightPanelRepository(
         query: String,
         filters: BrowseFilters
     ): Flow<List<SourceManga>> {
-        val matchingDynamic = _dynamicSources.value.values.firstOrNull {
-            it.id.toString() == sourceId ||
-            it.name.equals(sourceId, ignoreCase = true) ||
-            (it as? core.extensions.js.JsExtensionSource)?.manifest?.id.equals(sourceId, ignoreCase = true)
-        }
+        val matchingDynamic = findMatchingDynamicSource("", sourceId)
         if (matchingDynamic != null) {
             return flow {
                 val results: List<SourceManga> = try {
@@ -531,7 +537,9 @@ class SqlDelightPanelRepository(
                         matchingDynamic.getPopular(page).mangas
                     }
                     println("[getSourceCatalogue] source $sourceId returned ${pageResult.size} mangas")
-                    pageResult
+                    pageResult.map { manga ->
+                        if (manga.sourceId == 0L) manga.copy(sourceId = matchingDynamic.id) else manga
+                    }
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -603,7 +611,8 @@ class SqlDelightPanelRepository(
         genres = genres?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(),
         status = try { MangaStatus.valueOf(status) } catch (_: Exception) { MangaStatus.UNKNOWN },
         thumbnailUrl = thumbnail_url,
-        isNovel = is_novel == 1L
+        isNovel = is_novel == 1L,
+        sourceId = source_id
     )
 
     private fun Chapters.toSourceChapter(): SourceChapter = SourceChapter(

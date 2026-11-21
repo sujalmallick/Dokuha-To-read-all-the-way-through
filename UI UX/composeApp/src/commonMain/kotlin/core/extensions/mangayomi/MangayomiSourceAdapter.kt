@@ -107,7 +107,8 @@ class MangayomiSourceAdapter(
             description = json["description"]?.jsonPrimitive?.contentOrNull,
             author = json["author"]?.jsonPrimitive?.contentOrNull,
             artist = json["artist"]?.jsonPrimitive?.contentOrNull,
-            status = mapStatus(json["status"]?.jsonPrimitive?.intOrNull ?: 5)
+            status = mapStatus(json["status"]?.jsonPrimitive?.intOrNull ?: 5),
+            sourceId = this.id
         )
     }
 
@@ -186,7 +187,8 @@ class MangayomiSourceAdapter(
                 url = url,
                 title = title,
                 thumbnailUrl = thumb,
-                isNovel = manifest.isNovel
+                isNovel = manifest.isNovel,
+                sourceId = this.id
             )
         }
         return MangasPage(mangas = mangas, hasNextPage = hasNext)

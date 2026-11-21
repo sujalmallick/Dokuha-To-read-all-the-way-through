@@ -72,7 +72,8 @@ class LNReaderSourceAdapter(
             artist = json["artist"]?.jsonPrimitive?.contentOrNull,
             status = mapNovelStatus(json["status"]?.jsonPrimitive?.contentOrNull),
             genres = json["genres"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull } ?: manga.genres,
-            isNovel = true
+            isNovel = true,
+            sourceId = this.id
         )
     }
 
@@ -156,7 +157,8 @@ class LNReaderSourceAdapter(
                 url = url,
                 title = name,
                 thumbnailUrl = cover,
-                isNovel = true
+                isNovel = true,
+                sourceId = this.id
             )
         }
         return MangasPage(mangas = mangas, hasNextPage = mangas.isNotEmpty())
