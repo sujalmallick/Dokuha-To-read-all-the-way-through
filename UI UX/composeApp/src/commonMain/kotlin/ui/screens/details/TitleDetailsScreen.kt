@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -63,6 +65,7 @@ import data.download.DefaultDownloadManager
 import data.download.DownloadManager
 import data.download.DownloadStatus
 import data.mock.PanelRepository
+import kotlinx.coroutines.flow.onEach
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.ChapterRowItem
@@ -100,12 +103,15 @@ data class TitleDetailsScreen(
         val downloadManager: DownloadManager = koinInject()
         val scope = rememberCoroutineScope()
         var refreshTrigger by remember { mutableIntStateOf(0) }
+        var isLoadingDetails by remember(mangaUrl, sourceId, refreshTrigger) { mutableStateOf(true) }
+        var isLoadingChapters by remember(mangaUrl, sourceId, refreshTrigger) { mutableStateOf(true) }
 
         val manga by remember(mangaUrl, sourceId, refreshTrigger) {
             repository.getMangaDetails(mangaUrl, sourceId, initialTitle)
+                .onEach { isLoadingDetails = false }
         }.collectAsState(
             initial = if (initialTitle.isNotBlank()) {
-                SourceManga(url = mangaUrl, title = initialTitle, thumbnailUrl = initialThumbnailUrl)
+                SourceManga(url = mangaUrl, title = initialTitle, thumbnailUrl = initialThumbnailUrl, sourceId = sourceId?.toLongOrNull() ?: 0L)
             } else {
                 null
             }
@@ -113,6 +119,7 @@ data class TitleDetailsScreen(
 
         val chapters by remember(mangaUrl, sourceId, refreshTrigger) {
             repository.getChapters(mangaUrl, sourceId)
+                .onEach { isLoadingChapters = false }
         }.collectAsState(initial = emptyList())
 
         val library by remember { repository.getLibrary("All") }.collectAsState(initial = emptyList())
@@ -121,6 +128,8 @@ data class TitleDetailsScreen(
         TitleDetailsScreenContent(
             manga = manga,
             chapters = chapters,
+            isLoadingDetails = isLoadingDetails,
+            isLoadingChapters = isLoadingChapters,
             downloadManager = downloadManager,
             isInLibrary = isInLibrary,
             onRefresh = { refreshTrigger++ },
@@ -156,6 +165,8 @@ data class TitleDetailsScreen(
 fun TitleDetailsScreenContent(
     manga: SourceManga?,
     chapters: List<SourceChapter>,
+    isLoadingDetails: Boolean = false,
+    isLoadingChapters: Boolean = false,
     isInLibrary: Boolean = false,
     onRefresh: () -> Unit = {},
     onToggleLibrary: () -> Unit = {},
@@ -315,26 +326,29 @@ fun TitleDetailsScreenContent(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    val description = displayManga.description ?: ""
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = TextSecondary,
-                        maxLines = if (isDescriptionExpanded) Int.MAX_VALUE else 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (description.length > 80) {
-                        Spacer(modifier = Modifier.height(4.dp))
+                    val description = displayManga.description?.takeIf { it.isNotBlank() }
+                        ?: if (isLoadingDetails) "Loading synopsis..." else ""
+                    if (description.isNotEmpty()) {
                         Text(
-                            text = if (isDescriptionExpanded) "Show Less" else "More",
-                            color = ElectricBlue,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { isDescriptionExpanded = !isDescriptionExpanded }
-                                .padding(vertical = 2.dp)
+                            text = description,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = TextSecondary,
+                            maxLines = if (isDescriptionExpanded) Int.MAX_VALUE else 2,
+                            overflow = TextOverflow.Ellipsis
                         )
+                        if (description.length > 80) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (isDescriptionExpanded) "Show Less" else "More",
+                                color = ElectricBlue,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .clickable { isDescriptionExpanded = !isDescriptionExpanded }
+                                    .padding(vertical = 2.dp)
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
@@ -346,7 +360,7 @@ fun TitleDetailsScreenContent(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Chapters (${chapters.size})",
+                            text = if (isLoadingChapters && chapters.isEmpty()) "Chapters" else "Chapters (${chapters.size})",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary
@@ -366,7 +380,7 @@ fun TitleDetailsScreenContent(
                 }
             }
 
-            if (chapters.isEmpty()) {
+            if (isLoadingChapters && chapters.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
@@ -374,26 +388,24 @@ fun TitleDetailsScreenContent(
                             .padding(vertical = 40.dp, horizontal = 20.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                tint = TextSecondary.copy(alpha = 0.5f),
-                                modifier = Modifier.size(36.dp)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(32.dp),
+                                color = ElectricBlue,
+                                strokeWidth = 2.5.dp
                             )
-                            Spacer(modifier = Modifier.height(10.dp))
                             Text(
-                                text = "No chapters available for this title",
+                                text = "Loading chapters...",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = TextSecondary
                             )
                         }
                     }
                 }
-            }
-
-            // Empty or Failed Chapter List Indicator
-            if (chapters.isEmpty()) {
+            } else if (chapters.isEmpty()) {
                 item {
                     Box(
                         modifier = Modifier
@@ -417,6 +429,12 @@ fun TitleDetailsScreenContent(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                tint = ElectricBlue,
+                                modifier = Modifier.size(16.dp)
+                            )
                             Text(
                                 text = "No chapters found. Tap to reload",
                                 fontSize = 13.sp,

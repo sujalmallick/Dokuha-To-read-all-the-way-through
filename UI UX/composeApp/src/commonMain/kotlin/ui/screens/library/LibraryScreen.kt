@@ -112,7 +112,8 @@ class LibraryScreen : Screen {
                     TitleDetailsScreen(
                         mangaUrl = manga.url,
                         initialTitle = manga.title,
-                        initialThumbnailUrl = manga.thumbnailUrl
+                        initialThumbnailUrl = manga.thumbnailUrl,
+                        sourceId = if (manga.sourceId != 0L) manga.sourceId.toString() else null
                     )
                 )
             },

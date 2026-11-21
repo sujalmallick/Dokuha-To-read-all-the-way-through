@@ -110,7 +110,16 @@ class DownloadsScreen : Screen {
             onDeleteCompleted = { job ->
                 downloadManager.deleteDownloadedChapter(job.manga.url, job.chapter.url)
             },
-            onOpenManga = { manga -> navigator.push(TitleDetailsScreen(manga.url)) },
+            onOpenManga = { manga ->
+                navigator.push(
+                    TitleDetailsScreen(
+                        mangaUrl = manga.url,
+                        initialTitle = manga.title,
+                        initialThumbnailUrl = manga.thumbnailUrl,
+                        sourceId = if (manga.sourceId != 0L) manga.sourceId.toString() else null
+                    )
+                )
+            },
             onTabSelected = { tab ->
                 when (tab) {
                     PanelTab.LIBRARY -> navigator.push(LibraryScreen())
