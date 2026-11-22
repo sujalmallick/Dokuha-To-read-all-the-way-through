@@ -264,6 +264,9 @@
 					"$(inherited)",
 					"-framework",
 					ComposeApp,
+					"-lsqlite3",
+					"-framework",
+					JavaScriptCore,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = io.dokuha.reader;
 				PRODUCT_NAME = Dokuha;
@@ -297,6 +300,9 @@
 					"$(inherited)",
 					"-framework",
 					ComposeApp,
+					"-lsqlite3",
+					"-framework",
+					JavaScriptCore,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = io.dokuha.reader;
 				PRODUCT_NAME = Dokuha;
