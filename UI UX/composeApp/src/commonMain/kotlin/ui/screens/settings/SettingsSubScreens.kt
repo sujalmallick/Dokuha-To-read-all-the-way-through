@@ -41,6 +41,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cafe.adriel.voyager.core.screen.Screen
@@ -272,105 +273,54 @@ fun AppLogoSettingsScreenContent(
     onSelectStyle: (AppLogoStyle) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val scrollState = rememberLazyListState()
-
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(PanelBackground)
     ) {
-        LazyColumn(
-            state = scrollState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 72.dp, bottom = 48.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 80.dp, bottom = 40.dp, start = 20.dp, end = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = "Customize the visual identity of Dokuha across the application, including the splash screen, headers, and about section.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
-                        lineHeight = 20.sp
-                    )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            item {
-                SectionHeader(text = "Available Editions")
-            }
-
-            items(AppLogoStyle.entries.size) { index ->
-                val style = AppLogoStyle.entries[index]
-                val isSelected = style == selectedStyle
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 8.dp)
-                ) {
-                    LogoEditionCard(
+            // Minimal 2-column grid of logo edition cards
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                AppLogoStyle.entries.forEach { style ->
+                    val isSelected = style == selectedStyle
+                    MinimalLogoCard(
                         style = style,
                         isSelected = isSelected,
-                        onClick = { onSelectStyle(style) }
+                        onClick = { onSelectStyle(style) },
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
 
-            item {
-                Spacer(modifier = Modifier.height(24.dp))
-                SectionHeader(text = "Live In-App Preview")
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0xFF080808))
-                        .border(1.dp, GlassBorder, RoundedCornerShape(20.dp))
-                        .padding(vertical = 32.dp, horizontal = 24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        DokuhaLogo(
-                            style = selectedStyle,
-                            modifier = Modifier.size(112.dp)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "D O K U H A",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Normal,
-                                letterSpacing = 8.sp
-                            ),
-                            color = Color(0xFFEBE6E2)
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "Active In-App Theme: " + selectedStyle.displayName,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextMuted
-                        )
-                    }
-                }
-            }
+            Spacer(modifier = Modifier.height(28.dp))
+
+            Text(
+                text = "The selected icon applies seamlessly across splash screens, headers, and about branding.",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextMuted,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
         }
 
         GlassCollapsingTopBar(
             title = "App Logo",
             onBack = onBack,
-            scrollOffset = scrollState.firstVisibleItemScrollOffset.toFloat()
+            scrollOffset = 0f
         )
     }
 }
 
 @Composable
-private fun LogoEditionCard(
+private fun MinimalLogoCard(
     style: AppLogoStyle,
     isSelected: Boolean,
     onClick: () -> Unit,
@@ -378,100 +328,57 @@ private fun LogoEditionCard(
 ) {
     val borderColor = if (isSelected) ElectricBlue else GlassBorder
     val borderWidth = if (isSelected) 2.dp else 1.dp
+    val bgColor = if (isSelected) PanelSurface else Color(0xFF0F0F12)
 
     Box(
         modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(PanelSurface)
-            .border(borderWidth, borderColor, RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(22.dp))
+            .background(bgColor)
+            .border(borderWidth, borderColor, RoundedCornerShape(22.dp))
             .clickable(onClick = onClick)
-            .padding(16.dp)
+            .padding(vertical = 24.dp, horizontal = 16.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Preview thumbnail
-            Box(
-                modifier = Modifier
-                    .size(76.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFF080808))
-                    .border(1.dp, GlassBorder, RoundedCornerShape(14.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                DokuhaLogo(
-                    style = style,
-                    modifier = Modifier.size(56.dp)
-                )
-            }
+            // Prominent Logo preview
+            DokuhaLogo(
+                style = style,
+                modifier = Modifier.size(88.dp)
+            )
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
-            // Text Info
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically
+            // Edition Title
+            Text(
+                text = style.displayName.replace(" Edition", ""),
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
+                ),
+                color = if (isSelected) TextPrimary else TextSecondary
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Active Pill or Subtle Status
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(ElectricBlue.copy(alpha = 0.16f))
+                        .padding(horizontal = 10.dp, vertical = 3.dp)
                 ) {
                     Text(
-                        text = style.displayName,
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = FontWeight.Bold
-                        ),
-                        color = TextPrimary
-                    )
-                    if (style == AppLogoStyle.GLASSMORPHIC) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(ElectricBlue.copy(alpha = 0.20f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "DEFAULT",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = ElectricBlueLight
-                            )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = style.subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
-                    lineHeight = 16.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            // Selection Checkmark
-            Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(if (isSelected) ElectricBlue else Color.Transparent)
-                    .border(
-                        width = if (isSelected) 0.dp else 1.5.dp,
-                        color = if (isSelected) Color.Transparent else GlassBorder,
-                        shape = CircleShape
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                if (isSelected) {
-                    Icon(
-                        imageVector = Icons.Filled.Check,
-                        contentDescription = "Selected",
-                        tint = Color.White,
-                        modifier = Modifier.size(14.dp)
+                        text = "ACTIVE",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ElectricBlueLight,
+                        letterSpacing = 0.5.sp
                     )
                 }
+            } else {
+                Spacer(modifier = Modifier.height(20.dp))
             }
         }
     }

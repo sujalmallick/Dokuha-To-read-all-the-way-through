@@ -17,6 +17,7 @@ import data.profile.ReadingStats
 import data.profile.TrackerAccount
 import data.profile.TrackerService
 import data.profile.UserProfile
+import data.settings.AppLogoStyle
 import data.settings.DefaultReadingMode
 import data.settings.FakeSettingsRepository
 import data.settings.NovelFont
@@ -40,8 +41,10 @@ import ui.screens.library.LibraryScreenContent
 import ui.screens.more.MoreScreenContent
 import ui.screens.novelreader.NovelReaderScreenContent
 import ui.screens.profile.ProfileScreenContent
+import ui.screens.settings.AppLogoSettingsScreenContent
 import ui.screens.settings.AppearanceSettingsScreenContent
 import ui.screens.settings.GlobalReaderSettingsScreenContent
+import ui.screens.splash.SplashScreenContent
 import ui.screens.updates.UpdatesScreenContent
 import ui.screens.webtoonreader.ReaderSettingsScreenContent
 import ui.screens.webtoonreader.WebtoonReaderScreenContent
@@ -58,6 +61,34 @@ class ScreenshotsTest {
     val composeTestRule = createComposeRule()
 
     private val repository = FakePanelRepository()
+
+    @Test
+    fun capture_00_splash_screen() {
+        composeTestRule.setContent {
+            PanelTheme(themeMode = ThemeMode.DARK) {
+                SplashScreenContent(
+                    onFinished = {},
+                    logoStyle = AppLogoStyle.GLASSMORPHIC
+                )
+            }
+        }
+        composeTestRule.mainClock.advanceTimeBy(1300L)
+        composeTestRule.onRoot().captureRoboImage("screenshots/00_splash_screen.png")
+    }
+
+    @Test
+    fun capture_22_app_logo_settings() {
+        composeTestRule.setContent {
+            PanelTheme(themeMode = ThemeMode.DARK) {
+                AppLogoSettingsScreenContent(
+                    selectedStyle = AppLogoStyle.GLASSMORPHIC,
+                    onBack = {},
+                    onSelectStyle = {}
+                )
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/22_app_logo_settings.png")
+    }
 
     @Test
     fun capture_01_welcome_screen() {
