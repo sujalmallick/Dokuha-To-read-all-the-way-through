@@ -77,3 +77,16 @@ WHERE url = :url;
 deleteByUrl:
 DELETE FROM mangas
 WHERE url = :url;
+
+getLibraryMangaStats:
+SELECT
+    m.url AS manga_url,
+    COUNT(c.id) AS total_chapters,
+    SUM(CASE WHEN c.read = 1 THEN 1 ELSE 0 END) AS read_chapters,
+    MAX(c.last_modified_at) AS last_read_at,
+    m.date_added AS date_added
+FROM mangas m
+LEFT JOIN chapters c ON m.id = c.manga_id
+WHERE m.favorite = 1
+GROUP BY m.id;
+

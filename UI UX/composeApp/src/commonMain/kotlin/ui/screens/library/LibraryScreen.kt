@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -165,11 +166,12 @@ fun LibraryScreenContent(
     val categoryName = currentCategory?.name ?: "All"
 
     val allLibraryItems by repository.getLibrary("All").collectAsState(initial = emptyList())
+    val libraryStats by repository.getLibraryStats().collectAsState(initial = emptyMap())
     val continueReadingPair by repository.getContinueReading().collectAsState(initial = null)
     val recentlyReadItems by repository.getRecentlyReadManga(limit = 10L).collectAsState(initial = emptyList())
 
-    // Filter library items according to active category
-    val filteredLibraryItems = remember(allLibraryItems, selectedCategory, mappings) {
+    // 1. Filter library items according to active category
+    val categoryFilteredItems = remember(allLibraryItems, selectedCategory, mappings) {
         if (selectedCategory == DefaultCategories.ALL) {
             allLibraryItems
         } else {
@@ -181,6 +183,15 @@ fun LibraryScreenContent(
                 allLibraryItems.take(4)
             }
         }
+    }
+
+    // Filter & Sorting State
+    var libraryFilter by remember { mutableStateOf(LibraryFilter()) }
+    var isFilterSheetVisible by remember { mutableStateOf(false) }
+
+    // 2. Filter and sort by active LibraryFilter (Status, Format, Progress, Downloaded, Sort)
+    val filteredLibraryItems = remember(categoryFilteredItems, libraryFilter, libraryStats) {
+        filterAndSortLibrary(categoryFilteredItems, libraryFilter, libraryStats)
     }
 
     // Batch Selection Mode State
@@ -287,6 +298,27 @@ fun LibraryScreenContent(
                             )
 
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                // Filter Toggle Icon with active filter indicator
+                                Box {
+                                    PanelCircleIconButton(
+                                        icon = Icons.Default.FilterList,
+                                        size = 40.dp,
+                                        iconSize = 20.dp,
+                                        glassState = glassState,
+                                        onClick = { isFilterSheetVisible = true }
+                                    )
+                                    if (libraryFilter.isActive) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .size(10.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFF3B82F6))
+                                                .border(1.5.dp, Color(0xFF0F1219), CircleShape)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(8.dp))
                                 // Batch Selection Toggle Icon
                                 PanelCircleIconButton(
                                     icon = Icons.Default.Checklist,
@@ -326,6 +358,17 @@ fun LibraryScreenContent(
                             },
                             modifier = Modifier.fillMaxWidth()
                         )
+
+                        // Active Filter Chips Strip
+                        if (libraryFilter.isActive) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            ActiveFilterPillRow(
+                                filter = libraryFilter,
+                                onUpdateFilter = { libraryFilter = it },
+                                onResetAll = { libraryFilter = LibraryFilter() },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }
@@ -416,8 +459,8 @@ fun LibraryScreenContent(
                 }
             }
 
-            // Empty Library State
-            if (filteredLibraryItems.isEmpty() && recentlyReadItems.isEmpty() && continueReadingPair == null) {
+            // Empty Library / Filter State
+            if (filteredLibraryItems.isEmpty() && (isSelectionMode || recentlyReadItems.isEmpty())) {
                 item(span = { GridItemSpan(3) }) {
                     Box(
                         modifier = Modifier
@@ -430,17 +473,40 @@ fun LibraryScreenContent(
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text(
-                                text = "Your library is empty",
+                                text = if (libraryFilter.isActive) "No matching titles" else "Your library is empty",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = TextPrimary
                             )
                             Text(
-                                text = "Install an extension and favorite manga or novels to see them here.",
+                                text = if (libraryFilter.isActive) {
+                                    "No titles match your active filter criteria."
+                                } else {
+                                    "Install an extension and favorite manga or novels to see them here."
+                                },
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = TextSecondary,
                                 modifier = Modifier.padding(horizontal = 32.dp)
                             )
+                            if (libraryFilter.isActive) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CapsuleShape)
+                                        .background(Color.White.copy(alpha = 0.12f))
+                                        .border(1.dp, Color.White.copy(alpha = 0.25f), CapsuleShape)
+                                        .clickable { libraryFilter = LibraryFilter() }
+                                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Reset Filters",
+                                        color = Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -565,6 +631,14 @@ fun LibraryScreenContent(
                 isSelectionMode = false
                 selectedMangaUrls = emptySet()
             }
+        )
+
+        // LAYER 5: Library Filter & Sort Sheet Modal
+        LibraryFilterSheet(
+            filter = libraryFilter,
+            isVisible = isFilterSheetVisible,
+            onDismiss = { isFilterSheetVisible = false },
+            onApply = { libraryFilter = it }
         )
     }
 }
