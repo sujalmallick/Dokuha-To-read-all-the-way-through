@@ -34,6 +34,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
@@ -96,6 +97,7 @@ import ui.screens.more.MoreScreen
 import ui.screens.updates.UpdatesScreen
 import ui.theme.CapsuleShape
 import ui.theme.ElectricBlue
+import ui.theme.ElectricBlueLight
 import ui.theme.GlassBorder
 import ui.theme.PanelBackground
 import ui.theme.PanelTheme
@@ -282,6 +284,12 @@ class ExtensionsScreen : Screen {
                 }
                 result.isValid
             },
+            onRemoveRepo = { repoId ->
+                repository.removeRepository(repoId)
+            },
+            onUpdateAll = {
+                repository.updateAllExtensions()
+            },
             onRefresh = {
                 coroutineScope.launch {
                     extensionManager.refreshCatalog()
@@ -317,6 +325,8 @@ fun ExtensionsScreenContent(
     onClearCache: (ExtensionItem) -> Unit = {},
     onBrowse: (ExtensionItem) -> Unit = {},
     onAddRepo: (url: String, name: String?) -> Boolean = { _, _ -> true },
+    onRemoveRepo: (repoId: String) -> Boolean = { true },
+    onUpdateAll: () -> Unit = {},
     onRefresh: () -> Unit = {},
     onLongClick: (ExtensionItem) -> Unit = {},
     modifier: Modifier = Modifier
@@ -324,6 +334,7 @@ fun ExtensionsScreenContent(
     val repository = remember(extensionRepository) {
         extensionRepository ?: DefaultExtensionRepository()
     }
+    val repos by repository.repositories.collectAsState()
 
     val glassState = rememberPanelGlassState()
 
@@ -334,6 +345,7 @@ fun ExtensionsScreenContent(
 
     var selectedExtensionForSheet by remember { mutableStateOf<ExtensionItem?>(null) }
     var isAddRepoVisible by remember { mutableStateOf(false) }
+    var isSideloadVisible by remember { mutableStateOf(false) }
 
     // Derive languages from actual extensions list + standard defaults
     val languages = remember(extensions) {
@@ -452,6 +464,33 @@ fun ExtensionsScreenContent(
                                     tint = TextSecondary,
                                     modifier = Modifier.size(16.dp)
                                 )
+                            }
+
+                            // Sideload Pill Button
+                            Box(
+                                modifier = Modifier
+                                    .clip(CapsuleShape)
+                                    .background(Color.White.copy(alpha = 0.08f))
+                                    .border(1.dp, Color.White.copy(alpha = 0.16f), CapsuleShape)
+                                    .clickable { isSideloadVisible = true }
+                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Code,
+                                        contentDescription = null,
+                                        tint = Color(0xFF38BDF8),
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Sideload",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = Color.White
+                                    )
+                                }
                             }
 
                             // Add Repo Pill Button
@@ -605,6 +644,49 @@ fun ExtensionsScreenContent(
                     }
                 }
             } else {
+                if (selectedStatusTab == "Updates" && updatesCount > 0) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color.White.copy(alpha = 0.08f))
+                                .border(1.dp, Color(0xFF38BDF8).copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+                                .clickable { onUpdateAll() }
+                                .padding(horizontal = 16.dp, vertical = 12.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Refresh,
+                                        contentDescription = null,
+                                        tint = Color(0xFF38BDF8),
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Update All ($updatesCount)",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White
+                                    )
+                                }
+                                Text(
+                                    text = "Update",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF38BDF8)
+                                )
+                            }
+                        }
+                    }
+                }
+
                 items(filteredExtensions, key = { it.id }) { ext ->
                     ExtensionCardItem(
                         extension = ext,
@@ -665,6 +747,20 @@ fun ExtensionsScreenContent(
             onDismiss = { isAddRepoVisible = false },
             onAddRepo = { url, name ->
                 onAddRepo(url, name)
+            },
+            repositories = repos,
+            onRemoveRepo = { repoId ->
+                onRemoveRepo(repoId)
+            }
+        )
+
+        // LAYER 5: Sideload Extension Dialog
+        SideloadExtensionDialog(
+            isVisible = isSideloadVisible,
+            onDismiss = { isSideloadVisible = false },
+            repository = repository,
+            onExtensionInstalled = {
+                onRefresh()
             }
         )
     }

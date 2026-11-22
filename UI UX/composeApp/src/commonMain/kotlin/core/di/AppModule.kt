@@ -46,6 +46,6 @@ val appModule = module {
     single<SettingsRepository> { PersistentSettingsRepository(get()) }
     single<ProfileRepository> { PersistentProfileRepository(get(), get()) }
     single<DataDownloadManager> { DefaultDownloadManager() }
-    single<ExtensionRepository> { DefaultExtensionRepository() }
+    single<ExtensionRepository> { DefaultExtensionRepository(httpClient = getOrNull(), extensionManager = getOrNull()) }
     single<CategoryRepository> { DefaultCategoryRepository() }
 }

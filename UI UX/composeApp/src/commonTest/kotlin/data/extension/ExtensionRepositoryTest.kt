@@ -168,4 +168,91 @@ class ExtensionRepositoryTest {
         assertNotNull(cleared)
         assertEquals(0L, cleared.cachedBytes)
     }
+
+    @Test
+    fun testSideloadValidExtensionScript() = runTest {
+        val testScope = TestScope(StandardTestDispatcher(testScheduler))
+        val repository = DefaultExtensionRepository(scope = testScope)
+
+        val script = """
+            manifest = {
+                "id": "sample-reader",
+                "name": "Sample Reader",
+                "version": "2.0.1",
+                "lang": "en",
+                "baseUrl": "https://sample.reader.com",
+                "type": "comic",
+                "isNsfw": false
+            };
+            class SampleSource {
+                // Extension code
+            }
+        """.trimIndent()
+
+        val result = repository.sideloadExtension(script)
+        assertTrue(result.isSuccess, "Sideloading valid script should succeed: ${result.exceptionOrNull()?.message}")
+
+        val item = result.getOrThrow()
+        assertEquals("sample-reader", item.id)
+        assertEquals("Sample Reader", item.name)
+        assertEquals("2.0.1", item.versionName)
+        assertEquals(ExtensionTrustLevel.UNTRUSTED, item.trustLevel)
+        assertEquals(ExtensionStatus.INSTALLED, item.status)
+
+        val inList = repository.extensions.value.find { it.id == "sample-reader" }
+        assertNotNull(inList)
+        assertEquals("Sample Reader", inList.name)
+    }
+
+    @Test
+    fun testSideloadMalformedScriptFails() = runTest {
+        val testScope = TestScope(StandardTestDispatcher(testScheduler))
+        val repository = DefaultExtensionRepository(scope = testScope)
+
+        val badScript = "console.log('hello without manifest');"
+        val result = repository.sideloadExtension(badScript)
+        assertTrue(result.isFailure, "Missing manifest must fail sideloading")
+    }
+
+    @Test
+    fun testSideloadEmptyScriptFails() = runTest {
+        val testScope = TestScope(StandardTestDispatcher(testScheduler))
+        val repository = DefaultExtensionRepository(scope = testScope)
+
+        val result = repository.sideloadExtension("   ")
+        assertTrue(result.isFailure, "Empty script must fail sideloading")
+    }
+
+    @Test
+    fun testFetchAndSideloadSSRFProtection() = runTest {
+        val testScope = TestScope(StandardTestDispatcher(testScheduler))
+        val repository = DefaultExtensionRepository(scope = testScope)
+
+        // Block HTTP
+        val httpResult = repository.fetchAndSideloadExtension("http://evil.com/ext.js")
+        assertTrue(httpResult.isFailure)
+
+        // Block localhost
+        val localResult = repository.fetchAndSideloadExtension("https://localhost:8080/ext.js")
+        assertTrue(localResult.isFailure)
+
+        // Block private IP
+        val ipResult = repository.fetchAndSideloadExtension("https://192.168.1.1/ext.js")
+        assertTrue(ipResult.isFailure)
+    }
+
+    @Test
+    fun testUpdateAllExtensions() = runTest {
+        val testScope = TestScope(StandardTestDispatcher(testScheduler))
+        val repository = DefaultExtensionRepository(scope = testScope)
+
+        val beforeUpdates = repository.extensions.value.filter { it.status == ExtensionStatus.UPDATE_AVAILABLE }
+        assertTrue(beforeUpdates.isNotEmpty(), "Should have pending updates initially")
+
+        repository.updateAllExtensions()
+        testScope.advanceUntilIdle()
+
+        val afterUpdates = repository.extensions.value.filter { it.status == ExtensionStatus.UPDATE_AVAILABLE }
+        assertTrue(afterUpdates.isEmpty(), "All extensions should be updated")
+    }
 }
