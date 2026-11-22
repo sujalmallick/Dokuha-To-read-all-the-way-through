@@ -51,10 +51,11 @@ jobs:
             -configuration ${{ inputs.configuration }} \
             -destination 'generic/platform=iOS' \
             -archivePath build/Dokuha.xcarchive \
+            -jobs 2 \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            OTHER_LDFLAGS="\$(inherited) -ld_classic -framework ComposeApp -lsqlite3 -framework JavaScriptCore" \
+            DEBUG_INFORMATION_FORMAT=dwarf \
             archive
 
       - name: Package IPA
