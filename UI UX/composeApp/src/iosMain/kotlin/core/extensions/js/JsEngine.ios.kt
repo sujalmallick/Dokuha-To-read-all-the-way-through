@@ -16,10 +16,12 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
+import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSString
 import platform.JavaScriptCore.JSContext
 import platform.JavaScriptCore.JSValue
 
+@OptIn(ExperimentalForeignApi::class)
 actual class JsEngine actual constructor() {
     private var context: JSContext? = JSContext()
     private val mutex = Mutex()
@@ -39,7 +41,7 @@ actual class JsEngine actual constructor() {
                     null
                 }
             }
-            ctx.setObject(dispatcher, forKeyedSubscript = "__dokuha_native_dispatcher" as NSString)
+            ctx.globalObject.setObject(dispatcher, forKeyedSubscript = "__dokuha_native_dispatcher" as NSString)
 
             val asyncDispatcher: (String, String, String) -> Unit = { fnName, reqId, argsJson ->
                 val fn = asyncFunctions[fnName]
@@ -61,7 +63,7 @@ actual class JsEngine actual constructor() {
                     }
                 }
             }
-            ctx.setObject(asyncDispatcher, forKeyedSubscript = "__dokuha_native_async_dispatcher" as NSString)
+            ctx.globalObject.setObject(asyncDispatcher, forKeyedSubscript = "__dokuha_native_async_dispatcher" as NSString)
         }
     }
 
@@ -99,7 +101,7 @@ actual class JsEngine actual constructor() {
             }
             evaluated
         }
-        if (res != null && res.hasProperty("then")) {
+        if (res != null && res.objectForKeyedSubscript("then" as NSString) != null) {
             val deferred = CompletableDeferred<String>()
             val resolveCallback: (Any?) -> Unit = { value ->
                 deferred.complete(value?.toString() ?: "")
@@ -107,7 +109,7 @@ actual class JsEngine actual constructor() {
             val rejectCallback: (Any?) -> Unit = { error ->
                 deferred.completeExceptionally(RuntimeException("Promise rejected: $error"))
             }
-            res.invokeMethod("then", listOf(resolveCallback, rejectCallback))
+            res.invokeMethod("then", withArguments = listOf(resolveCallback, rejectCallback))
             return deferred.await()
         }
         return res?.toString() ?: ""
@@ -222,7 +224,7 @@ actual class JsEngine actual constructor() {
             evaluated
         }
 
-        if (promiseVal != null && promiseVal.hasProperty("then")) {
+        if (promiseVal != null && promiseVal.objectForKeyedSubscript("then" as NSString) != null) {
             val deferred = CompletableDeferred<String>()
             val resolveCallback: (Any?) -> Unit = { value ->
                 deferred.complete(value?.toString() ?: "")
@@ -230,7 +232,7 @@ actual class JsEngine actual constructor() {
             val rejectCallback: (Any?) -> Unit = { error ->
                 deferred.completeExceptionally(RuntimeException("Promise rejected: $error"))
             }
-            promiseVal.invokeMethod("then", listOf(resolveCallback, rejectCallback))
+            promiseVal.invokeMethod("then", withArguments = listOf(resolveCallback, rejectCallback))
             return deferred.await()
         }
 
