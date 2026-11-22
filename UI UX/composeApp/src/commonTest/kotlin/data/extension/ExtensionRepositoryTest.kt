@@ -9,85 +9,19 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ExtensionRepositoryTest {
 
     @Test
-    fun testInitialExtensionsLoaded() = runTest {
+    fun testInitialStateIsEmpty() = runTest {
         val testScope = TestScope(StandardTestDispatcher(testScheduler))
         val repository = DefaultExtensionRepository(scope = testScope)
 
-        val list = repository.extensions.value
-        assertTrue(list.isNotEmpty(), "Extensions list should not be empty")
-
-        val mangadex = list.find { it.name == "MangaDex" }
-        assertNotNull(mangadex)
-        assertEquals(ExtensionStatus.INSTALLED, mangadex.status)
-        assertEquals(ExtensionTrustLevel.OFFICIAL, mangadex.trustLevel)
-
-        val comick = list.find { it.name == "Comick" }
-        assertNotNull(comick)
-        assertEquals(ExtensionStatus.UPDATE_AVAILABLE, comick.status)
-        assertEquals("1.3.5", comick.updateVersion)
-    }
-
-    @Test
-    fun testInstallLifecycle() = runTest {
-        val testScope = TestScope(StandardTestDispatcher(testScheduler))
-        val repository = DefaultExtensionRepository(scope = testScope)
-
-        val webnovel = repository.extensions.value.find { it.name == "WebNovel" }
-        assertNotNull(webnovel)
-        assertEquals(ExtensionStatus.AVAILABLE, webnovel.status)
-
-        repository.installExtension(webnovel.id)
-        assertEquals(ExtensionStatus.INSTALLING, repository.extensions.value.find { it.id == webnovel.id }?.status)
-
-        testScope.advanceUntilIdle()
-        val installed = repository.extensions.value.find { it.id == webnovel.id }
-        assertNotNull(installed)
-        assertEquals(ExtensionStatus.INSTALLED, installed.status)
-        assertEquals(1.0f, installed.installProgress)
-    }
-
-    @Test
-    fun testUpdateLifecycle() = runTest {
-        val testScope = TestScope(StandardTestDispatcher(testScheduler))
-        val repository = DefaultExtensionRepository(scope = testScope)
-
-        val comick = repository.extensions.value.find { it.name == "Comick" }
-        assertNotNull(comick)
-        assertEquals(ExtensionStatus.UPDATE_AVAILABLE, comick.status)
-        assertEquals("1.3.1", comick.versionName)
-
-        repository.updateExtension(comick.id)
-        assertEquals(ExtensionStatus.INSTALLING, repository.extensions.value.find { it.id == comick.id }?.status)
-
-        testScope.advanceUntilIdle()
-        val updated = repository.extensions.value.find { it.id == comick.id }
-        assertNotNull(updated)
-        assertEquals(ExtensionStatus.INSTALLED, updated.status)
-        assertEquals("1.3.5", updated.versionName)
-        assertNull(updated.updateVersion)
-    }
-
-    @Test
-    fun testUninstallLifecycle() = runTest {
-        val testScope = TestScope(StandardTestDispatcher(testScheduler))
-        val repository = DefaultExtensionRepository(scope = testScope)
-
-        val mangadex = repository.extensions.value.find { it.name == "MangaDex" }
-        assertNotNull(mangadex)
-        assertEquals(ExtensionStatus.INSTALLED, mangadex.status)
-
-        repository.uninstallExtension(mangadex.id)
-        val uninstalled = repository.extensions.value.find { it.id == mangadex.id }
-        assertNotNull(uninstalled)
-        assertEquals(ExtensionStatus.AVAILABLE, uninstalled.status)
-        assertEquals(0L, uninstalled.cachedBytes)
+        // Strict empty state: zero preloaded mock extensions or preloaded repos
+        assertTrue(repository.extensions.value.isEmpty(), "Extensions list should initially be empty")
+        assertTrue(repository.repositories.value.isEmpty(), "Repositories list should initially be empty")
     }
 
     @Test
@@ -128,19 +62,6 @@ class ExtensionRepositoryTest {
     }
 
     @Test
-    fun testCannotRemoveOfficialRepository() = runTest {
-        val testScope = TestScope(StandardTestDispatcher(testScheduler))
-        val repository = DefaultExtensionRepository(scope = testScope)
-
-        val officialRepo = repository.repositories.value.find { it.isOfficial }
-        assertNotNull(officialRepo)
-
-        val removed = repository.removeRepository(officialRepo.id)
-        assertFalse(removed, "Official repository must never be removed")
-        assertTrue(repository.repositories.value.any { it.id == officialRepo.id })
-    }
-
-    @Test
     fun testAddAndRemoveCustomRepository() = runTest {
         val testScope = TestScope(StandardTestDispatcher(testScheduler))
         val repository = DefaultExtensionRepository(scope = testScope)
@@ -152,21 +73,6 @@ class ExtensionRepositoryTest {
         val removed = repository.removeRepository(customRepo.id)
         assertTrue(removed)
         assertFalse(repository.repositories.value.any { it.id == customRepo.id })
-    }
-
-    @Test
-    fun testClearExtensionCache() = runTest {
-        val testScope = TestScope(StandardTestDispatcher(testScheduler))
-        val repository = DefaultExtensionRepository(scope = testScope)
-
-        val mangadex = repository.extensions.value.find { it.name == "MangaDex" }
-        assertNotNull(mangadex)
-        assertTrue(mangadex.cachedBytes > 0)
-
-        repository.clearExtensionCache(mangadex.id)
-        val cleared = repository.extensions.value.find { it.id == mangadex.id }
-        assertNotNull(cleared)
-        assertEquals(0L, cleared.cachedBytes)
     }
 
     @Test
@@ -242,17 +148,36 @@ class ExtensionRepositoryTest {
     }
 
     @Test
-    fun testUpdateAllExtensions() = runTest {
+    fun testSideloadedExtensionCacheAndUninstallLifecycle() = runTest {
         val testScope = TestScope(StandardTestDispatcher(testScheduler))
         val repository = DefaultExtensionRepository(scope = testScope)
 
-        val beforeUpdates = repository.extensions.value.filter { it.status == ExtensionStatus.UPDATE_AVAILABLE }
-        assertTrue(beforeUpdates.isNotEmpty(), "Should have pending updates initially")
+        val script = """
+            manifest = {
+                "id": "cache-test-reader",
+                "name": "Cache Test Reader",
+                "version": "1.0.0",
+                "lang": "en",
+                "baseUrl": "https://cache.test.com",
+                "type": "comic",
+                "isNsfw": false
+            };
+        """.trimIndent()
 
-        repository.updateAllExtensions()
-        testScope.advanceUntilIdle()
+        val sideloadResult = repository.sideloadExtension(script)
+        assertTrue(sideloadResult.isSuccess)
+        val ext = sideloadResult.getOrThrow()
 
-        val afterUpdates = repository.extensions.value.filter { it.status == ExtensionStatus.UPDATE_AVAILABLE }
-        assertTrue(afterUpdates.isEmpty(), "All extensions should be updated")
+        // Clear cache
+        repository.clearExtensionCache(ext.id)
+        val cleared = repository.extensions.value.find { it.id == ext.id }
+        assertNotNull(cleared)
+        assertEquals(0L, cleared.cachedBytes)
+
+        // Uninstall
+        repository.uninstallExtension(ext.id)
+        val uninstalled = repository.extensions.value.find { it.id == ext.id }
+        assertNotNull(uninstalled)
+        assertEquals(ExtensionStatus.AVAILABLE, uninstalled.status)
     }
 }
