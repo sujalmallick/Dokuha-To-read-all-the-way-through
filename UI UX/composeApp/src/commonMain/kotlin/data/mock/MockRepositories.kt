@@ -148,6 +148,13 @@ interface PanelRepository {
     fun toggleDownloadPause(chapterUrl: String) {}
     fun cancelDownload(chapterUrl: String) {}
     fun isChapterDownloaded(chapterUrl: String): Boolean = false
+
+    /** Export library + history to a portable JSON string. */
+    suspend fun exportLibraryJson(): String = "{}"
+
+    /** Import library + history from a JSON string produced by [exportLibraryJson].
+     *  Returns the number of titles restored or -1 on parse error. */
+    suspend fun importLibraryJson(json: String): Int = 0
 }
 
 data class MockSourceInfo(

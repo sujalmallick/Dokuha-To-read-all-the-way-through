@@ -26,6 +26,7 @@ import data.mock.MockStorageInfo
 import data.mock.MockUpdateGroup
 import data.mock.MockUpdateItem
 import data.mock.PanelRepository
+import data.backup.BackupEngine
 import io.panel.reader.db.Chapters
 import io.panel.reader.db.GetContinueReading
 import io.panel.reader.db.Mangas
@@ -546,6 +547,14 @@ class SqlDelightPanelRepository(
     override fun isChapterDownloaded(chapterUrl: String): Boolean {
         return downloadStorage?.isChapterDownloaded(chapterUrl) ?: false
     }
+
+    // ── Backup / Restore ────────────────────────────────────────────────────
+
+    override suspend fun exportLibraryJson(): String =
+        BackupEngine.exportJson(this, nowMs = currentTimeMillis())
+
+    override suspend fun importLibraryJson(json: String): Int =
+        BackupEngine.importJson(json, this)
 
     override fun searchManga(
         query: String,

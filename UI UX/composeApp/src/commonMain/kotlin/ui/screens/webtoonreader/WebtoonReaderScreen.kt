@@ -75,6 +75,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import core.source.SourcePage
 import core.source.SourceManga
+import ui.volume.LocalVolumeKeyState
 import data.download.DownloadManager
 import data.mock.PanelRepository
 import data.reader.DualPageEngine
@@ -233,6 +234,24 @@ fun WebtoonReaderScreenContent(
     val cropBorders by repo.cropBorders.collectAsState()
     val splitDoubleSpread by repo.splitDoubleSpread.collectAsState()
     val dualPageOffset by repo.dualPageOffset.collectAsState()
+    val volumeKeyNavEnabled by repo.volumeKeyNavigation.collectAsState()
+
+    // Volume key navigation: scroll one page up/down when enabled
+    val volumeKeyState = LocalVolumeKeyState.current
+    val volumeUpCount = volumeKeyState.upPresses.value
+    val volumeDownCount = volumeKeyState.downPresses.value
+    LaunchedEffect(volumeUpCount) {
+        if (volumeKeyNavEnabled && volumeUpCount > 0) {
+            val target = (listState.firstVisibleItemIndex - 1).coerceAtLeast(0)
+            listState.animateScrollToItem(target)
+        }
+    }
+    LaunchedEffect(volumeDownCount) {
+        if (volumeKeyNavEnabled && volumeDownCount > 0) {
+            val target = (listState.firstVisibleItemIndex + 1).coerceAtMost(pages.size - 1)
+            listState.animateScrollToItem(target)
+        }
+    }
 
     var areControlsVisible by remember { mutableStateOf(true) }
     var isBookmarked by remember { mutableStateOf(false) }

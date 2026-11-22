@@ -51,6 +51,7 @@ class PersistentSettingsRepository(
         private const val KEY_CONCURRENT_DOWNLOADS = "setting_concurrent_downloads"
         private const val KEY_DOWNLOAD_LOCATION = "setting_download_location"
         private const val KEY_AUTO_DOWNLOAD_NEXT_CHAPTER = "setting_auto_download_next_chapter"
+        private const val KEY_VOLUME_KEY_NAVIGATION = "setting_volume_key_navigation"
 
         private const val KEY_EXTENSION_REPOS = "setting_extension_repos"
         private const val KEY_LANGUAGE_FILTERS = "setting_language_filters"
@@ -340,6 +341,17 @@ class PersistentSettingsRepository(
     override fun setAutoDownloadNextChapter(enabled: Boolean) {
         _autoDownloadNextChapter.value = enabled
         storage.putBoolean(KEY_AUTO_DOWNLOAD_NEXT_CHAPTER, enabled)
+    }
+
+    // Volume Key Navigation
+    private val _volumeKeyNavigation = MutableStateFlow(
+        storage.getBoolean(KEY_VOLUME_KEY_NAVIGATION, false)
+    )
+    override val volumeKeyNavigation: StateFlow<Boolean> = _volumeKeyNavigation.asStateFlow()
+
+    override fun setVolumeKeyNavigation(enabled: Boolean) {
+        _volumeKeyNavigation.value = enabled
+        storage.putBoolean(KEY_VOLUME_KEY_NAVIGATION, enabled)
     }
 
     // Sources & Extensions (Clean startup with zero pre-loaded repositories)
