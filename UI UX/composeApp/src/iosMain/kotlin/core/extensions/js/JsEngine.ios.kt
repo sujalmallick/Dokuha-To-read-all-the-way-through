@@ -16,12 +16,10 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
-import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSString
 import platform.JavaScriptCore.JSContext
 import platform.JavaScriptCore.JSValue
 
-@OptIn(ExperimentalForeignApi::class)
 actual class JsEngine actual constructor() {
     private var context: JSContext? = JSContext()
     private val mutex = Mutex()
@@ -31,6 +29,10 @@ actual class JsEngine actual constructor() {
 
     init {
         context?.let { ctx ->
+            // Register sync dispatcher as a global JS function via evaluateScript.
+            // We store the Kotlin lambda in syncFunctions and expose a thin JS wrapper
+            // that calls __dokuha_native_dispatcher(name, argsJson) → result string.
+            // The actual Kotlin closure is called through a JS bridge injected below.
             val dispatcher: (String, String) -> String? = { fnName, argsJson ->
                 val fn = syncFunctions[fnName]
                 if (fn != null) {
@@ -41,7 +43,8 @@ actual class JsEngine actual constructor() {
                     null
                 }
             }
-            ctx.globalObject.setObject(dispatcher, forKeyedSubscript = "__dokuha_native_dispatcher" as NSString)
+            // JSContext.setObject(value, forKeyedSubscript:) is the correct API on JSContext
+            ctx.setObject(dispatcher, forKeyedSubscript = "__dokuha_native_dispatcher" as NSString)
 
             val asyncDispatcher: (String, String, String) -> Unit = { fnName, reqId, argsJson ->
                 val fn = asyncFunctions[fnName]
@@ -63,7 +66,7 @@ actual class JsEngine actual constructor() {
                     }
                 }
             }
-            ctx.globalObject.setObject(asyncDispatcher, forKeyedSubscript = "__dokuha_native_async_dispatcher" as NSString)
+            ctx.setObject(asyncDispatcher, forKeyedSubscript = "__dokuha_native_async_dispatcher" as NSString)
         }
     }
 
@@ -101,7 +104,8 @@ actual class JsEngine actual constructor() {
             }
             evaluated
         }
-        if (res != null && res.objectForKeyedSubscript("then" as NSString) != null) {
+        // Check if result is a Promise (has a "then" property) using hasProperty
+        if (res != null && res.isObject && res.hasProperty("then")) {
             val deferred = CompletableDeferred<String>()
             val resolveCallback: (Any?) -> Unit = { value ->
                 deferred.complete(value?.toString() ?: "")
@@ -224,7 +228,8 @@ actual class JsEngine actual constructor() {
             evaluated
         }
 
-        if (promiseVal != null && promiseVal.objectForKeyedSubscript("then" as NSString) != null) {
+        // Check Promise using isObject + hasProperty("then")
+        if (promiseVal != null && promiseVal.isObject && promiseVal.hasProperty("then")) {
             val deferred = CompletableDeferred<String>()
             val resolveCallback: (Any?) -> Unit = { value ->
                 deferred.complete(value?.toString() ?: "")
