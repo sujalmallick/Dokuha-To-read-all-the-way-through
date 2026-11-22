@@ -8,6 +8,10 @@ import core.source.MangaStatus
 import core.source.SourceManga
 import data.download.DefaultDownloadManager
 import data.extension.DefaultExtensionRepository
+import data.extension.ExtensionItem
+import data.extension.ExtensionSourceInfo
+import data.extension.ExtensionStatus
+import data.extension.ExtensionTrustLevel
 import data.library.DefaultCategoryRepository
 import data.mock.FakePanelRepository
 import data.mock.MockStorageInfo
@@ -430,7 +434,25 @@ class ScreenshotsTest {
     @Test
     fun capture_19_extension_detail_sheet() {
         val extRepo = DefaultExtensionRepository()
-        val mangadex = extRepo.extensions.value.first { it.name == "MangaDex" }
+        val mangadex = extRepo.extensions.value.firstOrNull { it.name == "MangaDex" } ?: ExtensionItem(
+            id = "ext-mangadex",
+            name = "MangaDex",
+            pkgName = "eu.kanade.tachiyomi.extension.all.mangadex",
+            versionName = "1.4.32",
+            versionCode = 32,
+            lang = "ALL",
+            isNsfw = false,
+            trustLevel = ExtensionTrustLevel.OFFICIAL,
+            repoUrl = "https://raw.githubusercontent.com/tachiyomiorg/tachiyomi-extensions/repo",
+            status = ExtensionStatus.INSTALLED,
+            iconColorHex = 0xFFFF6740,
+            description = "Community manga platform with high-resolution scans, multi-language scanlations, and chapter discussion integration.",
+            sources = listOf(
+                ExtensionSourceInfo("src-mdx-en", "MangaDex (EN)", "https://mangadex.org", listOf("EN"), "Manga")
+            ),
+            networkDomains = listOf("api.mangadex.org", "mangadex.org", "uploads.mangadex.org"),
+            cachedBytes = 48 * 1024 * 1024L
+        )
 
         composeTestRule.setContent {
             PanelTheme {

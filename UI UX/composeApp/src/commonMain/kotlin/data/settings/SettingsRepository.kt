@@ -367,23 +367,10 @@ class FakeSettingsRepository : SettingsRepository {
 
     override fun setVolumeKeyNavigation(enabled: Boolean) {
         _volumeKeyNavigation.value = enabled
-    }    // Sources & Extensions
-    private val _extensionRepos = MutableStateFlow(
-        listOf(
-            ExtensionRepo(
-                id = "repo-official",
-                name = "Official Dokuha Repository",
-                url = "https://raw.githubusercontent.com/dokuha-app/extensions/repo/index.min.json",
-                isOfficial = true
-            ),
-            ExtensionRepo(
-                id = "repo-keiyoushi",
-                name = "Keiyoushi Extensions",
-                url = "https://raw.githubusercontent.com/keiyoushi/extensions/repo/index.min.json",
-                isOfficial = false
-            )
-        )
-    )
+    }
+
+    // Sources & Extensions
+    private val _extensionRepos = MutableStateFlow<List<ExtensionRepo>>(emptyList())
     override val extensionRepos: StateFlow<List<ExtensionRepo>> = _extensionRepos.asStateFlow()
 
     private val _languageFilters = MutableStateFlow(setOf("en", "ja", "ko"))

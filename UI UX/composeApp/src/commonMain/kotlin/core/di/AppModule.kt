@@ -41,7 +41,7 @@ val appModule = module {
     single { AntiBotChallengeManager(headlessSolver = getOrNull()) }
     single<AntiBotResolver> { get<AntiBotChallengeManager>() }
     single<PanelRepository> { SqlDelightPanelRepository(database = get(), downloadManager = getOrNull(), downloadStorage = getOrNull()) }
-    single<ExtensionManager>(createdAtStart = true) { ExtensionManager(storage = get(), panelRepository = get(), httpClient = getOrNull(), settingsRepository = getOrNull(), antiBotResolver = getOrNull(), autoSeedDefaults = true) }
+    single<ExtensionManager>(createdAtStart = true) { ExtensionManager(storage = get(), panelRepository = get(), httpClient = getOrNull(), settingsRepository = getOrNull(), antiBotResolver = getOrNull(), autoSeedDefaults = false) }
     single<TrackerRepository> { ProductionTrackerRepository(getOrNull()) }
     single<SettingsRepository> { PersistentSettingsRepository(get()) }
     single<ProfileRepository> { PersistentProfileRepository(get(), get()) }

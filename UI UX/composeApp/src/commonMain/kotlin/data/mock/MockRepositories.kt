@@ -495,14 +495,7 @@ class FakePanelRepository : PanelRepository {
     }
 
     override fun getExtensions(): Flow<List<MockExtension>> {
-        return flowOf(
-            listOf(
-                MockExtension("1", "MangaDex", "v1.4.8", "EN", isInstalled = true, hasUpdate = false),
-                MockExtension("2", "Comick", "v1.3.1", "All", isInstalled = true, hasUpdate = true),
-                MockExtension("3", "Asura Scans", "v1.2.0", "EN", isInstalled = true, hasUpdate = false),
-                MockExtension("4", "WebNovel", "v1.1.9", "EN", isInstalled = false, hasUpdate = true)
-            )
-        )
+        return flowOf(emptyList())
     }
 
     override fun getUpdates(): Flow<List<MockUpdateGroup>> {
