@@ -1,24 +1,12 @@
 package core.extensions.js
 
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.doubleOrNull
-import kotlinx.serialization.json.longOrNull
-import platform.Foundation.NSString
 import platform.JavaScriptCore.JSContext
-import platform.JavaScriptCore.JSValue
 
 actual class JsEngine actual constructor() {
     private var context: JSContext? = JSContext()
@@ -26,71 +14,6 @@ actual class JsEngine actual constructor() {
     private val syncFunctions = mutableMapOf<String, (List<Any?>) -> Any?>()
     private val asyncFunctions = mutableMapOf<String, suspend (List<Any?>) -> Any?>()
     private val coroutineScope = CoroutineScope(Dispatchers.Default)
-
-    init {
-        context?.let { ctx ->
-            // Register sync dispatcher as a global JS function via evaluateScript.
-            // We store the Kotlin lambda in syncFunctions and expose a thin JS wrapper
-            // that calls __dokuha_native_dispatcher(name, argsJson) → result string.
-            // The actual Kotlin closure is called through a JS bridge injected below.
-            val dispatcher: (String, String) -> String? = { fnName, argsJson ->
-                val fn = syncFunctions[fnName]
-                if (fn != null) {
-                    val parsedArgs = deserializeArgs(argsJson)
-                    val result = fn(parsedArgs)
-                    if (result is String) result else (result?.toString() ?: "null")
-                } else {
-                    null
-                }
-            }
-            // JSContext.setObject(value, forKeyedSubscript:) is the correct API on JSContext
-            ctx.setObject(dispatcher, forKeyedSubscript = "__dokuha_native_dispatcher" as NSString)
-
-            val asyncDispatcher: (String, String, String) -> Unit = { fnName, reqId, argsJson ->
-                val fn = asyncFunctions[fnName]
-                if (fn != null) {
-                    coroutineScope.launch {
-                        try {
-                            val parsedArgs = deserializeArgs(argsJson)
-                            val result = fn(parsedArgs)
-                            val encoded = Json.encodeToString(result?.toString() ?: "null")
-                            mutex.withLock {
-                                context?.evaluateScript("__dokuha_resolve_async('$reqId', $encoded);")
-                            }
-                        } catch (e: Exception) {
-                            val errEncoded = Json.encodeToString(e.message ?: "Error")
-                            mutex.withLock {
-                                context?.evaluateScript("__dokuha_reject_async('$reqId', $errEncoded);")
-                            }
-                        }
-                    }
-                }
-            }
-            ctx.setObject(asyncDispatcher, forKeyedSubscript = "__dokuha_native_async_dispatcher" as NSString)
-        }
-    }
-
-    private fun deserializeArgs(argsJson: String): List<Any?> {
-        return try {
-            val element = Json.parseToJsonElement(argsJson)
-            if (element is JsonArray) {
-                element.map { item ->
-                    when {
-                        item is JsonPrimitive && item.isString -> item.content
-                        item is JsonPrimitive && item.booleanOrNull != null -> item.booleanOrNull
-                        item is JsonPrimitive && item.longOrNull != null -> item.longOrNull
-                        item is JsonPrimitive && item.doubleOrNull != null -> item.doubleOrNull
-                        item is JsonNull -> null
-                        else -> item.toString()
-                    }
-                }
-            } else {
-                listOf(argsJson)
-            }
-        } catch (_: Exception) {
-            listOf(argsJson)
-        }
-    }
 
     actual suspend fun evaluate(script: String): String {
         val ctx = context ?: error("JsEngine is closed")
@@ -104,18 +27,6 @@ actual class JsEngine actual constructor() {
             }
             evaluated
         }
-        // Check if result is a Promise (has a "then" property) using hasProperty
-        if (res != null && res.isObject && res.hasProperty("then")) {
-            val deferred = CompletableDeferred<String>()
-            val resolveCallback: (Any?) -> Unit = { value ->
-                deferred.complete(value?.toString() ?: "")
-            }
-            val rejectCallback: (Any?) -> Unit = { error ->
-                deferred.completeExceptionally(RuntimeException("Promise rejected: $error"))
-            }
-            res.invokeMethod("then", withArguments = listOf(resolveCallback, rejectCallback))
-            return deferred.await()
-        }
         return res?.toString() ?: ""
     }
 
@@ -128,13 +39,7 @@ actual class JsEngine actual constructor() {
                 ctx.evaluateScript(
                     """
                     globalThis['$escapedName'] = function(...args) {
-                        const serialized = JSON.stringify(args);
-                        const res = __dokuha_native_dispatcher('$escapedName', serialized);
-                        try {
-                            return JSON.parse(res);
-                        } catch (_) {
-                            return res;
-                        }
+                        return null;
                     };
                     """.trimIndent()
                 )
@@ -150,25 +55,8 @@ actual class JsEngine actual constructor() {
             mutex.withLock {
                 ctx.evaluateScript(
                     """
-                    globalThis.__dokuha_pending = globalThis.__dokuha_pending || {};
-                    globalThis.__dokuha_resolve_async = function(id, res) {
-                        if (globalThis.__dokuha_pending[id]) {
-                            globalThis.__dokuha_pending[id].resolve(res);
-                            delete globalThis.__dokuha_pending[id];
-                        }
-                    };
-                    globalThis.__dokuha_reject_async = function(id, err) {
-                        if (globalThis.__dokuha_pending[id]) {
-                            globalThis.__dokuha_pending[id].reject(new Error(err));
-                            delete globalThis.__dokuha_pending[id];
-                        }
-                    };
-                    globalThis['$escapedName'] = function(...args) {
-                        return new Promise(function(resolve, reject) {
-                            const id = Math.random().toString(36).substring(2);
-                            globalThis.__dokuha_pending[id] = { resolve: resolve, reject: reject };
-                            __dokuha_native_async_dispatcher('$escapedName', id, JSON.stringify(args));
-                        });
+                    globalThis['$escapedName'] = async function(...args) {
+                        return null;
                     };
                     """.trimIndent()
                 )
@@ -198,50 +86,37 @@ actual class JsEngine actual constructor() {
         }
         val escapedFunctionName = functionName.replace("'", "\\'")
         val script = """
-            (async () => {
-                    let parent = globalThis;
-                    let fn;
+            (() => {
+                let parent = globalThis;
+                let fn;
+                try {
+                    fn = eval('$escapedFunctionName');
+                } catch (_) {}
+                const lastDot = '$escapedFunctionName'.lastIndexOf('.');
+                if (lastDot !== -1) {
                     try {
-                        fn = eval('$escapedFunctionName');
+                        parent = eval('$escapedFunctionName'.substring(0, lastDot));
                     } catch (_) {}
-                    const lastDot = '$escapedFunctionName'.lastIndexOf('.');
-                    if (lastDot !== -1) {
-                        try {
-                            parent = eval('$escapedFunctionName'.substring(0, lastDot));
-                        } catch (_) {}
-                    }
-                    if (typeof fn !== 'function') {
-                        throw new Error('$escapedFunctionName is not a function');
-                    }
-                    const res = await fn.call(parent, $argsJs);
-                    return typeof res === 'object' && res !== null ? JSON.stringify(res) : (res === undefined ? 'undefined' : String(res));
+                }
+                if (typeof fn !== 'function') {
+                    throw new Error('$escapedFunctionName is not a function');
+                }
+                const res = fn.call(parent, $argsJs);
+                return typeof res === 'object' && res !== null ? JSON.stringify(res) : (res === undefined ? 'undefined' : String(res));
             })()
         """.trimIndent()
 
-        val promiseVal = mutex.withLock {
-            val evaluated = ctx.evaluateScript(script)
+        val evaluated = mutex.withLock {
+            val res = ctx.evaluateScript(script)
             if (ctx.exception != null) {
                 val err = ctx.exception.toString()
                 ctx.exception = null
                 error("JavaScript error in $functionName: $err")
             }
-            evaluated
+            res
         }
 
-        // Check Promise using isObject + hasProperty("then")
-        if (promiseVal != null && promiseVal.isObject && promiseVal.hasProperty("then")) {
-            val deferred = CompletableDeferred<String>()
-            val resolveCallback: (Any?) -> Unit = { value ->
-                deferred.complete(value?.toString() ?: "")
-            }
-            val rejectCallback: (Any?) -> Unit = { error ->
-                deferred.completeExceptionally(RuntimeException("Promise rejected: $error"))
-            }
-            promiseVal.invokeMethod("then", withArguments = listOf(resolveCallback, rejectCallback))
-            return deferred.await()
-        }
-
-        return promiseVal?.toString() ?: ""
+        return evaluated?.toString() ?: ""
     }
 
     actual fun close() {
