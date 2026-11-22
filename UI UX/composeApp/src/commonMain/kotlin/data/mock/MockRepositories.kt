@@ -30,9 +30,11 @@ data class MockUpdateGroup(
 )
 
 data class HistoryItem(
+    val id: Long = 0L,
     val manga: SourceManga,
     val chapter: SourceChapter,
-    val readAt: Long
+    val readAt: Long,
+    val lastPageRead: Int = 0
 )
 
 data class HistoryGroup(
@@ -101,6 +103,9 @@ interface PanelRepository {
     fun getExtensions(): Flow<List<MockExtension>>
     fun getUpdates(): Flow<List<MockUpdateGroup>>
     fun getHistory(): Flow<List<HistoryGroup>> = flowOf(emptyList())
+    fun getRecentlyReadManga(limit: Long = 10L): Flow<List<HistoryItem>> = flowOf(emptyList())
+    suspend fun deleteHistoryItem(historyId: Long) {}
+    suspend fun clearAllHistory() {}
     fun getDownloads(): Flow<List<MockDownloadItem>>
     fun getStorageInfo(): Flow<MockStorageInfo>
     fun searchManga(

@@ -24,6 +24,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -56,6 +58,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -63,6 +66,7 @@ import androidx.compose.ui.unit.sp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import coil3.compose.AsyncImage
 import core.source.SourceChapter
 import core.source.SourceManga
 import data.library.CategoryRepository
@@ -73,6 +77,7 @@ import data.mock.PanelRepository
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.CategoryPillRow
+import ui.components.ContinueReadingCompactCard
 import ui.components.MangaCoverCard
 import ui.components.PanelBottomNavBar
 import ui.components.PanelCircleIconButton
@@ -161,6 +166,7 @@ fun LibraryScreenContent(
 
     val allLibraryItems by repository.getLibrary("All").collectAsState(initial = emptyList())
     val continueReadingPair by repository.getContinueReading().collectAsState(initial = null)
+    val recentlyReadItems by repository.getRecentlyReadManga(limit = 10L).collectAsState(initial = emptyList())
 
     // Filter library items according to active category
     val filteredLibraryItems = remember(allLibraryItems, selectedCategory, mappings) {
@@ -325,31 +331,93 @@ fun LibraryScreenContent(
             }
 
             // Continue Reading Section (Only in non-selection mode)
-            if (!isSelectionMode && continueReadingPair != null) {
-                val (manga, chapter) = continueReadingPair!!
-                item(span = { GridItemSpan(3) }) {
-                    Column(modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)) {
-                        Text(
-                            text = "Continue Reading",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = TextPrimary
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        ContinueReadingCard(
-                            manga = manga,
-                            chapter = chapter,
-                            progress = 0.68f,
-                            progressText = "68%",
-                            onResume = { onResumeChapter(manga, chapter) },
-                            onClick = { onOpenManga(manga) }
-                        )
+            if (!isSelectionMode) {
+                if (recentlyReadItems.size > 1) {
+                    item(span = { GridItemSpan(3) }) {
+                        Column(modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Continue Reading",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Text(
+                                    text = "${recentlyReadItems.size} in progress",
+                                    fontSize = 12.sp,
+                                    color = TextTertiary
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                contentPadding = PaddingValues(horizontal = 2.dp)
+                            ) {
+                                items(recentlyReadItems, key = { it.manga.url }) { recentItem ->
+                                    val pageLabel = if (recentItem.lastPageRead > 0) "P. ${recentItem.lastPageRead}" else ""
+                                    ContinueReadingCompactCard(
+                                        manga = recentItem.manga,
+                                        chapter = recentItem.chapter,
+                                        progressText = pageLabel,
+                                        onResume = { onResumeChapter(recentItem.manga, recentItem.chapter) },
+                                        onClick = { onOpenManga(recentItem.manga) }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else if (recentlyReadItems.size == 1) {
+                    val recentItem = recentlyReadItems.first()
+                    val pageLabel = if (recentItem.lastPageRead > 0) "Page ${recentItem.lastPageRead}" else "In progress"
+                    item(span = { GridItemSpan(3) }) {
+                        Column(modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)) {
+                            Text(
+                                text = "Continue Reading",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            ContinueReadingCard(
+                                manga = recentItem.manga,
+                                chapter = recentItem.chapter,
+                                progress = 0.68f,
+                                progressText = pageLabel,
+                                onResume = { onResumeChapter(recentItem.manga, recentItem.chapter) },
+                                onClick = { onOpenManga(recentItem.manga) }
+                            )
+                        }
+                    }
+                } else if (continueReadingPair != null) {
+                    val (manga, chapter) = continueReadingPair!!
+                    item(span = { GridItemSpan(3) }) {
+                        Column(modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)) {
+                            Text(
+                                text = "Continue Reading",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            ContinueReadingCard(
+                                manga = manga,
+                                chapter = chapter,
+                                progress = 0.68f,
+                                progressText = "68%",
+                                onResume = { onResumeChapter(manga, chapter) },
+                                onClick = { onOpenManga(manga) }
+                            )
+                        }
                     }
                 }
             }
 
             // Empty Library State
-            if (filteredLibraryItems.isEmpty() && continueReadingPair == null) {
+            if (filteredLibraryItems.isEmpty() && recentlyReadItems.isEmpty() && continueReadingPair == null) {
                 item(span = { GridItemSpan(3) }) {
                     Box(
                         modifier = Modifier
@@ -617,7 +685,7 @@ fun ContinueReadingCard(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Thumbnail with gradient artwork placeholder
+            // Thumbnail with cover artwork or fallback
             Box(
                 modifier = Modifier
                     .width(54.dp)
@@ -635,12 +703,22 @@ fun ContinueReadingCard(
                     .border(1.dp, GlassBorderStrong, RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = manga.title.take(1),
-                    color = Color.White.copy(alpha = 0.25f),
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                val imageUrl = manga.thumbnailUrl
+                if (!imageUrl.isNullOrBlank() && (imageUrl.startsWith("http://", ignoreCase = true) || imageUrl.startsWith("https://", ignoreCase = true))) {
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = manga.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Text(
+                        text = manga.title.take(1),
+                        color = Color.White.copy(alpha = 0.25f),
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(14.dp))
