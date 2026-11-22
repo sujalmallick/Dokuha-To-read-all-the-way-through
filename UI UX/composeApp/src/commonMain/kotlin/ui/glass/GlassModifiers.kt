@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import core.platform.PlatformInfo
 import ui.glass.internal.liquefiable
 import ui.glass.internal.liquid
 
@@ -30,6 +31,7 @@ val LocalReduceGlass = compositionLocalOf { false }
  * HARD RULE: A [glassSurface] must NEVER be a descendant of a [glassSource] using the same state.
  */
 fun Modifier.glassSource(state: PanelGlassState): Modifier {
+    if (!PlatformInfo.isAndroid) return this
     return this.liquefiable(state.liquidState)
 }
 
@@ -61,7 +63,7 @@ fun Modifier.glassSurface(
         .background(effectiveTuning.tint)
         .border(0.5.dp, Color.White.copy(alpha = 0.20f), shape)
 
-    return if (reduceGlass || state == null) {
+    return if (reduceGlass || state == null || !PlatformInfo.isAndroid) {
         fallback
     } else {
         try {

@@ -33,12 +33,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
@@ -55,14 +53,6 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
 import org.koin.compose.koinInject
 import panelreader.composeapp.generated.resources.Res
-import panelreader.composeapp.generated.resources.classic_d_frame
-import panelreader.composeapp.generated.resources.classic_page_1
-import panelreader.composeapp.generated.resources.classic_page_2
-import panelreader.composeapp.generated.resources.classic_page_3
-import panelreader.composeapp.generated.resources.dokuha_d_frame
-import panelreader.composeapp.generated.resources.dokuha_page_1
-import panelreader.composeapp.generated.resources.dokuha_page_2
-import panelreader.composeapp.generated.resources.dokuha_page_3
 import panelreader.composeapp.generated.resources.logo_classic
 import panelreader.composeapp.generated.resources.logo_glassmorphic
 import ui.screens.library.LibraryScreen
@@ -93,8 +83,8 @@ class SplashScreen : Screen {
 }
 
 /**
- * Premium Dokuha Splash Screen with authentic 3D cascading page-turn animation
- * and flowing corner ribbon curves based on the reference design.
+ * Minimal, cinematic Dokuha Splash Screen with silky smooth logo entrance,
+ * expanding typography, and organic background ribbon lighting.
  */
 @Composable
 fun SplashScreenContent(
@@ -116,28 +106,19 @@ fun SplashScreenContent(
         }
     }
 
-    // Entrance and scale animatables
+    // Logo entrance animatables
     val logoAlpha = remember { Animatable(0f) }
-    val logoScale = remember { Animatable(0.95f) }
+    val logoScale = remember { Animatable(0.90f) }
+    val glowIntensity = remember { Animatable(0f) }
+
+    // Typography animatables
     val wordmarkAlpha = remember { Animatable(0f) }
     val wordmarkOffsetY = remember { Animatable(8f) }
     val wordmarkSpacing = remember { Animatable(6f) }
-
-    // Page-turn animation states: Rotation Z (fanning out), Rotation Y (3D lift curl)
-    val page1RotZ = remember { Animatable(0f) }
-    val page1RotY = remember { Animatable(0f) }
-    val page1Shadow = remember { Animatable(0f) }
-
-    val page2RotZ = remember { Animatable(0f) }
-    val page2RotY = remember { Animatable(0f) }
-    val page2Shadow = remember { Animatable(0f) }
-
-    val page3RotZ = remember { Animatable(0f) }
-    val page3RotY = remember { Animatable(0f) }
-    val page3Shadow = remember { Animatable(0f) }
+    val kanjiAlpha = remember { Animatable(0f) }
 
     // Breathing motion for background ribbon curves
-    val infiniteTransition = rememberInfiniteTransition(label = "ribbon_breathe")
+    val infiniteTransition = rememberInfiniteTransition(label = "ambient_breathe")
     val ribbonBreathe by infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
@@ -148,74 +129,52 @@ fun SplashScreenContent(
         label = "ribbon_breathe"
     )
 
-    // Choreograph the cinematic animation timeline
+    // Subtle gentle pulse for the logo once rested
+    val logoPulse by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.025f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "logo_pulse"
+    )
+
+    // Choreograph the minimalist animation timeline
     LaunchedEffect(Unit) {
-        // 1. Entrance of the D frame (0 to 600ms)
+        // 1. Logo smooth entrance with soft scale settle
         launch {
-            logoAlpha.animateTo(1f, animationSpec = tween(650, easing = FastOutSlowInEasing))
+            logoAlpha.animateTo(1f, animationSpec = tween(700, easing = FastOutSlowInEasing))
         }
         launch {
-            logoScale.animateTo(1f, animationSpec = tween(750, easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)))
+            logoScale.animateTo(1f, animationSpec = tween(850, easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)))
+        }
+        launch {
+            glowIntensity.animateTo(1f, animationSpec = tween(900, easing = FastOutSlowInEasing))
         }
 
-        val easeOut = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
-        val easeIn = CubicBezierEasing(0.45f, 0f, 0.55f, 1f)
-
-        // 2. Cascading 3D Page Turn Animation
-        // --- Page 1 (Top / Back Page) ---
+        // 2. Wordmark Reveal with expanding letter spacing
         launch {
-            delay(480)
-            // Lift and unfold
-            launch { page1Shadow.animateTo(0.45f, tween(380, easing = easeOut)) }
-            launch { page1RotY.animateTo(-22f, tween(420, easing = easeOut)) }
-            page1RotZ.animateTo(-24f, tween(420, easing = easeOut))
-
-            // Settle smoothly back flush into logo position
-            launch { page1Shadow.animateTo(0f, tween(480, easing = easeIn)) }
-            launch { page1RotY.animateTo(0f, tween(480, easing = easeIn)) }
-            page1RotZ.animateTo(0f, tween(480, easing = easeIn))
-        }
-
-        // --- Page 2 (Middle Page) with slight delay ---
-        launch {
-            delay(640)
-            launch { page2Shadow.animateTo(0.40f, tween(380, easing = easeOut)) }
-            launch { page2RotY.animateTo(-18f, tween(420, easing = easeOut)) }
-            page2RotZ.animateTo(-19f, tween(420, easing = easeOut))
-
-            launch { page2Shadow.animateTo(0f, tween(480, easing = easeIn)) }
-            launch { page2RotY.animateTo(0f, tween(480, easing = easeIn)) }
-            page2RotZ.animateTo(0f, tween(480, easing = easeIn))
-        }
-
-        // --- Page 3 (Bottom / Front Page) cascading flip ---
-        launch {
-            delay(800)
-            launch { page3Shadow.animateTo(0.35f, tween(360, easing = easeOut)) }
-            launch { page3RotY.animateTo(-14f, tween(400, easing = easeOut)) }
-            page3RotZ.animateTo(-15f, tween(400, easing = easeOut))
-
-            launch { page3Shadow.animateTo(0f, tween(460, easing = easeIn)) }
-            launch { page3RotY.animateTo(0f, tween(460, easing = easeIn)) }
-            page3RotZ.animateTo(0f, tween(460, easing = easeIn))
-        }
-
-        // 3. Wordmark Reveal (1100ms onwards)
-        launch {
-            delay(1050)
+            delay(550)
             launch {
-                wordmarkAlpha.animateTo(1f, animationSpec = tween(700, easing = FastOutSlowInEasing))
+                wordmarkAlpha.animateTo(1f, animationSpec = tween(650, easing = FastOutSlowInEasing))
             }
             launch {
-                wordmarkOffsetY.animateTo(0f, animationSpec = tween(700, easing = FastOutSlowInEasing))
+                wordmarkOffsetY.animateTo(0f, animationSpec = tween(650, easing = FastOutSlowInEasing))
             }
             launch {
-                wordmarkSpacing.animateTo(10f, animationSpec = tween(700, easing = FastOutSlowInEasing))
+                wordmarkSpacing.animateTo(11f, animationSpec = tween(750, easing = FastOutSlowInEasing))
             }
         }
 
-        // 4. Smooth Transition into App
-        delay(2350)
+        // 3. Kanji Mark soft reveal
+        launch {
+            delay(850)
+            kanjiAlpha.animateTo(1f, animationSpec = tween(600, easing = FastOutSlowInEasing))
+        }
+
+        // 4. Auto-transition into the app
+        delay(2200)
         safeFinish()
     }
 
@@ -237,20 +196,23 @@ fun SplashScreenContent(
 
             val center = Offset(w * 0.5f, h * 0.44f)
 
-            // Subtle radial lighting behind logo
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colors = listOf(
-                        Color(0xFF161619).copy(alpha = 0.85f),
-                        Color(0xFF0F0F11).copy(alpha = 0.50f),
-                        SplashBackground
+            // Dynamic ambient backlight behind logo
+            val currentGlow = glowIntensity.value
+            if (currentGlow > 0f) {
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFF202025).copy(alpha = 0.85f * currentGlow),
+                            Color(0xFF141417).copy(alpha = 0.50f * currentGlow),
+                            SplashBackground
+                        ),
+                        center = center,
+                        radius = (w * 0.72f).coerceAtLeast(1f)
                     ),
-                    center = center,
-                    radius = (w * 0.70f).coerceAtLeast(1f)
-                ),
-                radius = (w * 0.70f).coerceAtLeast(1f),
-                center = center
-            )
+                    radius = (w * 0.72f).coerceAtLeast(1f),
+                    center = center
+                )
+            }
 
             // Flowing translucent ribbon curves at Top-Left
             val tlShift = ribbonBreathe * 12f
@@ -353,111 +315,29 @@ fun SplashScreenContent(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Animated Logo Container
-            // Shared bottom-left anchor point for the inner page fan-out:
-            // In 1024x1024 coordinates, the vertex is at (ox=348, oy=730)
-            val anchorOrigin = TransformOrigin(348f / 1024f, 730f / 1024f)
             val logoSize = 188.dp
-
-            val dFrameRes = if (activeStyle == AppLogoStyle.GLASSMORPHIC) {
-                Res.drawable.dokuha_d_frame
-            } else {
-                Res.drawable.classic_d_frame
-            }
-
-            val page1Res = if (activeStyle == AppLogoStyle.GLASSMORPHIC) {
-                Res.drawable.dokuha_page_1
-            } else {
-                Res.drawable.classic_page_1
-            }
-
-            val page2Res = if (activeStyle == AppLogoStyle.GLASSMORPHIC) {
-                Res.drawable.dokuha_page_2
-            } else {
-                Res.drawable.classic_page_2
-            }
-
-            val page3Res = if (activeStyle == AppLogoStyle.GLASSMORPHIC) {
-                Res.drawable.dokuha_page_3
-            } else {
-                Res.drawable.classic_page_3
-            }
-
             val masterLogoRes = if (activeStyle == AppLogoStyle.GLASSMORPHIC) {
                 Res.drawable.logo_glassmorphic
             } else {
                 Res.drawable.logo_classic
             }
 
-            val isPagesAtRest = page1RotZ.value == 0f && page1RotY.value == 0f &&
-                                page2RotZ.value == 0f && page2RotY.value == 0f &&
-                                page3RotZ.value == 0f && page3RotY.value == 0f
-
+            // Pristine, untouched master logo with silky smooth entrance & subtle idle breathing
             Box(
                 modifier = Modifier
                     .size(logoSize)
-                    .scale(logoScale.value)
-                    .alpha(logoAlpha.value),
+                    .graphicsLayer {
+                        scaleX = logoScale.value * logoPulse
+                        scaleY = logoScale.value * logoPulse
+                        alpha = logoAlpha.value
+                    },
                 contentAlignment = Alignment.Center
             ) {
-                if (isPagesAtRest) {
-                    // Pristine, untouched master logo (silky vector-smooth curves, flawless gradients)
-                    Image(
-                        painter = painterResource(masterLogoRes),
-                        contentDescription = "Dokuha Logo",
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } else {
-                    // Cascading 3D animated page-turn layers
-                    // Layer 0: The outer D frame (container with transparent counter)
-                    Image(
-                        painter = painterResource(dFrameRes),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize()
-                    )
-
-                    // Layer 1: Page 1 (Top / Back Page) - 3D unfolding page turn
-                    Image(
-                        painter = painterResource(page1Res),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                transformOrigin = anchorOrigin
-                                rotationZ = page1RotZ.value
-                                rotationY = page1RotY.value
-                                cameraDistance = 16f * density
-                            }
-                    )
-
-                    // Layer 2: Page 2 (Middle Page)
-                    Image(
-                        painter = painterResource(page2Res),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                transformOrigin = anchorOrigin
-                                rotationZ = page2RotZ.value
-                                rotationY = page2RotY.value
-                                cameraDistance = 16f * density
-                            }
-                    )
-
-                    // Layer 3: Page 3 (Front / Bottom Page)
-                    Image(
-                        painter = painterResource(page3Res),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                transformOrigin = anchorOrigin
-                                rotationZ = page3RotZ.value
-                                rotationY = page3RotY.value
-                                cameraDistance = 16f * density
-                            }
-                    )
-                }
+                Image(
+                    painter = painterResource(masterLogoRes),
+                    contentDescription = "Dokuha Logo",
+                    modifier = Modifier.fillMaxSize()
+                )
             }
 
             Spacer(modifier = Modifier.height(34.dp))
@@ -485,7 +365,7 @@ fun SplashScreenContent(
                 fontWeight = FontWeight.Normal,
                 color = KanjiColor,
                 letterSpacing = 4.sp,
-                modifier = Modifier.alpha(wordmarkAlpha.value * 0.8f)
+                modifier = Modifier.alpha(kanjiAlpha.value * 0.8f)
             )
         }
 
