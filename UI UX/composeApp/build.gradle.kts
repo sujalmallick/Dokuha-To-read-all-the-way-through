@@ -32,12 +32,6 @@ kotlin {
             linkerOpts("-lsqlite3")
         }
     }
-
-    targets.withType<org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget>().all {
-        binaries.all {
-            linkerOpts("-lsqlite3")
-        }
-    }
     
     sourceSets {
         commonMain.dependencies {
