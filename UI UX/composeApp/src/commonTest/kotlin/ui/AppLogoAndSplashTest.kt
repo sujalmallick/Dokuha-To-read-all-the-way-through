@@ -1,0 +1,65 @@
+package ui
+
+import core.storage.InMemoryKeyValueStorage
+import data.settings.AppLogoStyle
+import data.settings.FakeSettingsRepository
+import data.settings.PersistentSettingsRepository
+import panelreader.composeapp.generated.resources.Res
+import panelreader.composeapp.generated.resources.logo_classic
+import panelreader.composeapp.generated.resources.logo_glassmorphic
+import ui.components.drawableResource
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+
+class AppLogoAndSplashTest {
+
+    @Test
+    fun testAppLogoStyle_enumDefaultsAndResources() {
+        assertEquals("Glassmorphic Edition", AppLogoStyle.GLASSMORPHIC.displayName)
+        assertEquals("Classic Edition", AppLogoStyle.CLASSIC.displayName)
+
+        assertEquals(Res.drawable.logo_glassmorphic, AppLogoStyle.GLASSMORPHIC.drawableResource())
+        assertEquals(Res.drawable.logo_classic, AppLogoStyle.CLASSIC.drawableResource())
+    }
+
+    @Test
+    fun testFakeSettingsRepository_logoStyleStateAndUpdates() {
+        val repo = FakeSettingsRepository()
+
+        // 1. Must default to Glassmorphic Edition
+        assertEquals(AppLogoStyle.GLASSMORPHIC, repo.appLogoStyle.value)
+
+        // 2. Can switch to Classic Edition
+        repo.setAppLogoStyle(AppLogoStyle.CLASSIC)
+        assertEquals(AppLogoStyle.CLASSIC, repo.appLogoStyle.value)
+
+        // 3. Can switch back to Glassmorphic Edition
+        repo.setAppLogoStyle(AppLogoStyle.GLASSMORPHIC)
+        assertEquals(AppLogoStyle.GLASSMORPHIC, repo.appLogoStyle.value)
+    }
+
+    @Test
+    fun testPersistentSettingsRepository_persistsLogoStyleAcrossRestarts() {
+        val storage = InMemoryKeyValueStorage()
+        val repo1 = PersistentSettingsRepository(storage)
+
+        // Verify initial default is Glassmorphic Edition
+        assertEquals(AppLogoStyle.GLASSMORPHIC, repo1.appLogoStyle.value)
+
+        // User switches to Classic Edition
+        repo1.setAppLogoStyle(AppLogoStyle.CLASSIC)
+        assertEquals(AppLogoStyle.CLASSIC, repo1.appLogoStyle.value)
+
+        // Simulate app restart by re-instantiating repository with identical storage
+        val repo2 = PersistentSettingsRepository(storage)
+        assertEquals(AppLogoStyle.CLASSIC, repo2.appLogoStyle.value)
+
+        // User switches back to Glassmorphic Edition
+        repo2.setAppLogoStyle(AppLogoStyle.GLASSMORPHIC)
+        assertEquals(AppLogoStyle.GLASSMORPHIC, repo2.appLogoStyle.value)
+
+        val repo3 = PersistentSettingsRepository(storage)
+        assertEquals(AppLogoStyle.GLASSMORPHIC, repo3.appLogoStyle.value)
+    }
+}

@@ -27,6 +27,7 @@ class PersistentSettingsRepository(
         private const val KEY_ACCENT_COLOR_INDEX = "setting_accent_color_index"
         private const val KEY_REDUCE_GLASS = "setting_reduce_glass"
         private const val KEY_REDUCE_MOTION = "setting_reduce_motion"
+        private const val KEY_APP_LOGO_STYLE = "setting_app_logo_style"
 
         private const val KEY_DEFAULT_READING_MODE = "setting_default_reading_mode"
         private const val KEY_SIDE_PADDING = "setting_side_padding"
@@ -105,6 +106,13 @@ class PersistentSettingsRepository(
     )
     override val reduceMotion: StateFlow<Boolean> = _reduceMotion.asStateFlow()
 
+    private val _appLogoStyle = MutableStateFlow(
+        runCatching {
+            AppLogoStyle.valueOf(storage.getString(KEY_APP_LOGO_STYLE, AppLogoStyle.GLASSMORPHIC.name))
+        }.getOrDefault(AppLogoStyle.GLASSMORPHIC)
+    )
+    override val appLogoStyle: StateFlow<AppLogoStyle> = _appLogoStyle.asStateFlow()
+
     override fun setThemeMode(mode: ThemeMode) {
         _themeMode.value = mode
         storage.putString(KEY_THEME_MODE, mode.name)
@@ -124,6 +132,11 @@ class PersistentSettingsRepository(
     override fun setReduceMotion(enabled: Boolean) {
         _reduceMotion.value = enabled
         storage.putBoolean(KEY_REDUCE_MOTION, enabled)
+    }
+
+    override fun setAppLogoStyle(style: AppLogoStyle) {
+        _appLogoStyle.value = style
+        storage.putString(KEY_APP_LOGO_STYLE, style.name)
     }
 
     // Reader

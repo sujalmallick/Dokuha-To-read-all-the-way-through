@@ -19,7 +19,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -44,6 +48,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import core.extensions.ExtensionRepoValidator
 import core.platform.PlatformInfo
+import data.settings.AppLogoStyle
 import data.settings.ExtensionRepo
 import data.settings.DefaultReadingMode
 import data.settings.NovelFont
@@ -56,6 +61,7 @@ import org.koin.compose.koinInject
 import ui.components.GlassCollapsingTopBar
 import ui.components.GlassConfirmDialog
 import ui.components.GlassSegmentedControl
+import ui.components.DokuhaLogo
 import ui.components.SectionHeader
 import ui.components.SettingsGroup
 import ui.components.SettingsRow
@@ -65,9 +71,11 @@ import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import ui.theme.BottomSheetShape
 import ui.theme.ElectricBlue
+import ui.theme.ElectricBlueLight
 import ui.theme.GlassBorder
 import ui.theme.PanelAccentColors
 import ui.theme.PanelBackground
+import ui.theme.PanelSurface
 import ui.theme.PanelSurfaceGlassHigh
 import ui.theme.PanelTheme
 import ui.theme.ReadingCreamBg
@@ -77,6 +85,7 @@ import ui.theme.ReadingOledBg
 import ui.theme.ReadingOledText
 import ui.theme.ReadingSepiaBg
 import ui.theme.ReadingSepiaText
+import ui.theme.TextMuted
 import ui.theme.TextPrimary
 import ui.theme.TextSecondary
 import ui.theme.ThemeMode
@@ -94,13 +103,16 @@ class AppearanceSettingsScreen : Screen {
         val accentIndex by repo.accentColorIndex.collectAsState()
         val reduceGlass by repo.reduceGlass.collectAsState()
         val reduceMotion by repo.reduceMotion.collectAsState()
+        val appLogoStyle by repo.appLogoStyle.collectAsState()
 
         AppearanceSettingsScreenContent(
             themeMode = themeMode,
             accentIndex = accentIndex,
             reduceGlass = reduceGlass,
             reduceMotion = reduceMotion,
+            appLogoStyle = appLogoStyle,
             onBack = { navigator.pop() },
+            onNavigateAppLogo = { navigator.push(AppLogoSettingsScreen()) },
             onSelectThemeMode = { repo.setThemeMode(it) },
             onSelectAccentIndex = { repo.setAccentColorIndex(it) },
             onToggleReduceGlass = { repo.setReduceGlass(it) },
@@ -120,6 +132,8 @@ fun AppearanceSettingsScreenContent(
     onSelectAccentIndex: (Int) -> Unit,
     onToggleReduceGlass: (Boolean) -> Unit,
     onToggleReduceMotion: (Boolean) -> Unit,
+    appLogoStyle: AppLogoStyle = AppLogoStyle.GLASSMORPHIC,
+    onNavigateAppLogo: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberLazyListState()
@@ -187,6 +201,21 @@ fun AppearanceSettingsScreenContent(
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
+            // App Logo Section
+            item {
+                SectionHeader(text = "App Logo")
+                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                    SettingsGroup {
+                        SettingsRow.Navigation(
+                            title = "App Logo",
+                            value = appLogoStyle.displayName,
+                            onClick = onNavigateAppLogo
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
             // Accessibility & Motion Toggles
             item {
                 SectionHeader(text = "Accessibility & Motion")
@@ -215,6 +244,236 @@ fun AppearanceSettingsScreenContent(
             onBack = onBack,
             scrollOffset = scrollState.firstVisibleItemScrollOffset.toFloat()
         )
+    }
+}
+
+// ==========================================
+// 1b. APP LOGO SETTINGS SCREEN
+// ==========================================
+class AppLogoSettingsScreen : Screen {
+    @Composable
+    override fun Content() {
+        val navigator = LocalNavigator.currentOrThrow
+        val repo: SettingsRepository = koinInject()
+        val currentStyle by repo.appLogoStyle.collectAsState()
+
+        AppLogoSettingsScreenContent(
+            selectedStyle = currentStyle,
+            onBack = { navigator.pop() },
+            onSelectStyle = { repo.setAppLogoStyle(it) }
+        )
+    }
+}
+
+@Composable
+fun AppLogoSettingsScreenContent(
+    selectedStyle: AppLogoStyle,
+    onBack: () -> Unit,
+    onSelectStyle: (AppLogoStyle) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scrollState = rememberLazyListState()
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(PanelBackground)
+    ) {
+        LazyColumn(
+            state = scrollState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 72.dp, bottom = 48.dp)
+        ) {
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 6.dp)
+                ) {
+                    Text(
+                        text = "Customize the visual identity of Dokuha across the application, including the splash screen, headers, and about section.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary,
+                        lineHeight = 20.sp
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+
+            item {
+                SectionHeader(text = "Available Editions")
+            }
+
+            items(AppLogoStyle.entries.size) { index ->
+                val style = AppLogoStyle.entries[index]
+                val isSelected = style == selectedStyle
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
+                ) {
+                    LogoEditionCard(
+                        style = style,
+                        isSelected = isSelected,
+                        onClick = { onSelectStyle(style) }
+                    )
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(24.dp))
+                SectionHeader(text = "Live In-App Preview")
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFF080808))
+                        .border(1.dp, GlassBorder, RoundedCornerShape(20.dp))
+                        .padding(vertical = 32.dp, horizontal = 24.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        DokuhaLogo(
+                            style = selectedStyle,
+                            modifier = Modifier.size(112.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "D O K U H A",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.Normal,
+                                letterSpacing = 8.sp
+                            ),
+                            color = Color(0xFFEBE6E2)
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Active In-App Theme: " + selectedStyle.displayName,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted
+                        )
+                    }
+                }
+            }
+        }
+
+        GlassCollapsingTopBar(
+            title = "App Logo",
+            onBack = onBack,
+            scrollOffset = scrollState.firstVisibleItemScrollOffset.toFloat()
+        )
+    }
+}
+
+@Composable
+private fun LogoEditionCard(
+    style: AppLogoStyle,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val borderColor = if (isSelected) ElectricBlue else GlassBorder
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(PanelSurface)
+            .border(borderWidth, borderColor, RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick)
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Preview thumbnail
+            Box(
+                modifier = Modifier
+                    .size(76.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFF080808))
+                    .border(1.dp, GlassBorder, RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                DokuhaLogo(
+                    style = style,
+                    modifier = Modifier.size(56.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(16.dp))
+
+            // Text Info
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = style.displayName,
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = FontWeight.Bold
+                        ),
+                        color = TextPrimary
+                    )
+                    if (style == AppLogoStyle.GLASSMORPHIC) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(ElectricBlue.copy(alpha = 0.20f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "DEFAULT",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = ElectricBlueLight
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = style.subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary,
+                    lineHeight = 16.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            // Selection Checkmark
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(if (isSelected) ElectricBlue else Color.Transparent)
+                    .border(
+                        width = if (isSelected) 0.dp else 1.5.dp,
+                        color = if (isSelected) Color.Transparent else GlassBorder,
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isSelected) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = "Selected",
+                        tint = Color.White,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -1173,6 +1432,34 @@ class AboutSettingsScreen : Screen {
                 contentPadding = PaddingValues(top = 64.dp, bottom = 48.dp)
             ) {
                 item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 20.dp, bottom = 28.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        DokuhaLogo(
+                            modifier = Modifier.size(88.dp)
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Text(
+                            text = "D O K U H A",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 8.sp
+                            ),
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Next-Generation Reader",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary
+                        )
+                    }
+                }
+
+                item {
                     SectionHeader(text = "Build Information")
                     Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                         SettingsGroup {
@@ -1198,7 +1485,7 @@ class AboutSettingsScreen : Screen {
             }
 
             GlassCollapsingTopBar(
-                title = "About Panel",
+                title = "About Dokuha",
                 onBack = { navigator.pop() },
                 scrollOffset = 0f
             )
