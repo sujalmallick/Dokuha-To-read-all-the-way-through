@@ -1,5 +1,7 @@
 package ui
 
+import androidx.compose.ui.Modifier
+import core.platform.PlatformInfo
 import core.storage.InMemoryKeyValueStorage
 import data.settings.AppLogoStyle
 import data.settings.FakeSettingsRepository
@@ -8,6 +10,9 @@ import panelreader.composeapp.generated.resources.Res
 import panelreader.composeapp.generated.resources.logo_classic
 import panelreader.composeapp.generated.resources.logo_glassmorphic
 import ui.components.drawableResource
+import ui.glass.PanelGlassState
+import ui.glass.glassSource
+import ui.glass.internal.LiquidState
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -61,5 +66,16 @@ class AppLogoAndSplashTest {
 
         val repo3 = PersistentSettingsRepository(storage)
         assertEquals(AppLogoStyle.GLASSMORPHIC, repo3.appLogoStyle.value)
+    }
+
+    @Test
+    fun testGlassModifier_safeFallbackOnNonAndroid() {
+        val state = PanelGlassState(LiquidState())
+        val originalModifier = Modifier
+        val sourceModifier = originalModifier.glassSource(state)
+        // On non-Android (desktop test runner and iOS), glassSource returns original Modifier directly without layer recording
+        if (!PlatformInfo.isAndroid) {
+            assertEquals(originalModifier, sourceModifier)
+        }
     }
 }

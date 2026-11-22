@@ -85,17 +85,10 @@ private fun PanelAppRoot() {
                     if (isOnboarded) LibraryScreen() else WelcomeScreen()
                 }
                 Navigator(initialScreen) { navigator ->
-                    if (reduceMotion) {
-                        FadeTransition(
-                            navigator = navigator,
-                            disposeScreenAfterTransitionEnd = true
-                        )
-                    } else {
-                        SlideTransition(
-                            navigator = navigator,
-                            disposeScreenAfterTransitionEnd = true
-                        )
-                    }
+                    FadeTransition(
+                        navigator = navigator,
+                        disposeScreenAfterTransitionEnd = true
+                    )
                 }
             }
         }
