@@ -2,7 +2,7 @@
 
 <img src="UI UX/design/logo.png" alt="PANEL Logo (Dokuha)" width="128" />
 
-# PANEL
+# D O K U H A
 ### 読破 — *Dokuha: To Read All The Way Through*
 
 **A modern, distraction-free reader for Manga, Manhwa, and Webnovels.**  
