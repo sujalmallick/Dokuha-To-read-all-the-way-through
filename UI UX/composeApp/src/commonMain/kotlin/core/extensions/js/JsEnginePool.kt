@@ -14,7 +14,7 @@ class JsEnginePool(
     private val idleTimeoutMs: Long = 300_000L // 5 minutes
 ) {
     private val lock = Mutex()
-    private val activeEngines = LinkedHashMap<Long, PooledEngineEntry>(maxActiveEngines, 0.75f, true)
+    private val activeEngines = mutableMapOf<Long, PooledEngineEntry>()
 
     data class PooledEngineEntry(
         val sourceId: Long,
@@ -49,8 +49,8 @@ class JsEnginePool(
             } else {
                 // Evict LRU engine if max limit reached
                 if (activeEngines.size >= maxActiveEngines) {
-                    val oldestKey = activeEngines.keys.first()
-                    val evicted = activeEngines.remove(oldestKey)
+                    val oldestKey = activeEngines.minByOrNull { it.value.lastAccessedAt }?.key
+                    val evicted = oldestKey?.let { activeEngines.remove(it) }
                     try {
                         evicted?.engine?.close()
                     } catch (_: Exception) {}

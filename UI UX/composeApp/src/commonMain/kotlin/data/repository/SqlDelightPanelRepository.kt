@@ -646,7 +646,7 @@ class SqlDelightPanelRepository(
                     emptyList()
                 }
                 emit(results)
-            }.flowOn(Dispatchers.IO)
+            }.flowOn(Dispatchers.Default)
         }
         return flowOf(emptyList())
     }
