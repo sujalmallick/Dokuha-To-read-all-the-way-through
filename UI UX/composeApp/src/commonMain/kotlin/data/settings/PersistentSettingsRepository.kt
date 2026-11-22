@@ -50,6 +50,7 @@ class PersistentSettingsRepository(
         private const val KEY_DELETE_AFTER_READING = "setting_delete_after_reading"
         private const val KEY_CONCURRENT_DOWNLOADS = "setting_concurrent_downloads"
         private const val KEY_DOWNLOAD_LOCATION = "setting_download_location"
+        private const val KEY_AUTO_DOWNLOAD_NEXT_CHAPTER = "setting_auto_download_next_chapter"
 
         private const val KEY_EXTENSION_REPOS = "setting_extension_repos"
         private const val KEY_LANGUAGE_FILTERS = "setting_language_filters"
@@ -310,6 +311,11 @@ class PersistentSettingsRepository(
     )
     override val downloadLocation: StateFlow<String> = _downloadLocation.asStateFlow()
 
+    private val _autoDownloadNextChapter = MutableStateFlow(
+        storage.getBoolean(KEY_AUTO_DOWNLOAD_NEXT_CHAPTER, false)
+    )
+    override val autoDownloadNextChapter: StateFlow<Boolean> = _autoDownloadNextChapter.asStateFlow()
+
     override fun setDownloadOnlyOnWifi(enabled: Boolean) {
         _downloadOnlyOnWifi.value = enabled
         storage.putBoolean(KEY_DOWNLOAD_WIFI_ONLY, enabled)
@@ -329,6 +335,11 @@ class PersistentSettingsRepository(
     override fun setDownloadLocation(location: String) {
         _downloadLocation.value = location
         storage.putString(KEY_DOWNLOAD_LOCATION, location)
+    }
+
+    override fun setAutoDownloadNextChapter(enabled: Boolean) {
+        _autoDownloadNextChapter.value = enabled
+        storage.putBoolean(KEY_AUTO_DOWNLOAD_NEXT_CHAPTER, enabled)
     }
 
     // Sources & Extensions (Clean startup with zero pre-loaded repositories)

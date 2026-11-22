@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -147,10 +148,21 @@ fun BrowseScreenContent(
 
     val isSearching = searchQuery.isNotBlank() || hasActiveFilters
 
+    var selectedSourceFilter by remember(searchQuery) { mutableStateOf<Long?>(null) }
+
     val searchResults by repo.searchManga(
         query = searchQuery,
         filters = filters
     ).collectAsState(initial = emptyList())
+
+    val resultsBySource = remember(searchResults) {
+        searchResults.groupBy { it.sourceId }
+    }
+
+    val displayedSearchResults = remember(searchResults, selectedSourceFilter) {
+        if (selectedSourceFilter == null) searchResults
+        else searchResults.filter { it.sourceId == selectedSourceFilter }
+    }
 
     Box(
         modifier = modifier
@@ -302,7 +314,7 @@ fun BrowseScreenContent(
 
             // DYNAMIC SECTION: Search Results or Default Catalog
             if (isSearching) {
-                // Search Results Header
+                // Search Results Header & Source Filter Tabs
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -317,15 +329,65 @@ fun BrowseScreenContent(
                         )
 
                         Text(
-                            text = "${searchResults.size} titles",
+                            text = "${displayedSearchResults.size} titles",
                             fontSize = 13.sp,
                             color = TextSecondary
                         )
                     }
+
+                    if (resultsBySource.size > 1) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            item {
+                                val isSelected = selectedSourceFilter == null
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CapsuleShape)
+                                        .background(if (isSelected) Color.White else Color.White.copy(alpha = 0.08f))
+                                        .border(1.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.16f), CapsuleShape)
+                                        .clickable { selectedSourceFilter = null }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "All (${searchResults.size})",
+                                        color = if (isSelected) Color(0xFF090D15) else Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                }
+                            }
+
+                            items(resultsBySource.keys.filter { it != 0L }.toList()) { sourceId ->
+                                val count = resultsBySource[sourceId]?.size ?: 0
+                                val srcName = sources.find { it.id.toLongOrNull() == sourceId }?.name ?: "Source $sourceId"
+                                val isSelected = selectedSourceFilter == sourceId
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CapsuleShape)
+                                        .background(if (isSelected) Color.White else Color.White.copy(alpha = 0.08f))
+                                        .border(1.dp, if (isSelected) Color.White else Color.White.copy(alpha = 0.16f), CapsuleShape)
+                                        .clickable { selectedSourceFilter = sourceId }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "$srcName ($count)",
+                                        color = if (isSelected) Color(0xFF090D15) else Color.White,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(14.dp))
                 }
 
-                if (searchResults.isEmpty()) {
+                if (displayedSearchResults.isEmpty()) {
                     item {
                         Box(
                             modifier = Modifier
@@ -351,15 +413,17 @@ fun BrowseScreenContent(
                     }
                 } else {
                     // 3 in a row grid for search results
-                    items(searchResults.chunked(3)) { rowMangas ->
+                    items(displayedSearchResults.chunked(3)) { rowMangas ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             rowMangas.forEachIndexed { index, manga ->
+                                val srcName = sources.find { it.id.toLongOrNull() == manga.sourceId }?.name
+                                val subtitle = srcName ?: (manga.genres.firstOrNull() ?: if (manga.isNovel) "Novel" else "Manga")
                                 MangaCoverCard(
                                     title = manga.title,
-                                    subtitle = manga.genres.firstOrNull() ?: (if (manga.isNovel) "Novel" else "Manga"),
+                                    subtitle = subtitle,
                                     gradientIndex = index + 1,
                                     thumbnailUrl = manga.thumbnailUrl,
                                     onClick = { onOpenManga(manga) },
