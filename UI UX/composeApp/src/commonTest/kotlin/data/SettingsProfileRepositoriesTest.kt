@@ -2,6 +2,7 @@ package data
 
 import data.profile.FakeProfileRepository
 import data.profile.TrackerService
+import data.settings.AppLogoStyle
 import data.settings.DefaultReadingMode
 import data.settings.FakeSettingsRepository
 import data.settings.NovelFont
@@ -35,6 +36,10 @@ class SettingsProfileRepositoriesTest {
 
         repo.setReduceMotion(true)
         assertTrue(repo.reduceMotion.value)
+
+        assertEquals(AppLogoStyle.GLASSMORPHIC, repo.appLogoStyle.value)
+        repo.setAppLogoStyle(AppLogoStyle.CLASSIC)
+        assertEquals(AppLogoStyle.CLASSIC, repo.appLogoStyle.value)
     }
 
     @Test

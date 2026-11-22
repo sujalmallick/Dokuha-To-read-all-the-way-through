@@ -36,6 +36,11 @@ enum class UpdateInterval(val label: String) {
     WEEKLY("Weekly")
 }
 
+enum class AppLogoStyle(val displayName: String, val subtitle: String) {
+    GLASSMORPHIC("Glassmorphic Edition", "Metallic ivory and silver with soft reflections and depth"),
+    CLASSIC("Classic Edition", "Monochrome flat Dokuha symbol with clean contrast")
+}
+
 @Serializable
 data class ExtensionRepo(
     val id: String,
@@ -57,11 +62,13 @@ interface SettingsRepository {
     val accentColorIndex: StateFlow<Int>
     val reduceGlass: StateFlow<Boolean>
     val reduceMotion: StateFlow<Boolean>
+    val appLogoStyle: StateFlow<AppLogoStyle>
 
     fun setThemeMode(mode: ThemeMode)
     fun setAccentColorIndex(index: Int)
     fun setReduceGlass(enabled: Boolean)
     fun setReduceMotion(enabled: Boolean)
+    fun setAppLogoStyle(style: AppLogoStyle)
 
     // Reader
     val defaultReadingMode: StateFlow<DefaultReadingMode>
@@ -162,6 +169,9 @@ class FakeSettingsRepository : SettingsRepository {
     private val _reduceMotion = MutableStateFlow(false)
     override val reduceMotion: StateFlow<Boolean> = _reduceMotion.asStateFlow()
 
+    private val _appLogoStyle = MutableStateFlow(AppLogoStyle.GLASSMORPHIC)
+    override val appLogoStyle: StateFlow<AppLogoStyle> = _appLogoStyle.asStateFlow()
+
     override fun setThemeMode(mode: ThemeMode) {
         _themeMode.value = mode
     }
@@ -176,6 +186,10 @@ class FakeSettingsRepository : SettingsRepository {
 
     override fun setReduceMotion(enabled: Boolean) {
         _reduceMotion.value = enabled
+    }
+
+    override fun setAppLogoStyle(style: AppLogoStyle) {
+        _appLogoStyle.value = style
     }
 
     // Reader

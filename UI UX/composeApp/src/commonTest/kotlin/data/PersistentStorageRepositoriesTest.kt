@@ -3,6 +3,7 @@ package data
 import core.storage.InMemoryKeyValueStorage
 import core.storage.InMemorySecureStorage
 import data.profile.PersistentProfileRepository
+import data.settings.AppLogoStyle
 import data.settings.DefaultReadingMode
 import data.settings.PersistentSettingsRepository
 import ui.theme.ThemeMode
@@ -33,6 +34,8 @@ class PersistentStorageRepositoriesTest {
         val repo1 = PersistentSettingsRepository(storage)
 
         // Modify settings
+        assertEquals(AppLogoStyle.GLASSMORPHIC, repo1.appLogoStyle.value)
+        repo1.setAppLogoStyle(AppLogoStyle.CLASSIC)
         repo1.setThemeMode(ThemeMode.OLED_BLACK)
         repo1.setAccentColorIndex(2)
         repo1.setReduceGlass(true)
@@ -51,6 +54,7 @@ class PersistentStorageRepositoriesTest {
         // Recreate repo with the same underlying storage to simulate app restart
         val repo2 = PersistentSettingsRepository(storage)
 
+        assertEquals(AppLogoStyle.CLASSIC, repo2.appLogoStyle.value)
         assertEquals(ThemeMode.OLED_BLACK, repo2.themeMode.value)
         assertEquals(2, repo2.accentColorIndex.value)
         assertTrue(repo2.reduceGlass.value)
