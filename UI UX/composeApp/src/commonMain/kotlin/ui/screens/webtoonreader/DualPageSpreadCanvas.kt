@@ -22,6 +22,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import data.reader.DualPageSpread
+import data.reader.ReaderColorFilters
+import data.settings.ReaderColorFilter
 
 private val MangaPaperBg = Color(0xFFF9F7F1)
 
@@ -36,12 +38,13 @@ fun DualPageSpreadCanvas(
     chapterTitle: String = "Chapter 42",
     isRtl: Boolean = true,
     cropBorders: Boolean = false,
+    colorFilter: ReaderColorFilter = ReaderColorFilter.DEFAULT,
     modifier: Modifier = Modifier
 ) {
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0A0D14)) // Deep dark desk/slate background backing
+            .background(ReaderColorFilters.getBackplateColor(colorFilter))
     ) {
         if (spread.isDoubleSplash && spread.leftPage != null) {
             // Wide Double-Spread Splash Art spanning both pages
@@ -56,6 +59,7 @@ fun DualPageSpreadCanvas(
                     chapterTitle = chapterTitle,
                     isRtl = isRtl,
                     cropBorders = cropBorders,
+                    colorFilter = colorFilter,
                     modifier = Modifier.fillMaxSize()
                 )
 
@@ -116,6 +120,7 @@ fun DualPageSpreadCanvas(
                             chapterTitle = chapterTitle,
                             isRtl = isRtl,
                             cropBorders = cropBorders,
+                            colorFilter = colorFilter,
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {
@@ -168,6 +173,7 @@ fun DualPageSpreadCanvas(
                             chapterTitle = chapterTitle,
                             isRtl = isRtl,
                             cropBorders = cropBorders,
+                            colorFilter = colorFilter,
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {

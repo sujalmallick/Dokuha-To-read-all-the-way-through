@@ -36,6 +36,8 @@ class PersistentSettingsRepository(
         private const val KEY_KEEP_SCREEN_ON = "setting_keep_screen_on"
         private const val KEY_SPLIT_DOUBLE_SPREAD = "setting_split_double_spread"
         private const val KEY_DUAL_PAGE_OFFSET = "setting_dual_page_offset"
+        private const val KEY_READER_COLOR_FILTER = "setting_reader_color_filter"
+        private const val KEY_READER_PRELOAD_PAGES = "setting_reader_preload_pages"
 
         private const val KEY_NOVEL_FONT = "setting_novel_font"
         private const val KEY_NOVEL_FONT_SIZE = "setting_novel_font_size"
@@ -177,6 +179,18 @@ class PersistentSettingsRepository(
     )
     override val dualPageOffset: StateFlow<Boolean> = _dualPageOffset.asStateFlow()
 
+    private val _readerColorFilter = MutableStateFlow(
+        runCatching {
+            ReaderColorFilter.valueOf(storage.getString(KEY_READER_COLOR_FILTER, ReaderColorFilter.DEFAULT.name))
+        }.getOrDefault(ReaderColorFilter.DEFAULT)
+    )
+    override val readerColorFilter: StateFlow<ReaderColorFilter> = _readerColorFilter.asStateFlow()
+
+    private val _readerPreloadPages = MutableStateFlow(
+        storage.getInt(KEY_READER_PRELOAD_PAGES, 6).coerceIn(0, 20)
+    )
+    override val readerPreloadPages: StateFlow<Int> = _readerPreloadPages.asStateFlow()
+
     override fun setDefaultReadingMode(mode: DefaultReadingMode) {
         _defaultReadingMode.value = mode
         storage.putString(KEY_DEFAULT_READING_MODE, mode.name)
@@ -212,6 +226,17 @@ class PersistentSettingsRepository(
     override fun setDualPageOffset(enabled: Boolean) {
         _dualPageOffset.value = enabled
         storage.putBoolean(KEY_DUAL_PAGE_OFFSET, enabled)
+    }
+
+    override fun setReaderColorFilter(filter: ReaderColorFilter) {
+        _readerColorFilter.value = filter
+        storage.putString(KEY_READER_COLOR_FILTER, filter.name)
+    }
+
+    override fun setReaderPreloadPages(count: Int) {
+        val clamped = count.coerceIn(0, 20)
+        _readerPreloadPages.value = clamped
+        storage.putInt(KEY_READER_PRELOAD_PAGES, clamped)
     }
 
     // Novel Reader

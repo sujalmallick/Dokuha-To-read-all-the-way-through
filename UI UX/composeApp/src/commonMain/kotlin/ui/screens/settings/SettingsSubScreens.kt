@@ -54,6 +54,7 @@ import data.settings.ExtensionRepo
 import data.settings.DefaultReadingMode
 import data.settings.NovelFont
 import data.settings.NovelReaderTheme
+import data.settings.ReaderColorFilter
 import data.settings.REPOSITORY_SECURITY_WARNING
 import data.settings.SettingsRepository
 import data.settings.UpdateInterval
@@ -398,6 +399,8 @@ class ReaderSettingsScreen : Screen {
         val brightness by repo.brightness.collectAsState()
         val cropBorders by repo.cropBorders.collectAsState()
         val keepScreenOn by repo.keepScreenOn.collectAsState()
+        val readerColorFilter by repo.readerColorFilter.collectAsState()
+        val readerPreloadPages by repo.readerPreloadPages.collectAsState()
 
         val novelFont by repo.novelFont.collectAsState()
         val novelFontSize by repo.novelFontSize.collectAsState()
@@ -410,6 +413,8 @@ class ReaderSettingsScreen : Screen {
             brightness = brightness,
             cropBorders = cropBorders,
             keepScreenOn = keepScreenOn,
+            readerColorFilter = readerColorFilter,
+            readerPreloadPages = readerPreloadPages,
             novelFont = novelFont,
             novelFontSize = novelFontSize,
             novelLineHeight = novelLineHeight,
@@ -420,6 +425,8 @@ class ReaderSettingsScreen : Screen {
             onChangeBrightness = { repo.setBrightness(it) },
             onToggleCropBorders = { repo.setCropBorders(it) },
             onToggleKeepScreenOn = { repo.setKeepScreenOn(it) },
+            onSelectReaderColorFilter = { repo.setReaderColorFilter(it) },
+            onSelectReaderPreloadPages = { repo.setReaderPreloadPages(it) },
             onSelectNovelTheme = { repo.setNovelTheme(it) },
             onChangeNovelFontSize = { repo.setNovelFontSize(it) },
             onChangeNovelLineHeight = { repo.setNovelLineHeight(it) }
@@ -447,6 +454,10 @@ fun GlobalReaderSettingsScreenContent(
     onSelectNovelTheme: (NovelReaderTheme) -> Unit,
     onChangeNovelFontSize: (Float) -> Unit,
     onChangeNovelLineHeight: (Float) -> Unit,
+    readerColorFilter: ReaderColorFilter = ReaderColorFilter.DEFAULT,
+    onSelectReaderColorFilter: (ReaderColorFilter) -> Unit = {},
+    readerPreloadPages: Int = 6,
+    onSelectReaderPreloadPages: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberLazyListState()
@@ -517,6 +528,43 @@ fun GlobalReaderSettingsScreenContent(
                             onClick = { /* Placeholder page */ }
                         )
                     }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
+            // Color Filter & Eye Comfort Section
+            item {
+                SectionHeader(text = "Color Filter & Eye Comfort")
+                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                    val filters = ReaderColorFilter.entries
+                    GlassSegmentedControl(
+                        items = filters,
+                        selectedIndex = filters.indexOf(readerColorFilter).coerceAtLeast(0),
+                        onItemSelected = { onSelectReaderColorFilter(filters[it]) },
+                        labelProvider = { filter ->
+                            when (filter) {
+                                ReaderColorFilter.DEFAULT -> "Normal"
+                                ReaderColorFilter.INVERTED_OLED -> "OLED"
+                                ReaderColorFilter.SEPIA -> "Sepia"
+                                ReaderColorFilter.HIGH_CONTRAST -> "Contrast"
+                            }
+                        }
+                    )
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
+            // Zero-Latency Background Preload Buffer
+            item {
+                SectionHeader(text = "Background Preload Buffer (Zero-Latency)")
+                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                    val preloadOptions = listOf(2, 4, 6, 10)
+                    GlassSegmentedControl(
+                        items = preloadOptions,
+                        selectedIndex = preloadOptions.indexOf(readerPreloadPages).let { if (it >= 0) it else 2 },
+                        onItemSelected = { onSelectReaderPreloadPages(preloadOptions[it]) },
+                        labelProvider = { "$it pages ahead" }
+                    )
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }

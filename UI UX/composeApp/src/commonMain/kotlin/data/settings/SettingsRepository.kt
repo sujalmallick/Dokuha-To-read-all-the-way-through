@@ -41,6 +41,13 @@ enum class AppLogoStyle(val displayName: String, val subtitle: String) {
     CLASSIC("Classic Edition", "Monochrome flat Dokuha symbol with clean contrast")
 }
 
+enum class ReaderColorFilter(val displayName: String, val subtitle: String) {
+    DEFAULT("Normal", "Original untouched page colors"),
+    INVERTED_OLED("Inverted OLED", "Inverted black canvas for night reading on OLED screens"),
+    SEPIA("Warm Sepia", "Warm golden-paper tone to reduce blue light"),
+    HIGH_CONTRAST("High Contrast", "Sharpened contrast for vintage scanlations")
+}
+
 @Serializable
 data class ExtensionRepo(
     val id: String,
@@ -78,6 +85,8 @@ interface SettingsRepository {
     val keepScreenOn: StateFlow<Boolean>
     val splitDoubleSpread: StateFlow<Boolean>
     val dualPageOffset: StateFlow<Boolean>
+    val readerColorFilter: StateFlow<ReaderColorFilter>
+    val readerPreloadPages: StateFlow<Int>
 
     fun setDefaultReadingMode(mode: DefaultReadingMode)
     fun setSidePadding(padding: Float)
@@ -86,6 +95,8 @@ interface SettingsRepository {
     fun setKeepScreenOn(enabled: Boolean)
     fun setSplitDoubleSpread(enabled: Boolean)
     fun setDualPageOffset(enabled: Boolean)
+    fun setReaderColorFilter(filter: ReaderColorFilter)
+    fun setReaderPreloadPages(count: Int)
 
     // Novel Reader
     val novelFont: StateFlow<NovelFont>
@@ -214,6 +225,12 @@ class FakeSettingsRepository : SettingsRepository {
     private val _dualPageOffset = MutableStateFlow(false)
     override val dualPageOffset: StateFlow<Boolean> = _dualPageOffset.asStateFlow()
 
+    private val _readerColorFilter = MutableStateFlow(ReaderColorFilter.DEFAULT)
+    override val readerColorFilter: StateFlow<ReaderColorFilter> = _readerColorFilter.asStateFlow()
+
+    private val _readerPreloadPages = MutableStateFlow(6)
+    override val readerPreloadPages: StateFlow<Int> = _readerPreloadPages.asStateFlow()
+
     override fun setDefaultReadingMode(mode: DefaultReadingMode) {
         _defaultReadingMode.value = mode
     }
@@ -240,6 +257,14 @@ class FakeSettingsRepository : SettingsRepository {
 
     override fun setDualPageOffset(enabled: Boolean) {
         _dualPageOffset.value = enabled
+    }
+
+    override fun setReaderColorFilter(filter: ReaderColorFilter) {
+        _readerColorFilter.value = filter
+    }
+
+    override fun setReaderPreloadPages(count: Int) {
+        _readerPreloadPages.value = count.coerceIn(0, 20)
     }
 
     // Novel Reader

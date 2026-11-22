@@ -80,8 +80,10 @@ import data.download.DownloadManager
 import data.mock.PanelRepository
 import data.reader.DualPageEngine
 import data.reader.DualPageSpread
+import data.reader.ReaderColorFilters
 import data.settings.DefaultReadingMode
 import data.settings.FakeSettingsRepository
+import data.settings.ReaderColorFilter
 import data.settings.SettingsRepository
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -235,6 +237,8 @@ fun WebtoonReaderScreenContent(
     val splitDoubleSpread by repo.splitDoubleSpread.collectAsState()
     val dualPageOffset by repo.dualPageOffset.collectAsState()
     val volumeKeyNavEnabled by repo.volumeKeyNavigation.collectAsState()
+    val readerColorFilter by repo.readerColorFilter.collectAsState()
+    val readerPreloadPages by repo.readerPreloadPages.collectAsState()
 
     // Volume key navigation: scroll one page up/down when enabled
     val volumeKeyState = LocalVolumeKeyState.current
@@ -339,6 +343,33 @@ fun WebtoonReaderScreenContent(
 
         LaunchedEffect(currentPageIndex, isAtEndOfChapter) {
             onProgressChange(currentPageIndex, isAtEndOfChapter)
+        }
+
+        // Smart Background Preloader: Proactively buffers ahead next pages into cache
+        val platformContext = LocalPlatformContext.current
+        LaunchedEffect(currentPageIndex, displayPages, readerPreloadPages) {
+            if (displayPages.isEmpty() || readerPreloadPages <= 0) return@LaunchedEffect
+            val imageLoader = coil3.SingletonImageLoader.get(platformContext)
+            val start = currentPageIndex.coerceAtLeast(0)
+            val end = (start + readerPreloadPages).coerceAtMost(displayPages.size)
+            for (i in start until end) {
+                val p = displayPages[i]
+                val url = p.imageUrl ?: p.url
+                if (!url.isNullOrBlank() && (url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true))) {
+                    val request = ImageRequest.Builder(platformContext)
+                        .data(url)
+                        .apply {
+                            val headers = p.headers
+                            val networkHeaders = NetworkHeaders.Builder().apply {
+                                add("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
+                                headers?.forEach { (k, v) -> add(k, v) }
+                            }.build()
+                            httpHeaders(networkHeaders)
+                        }
+                        .build()
+                    imageLoader.enqueue(request)
+                }
+            }
         }
 
         val horizontalPadding = maxWidth * sidePadding.coerceIn(0f, 0.4f)
@@ -455,6 +486,7 @@ fun WebtoonReaderScreenContent(
                                 totalSlices = displayPages.size,
                                 cropBorders = cropBorders,
                                 page = page,
+                                colorFilter = readerColorFilter,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .then(
@@ -495,6 +527,7 @@ fun WebtoonReaderScreenContent(
                                     chapterTitle = chapterTitle,
                                     isRtl = true,
                                     cropBorders = cropBorders,
+                                    colorFilter = readerColorFilter,
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {
@@ -516,6 +549,7 @@ fun WebtoonReaderScreenContent(
                                     isRtl = true,
                                     cropBorders = cropBorders,
                                     page = displayPages.getOrNull(pageIndex),
+                                    colorFilter = readerColorFilter,
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {
@@ -552,6 +586,7 @@ fun WebtoonReaderScreenContent(
                                     chapterTitle = chapterTitle,
                                     isRtl = false,
                                     cropBorders = cropBorders,
+                                    colorFilter = readerColorFilter,
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {
@@ -573,6 +608,7 @@ fun WebtoonReaderScreenContent(
                                     isRtl = false,
                                     cropBorders = cropBorders,
                                     page = displayPages.getOrNull(pageIndex),
+                                    colorFilter = readerColorFilter,
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {
@@ -606,6 +642,7 @@ fun WebtoonReaderScreenContent(
                                 totalSlices = displayPages.size,
                                 cropBorders = cropBorders,
                                 page = displayPages.getOrNull(pageIndex),
+                                colorFilter = readerColorFilter,
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
@@ -1132,11 +1169,14 @@ fun WebtoonPanelSlice(
     totalSlices: Int,
     cropBorders: Boolean = false,
     page: SourcePage? = null,
+    colorFilter: ReaderColorFilter = ReaderColorFilter.DEFAULT,
     modifier: Modifier = Modifier
 ) {
     val imageUrl = page?.imageUrl ?: page?.url
     val isRemoteImage = !imageUrl.isNullOrBlank() &&
         (imageUrl.startsWith("http://", ignoreCase = true) || imageUrl.startsWith("https://", ignoreCase = true))
+
+    val appliedFilter = remember(colorFilter) { ReaderColorFilters.toColorFilter(colorFilter) }
 
     if (isRemoteImage) {
         val platformContext = LocalPlatformContext.current
@@ -1157,6 +1197,7 @@ fun WebtoonPanelSlice(
             model = imageRequest,
             contentDescription = "Slice ${sliceIndex + 1}",
             contentScale = ContentScale.FillWidth,
+            colorFilter = appliedFilter,
             modifier = modifier.fillMaxWidth(),
             onState = { state ->
                 when (state) {
