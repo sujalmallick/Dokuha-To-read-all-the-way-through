@@ -108,12 +108,14 @@ interface SettingsRepository {
     val concurrentDownloads: StateFlow<Int>
     val downloadLocation: StateFlow<String>
     val autoDownloadNextChapter: StateFlow<Boolean>
+    val volumeKeyNavigation: StateFlow<Boolean>
 
     fun setDownloadOnlyOnWifi(enabled: Boolean)
     fun setDeleteAfterReading(enabled: Boolean)
     fun setConcurrentDownloads(count: Int)
     fun setDownloadLocation(location: String)
     fun setAutoDownloadNextChapter(enabled: Boolean)
+    fun setVolumeKeyNavigation(enabled: Boolean)
 
     // Sources & Extensions
     val extensionRepos: StateFlow<List<ExtensionRepo>>
@@ -320,7 +322,13 @@ class FakeSettingsRepository : SettingsRepository {
         _autoDownloadNextChapter.value = enabled
     }
 
-    // Sources & Extensions
+    // Volume Key Navigation
+    private val _volumeKeyNavigation = MutableStateFlow(false)
+    override val volumeKeyNavigation: StateFlow<Boolean> = _volumeKeyNavigation.asStateFlow()
+
+    override fun setVolumeKeyNavigation(enabled: Boolean) {
+        _volumeKeyNavigation.value = enabled
+    }    // Sources & Extensions
     private val _extensionRepos = MutableStateFlow(
         listOf(
             ExtensionRepo(

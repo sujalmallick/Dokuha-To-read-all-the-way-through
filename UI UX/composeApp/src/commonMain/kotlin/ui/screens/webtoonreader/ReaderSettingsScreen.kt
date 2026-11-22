@@ -88,6 +88,7 @@ fun ReaderSettingsScreenContent(
     val splitDoubleSpread by repo.splitDoubleSpread.collectAsState()
     val dualPageOffset by repo.dualPageOffset.collectAsState()
     val autoDownloadNextChapter by repo.autoDownloadNextChapter.collectAsState()
+    val volumeKeyNavigation by repo.volumeKeyNavigation.collectAsState()
 
     val sheetShape = RoundedCornerShape(28.dp)
     val readingModes = listOf(
@@ -367,6 +368,33 @@ fun ReaderSettingsScreenContent(
                         PanelSwitch(
                             checked = autoDownloadNextChapter,
                             onCheckedChange = { repo.setAutoDownloadNextChapter(it) }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Volume Key Navigation Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Volume key navigation",
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "Use volume buttons to scroll pages",
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                        PanelSwitch(
+                            checked = volumeKeyNavigation,
+                            onCheckedChange = { repo.setVolumeKeyNavigation(it) }
                         )
                     }
 
