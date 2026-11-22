@@ -87,6 +87,7 @@ fun ReaderSettingsScreenContent(
     val cropBorders by repo.cropBorders.collectAsState()
     val splitDoubleSpread by repo.splitDoubleSpread.collectAsState()
     val dualPageOffset by repo.dualPageOffset.collectAsState()
+    val autoDownloadNextChapter by repo.autoDownloadNextChapter.collectAsState()
 
     val sheetShape = RoundedCornerShape(28.dp)
     val readingModes = listOf(
@@ -340,6 +341,33 @@ fun ReaderSettingsScreenContent(
                                 onCheckedChange = { repo.setDualPageOffset(it) }
                             )
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Auto-Download Next Chapter Toggle Switch
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Auto-download next chapter",
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "Pre-download next chapter at 80% progress",
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                        PanelSwitch(
+                            checked = autoDownloadNextChapter,
+                            onCheckedChange = { repo.setAutoDownloadNextChapter(it) }
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(8.dp))

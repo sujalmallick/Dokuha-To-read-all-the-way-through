@@ -74,6 +74,7 @@ import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import core.source.SourcePage
+import core.source.SourceManga
 import data.download.DownloadManager
 import data.mock.PanelRepository
 import data.reader.DualPageEngine
@@ -159,6 +160,22 @@ data class WebtoonReaderScreen(
             onProgressChange = { page, isCompleted ->
                 coroutineScope.launch {
                     repository.updateChapterProgress(currentChapterUrl, page, isCompleted)
+
+                    if (settingsRepository.autoDownloadNextChapter.value) {
+                        val totalPages = pages.size.coerceAtLeast(1)
+                        val progressFraction = page.toFloat() / totalPages
+                        if (progressFraction >= 0.8f || isCompleted) {
+                            if (chapters.isNotEmpty() && currentChapterIndex > 0) {
+                                val nextChapter = chapters[currentChapterIndex - 1]
+                                val isNextDownloaded = downloadManager.isChapterDownloaded(mangaUrl, nextChapter.url)
+                                val nextStatus = downloadManager.getChapterStatus(mangaUrl, nextChapter.url)
+                                if (!isNextDownloaded && nextStatus == null) {
+                                    val dummyManga = SourceManga(url = mangaUrl, title = currentChapterTitle)
+                                    downloadManager.enqueue(dummyManga, listOf(nextChapter))
+                                }
+                            }
+                        }
+                    }
                 }
             },
             onPreviousChapter = {

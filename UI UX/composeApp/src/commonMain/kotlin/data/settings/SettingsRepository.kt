@@ -107,11 +107,13 @@ interface SettingsRepository {
     val deleteAfterReading: StateFlow<Boolean>
     val concurrentDownloads: StateFlow<Int>
     val downloadLocation: StateFlow<String>
+    val autoDownloadNextChapter: StateFlow<Boolean>
 
     fun setDownloadOnlyOnWifi(enabled: Boolean)
     fun setDeleteAfterReading(enabled: Boolean)
     fun setConcurrentDownloads(count: Int)
     fun setDownloadLocation(location: String)
+    fun setAutoDownloadNextChapter(enabled: Boolean)
 
     // Sources & Extensions
     val extensionRepos: StateFlow<List<ExtensionRepo>>
@@ -295,6 +297,9 @@ class FakeSettingsRepository : SettingsRepository {
     private val _downloadLocation = MutableStateFlow("Internal Storage / Dokuha")
     override val downloadLocation: StateFlow<String> = _downloadLocation.asStateFlow()
 
+    private val _autoDownloadNextChapter = MutableStateFlow(false)
+    override val autoDownloadNextChapter: StateFlow<Boolean> = _autoDownloadNextChapter.asStateFlow()
+
     override fun setDownloadOnlyOnWifi(enabled: Boolean) {
         _downloadOnlyOnWifi.value = enabled
     }
@@ -309,6 +314,10 @@ class FakeSettingsRepository : SettingsRepository {
 
     override fun setDownloadLocation(location: String) {
         _downloadLocation.value = location
+    }
+
+    override fun setAutoDownloadNextChapter(enabled: Boolean) {
+        _autoDownloadNextChapter.value = enabled
     }
 
     // Sources & Extensions

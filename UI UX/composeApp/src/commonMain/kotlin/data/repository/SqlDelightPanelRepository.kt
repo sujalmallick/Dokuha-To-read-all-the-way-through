@@ -31,6 +31,9 @@ import io.panel.reader.db.GetContinueReading
 import io.panel.reader.db.Mangas
 import io.panel.reader.db.PanelDatabase
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,6 +45,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Production local persistent repository backed by SQLite via CashApp SQLDelight.
@@ -567,15 +571,23 @@ class SqlDelightPanelRepository(
         if (sources.isNotEmpty()) {
             return flow {
                 val remoteResults = mutableListOf<SourceManga>()
-                for (src in sources) {
-                    try {
-                        val res = src.search(query, 1, emptyList()).mangas.map { manga ->
-                            if (manga.sourceId == 0L) manga.copy(sourceId = src.id) else manga
+                coroutineScope {
+                    val deferreds = sources.map { src ->
+                        async(Dispatchers.Default) {
+                            try {
+                                withTimeoutOrNull(8000L) {
+                                    src.search(query, 1, emptyList()).mangas.map { manga ->
+                                        if (manga.sourceId == 0L) manga.copy(sourceId = src.id) else manga
+                                    }
+                                } ?: emptyList()
+                            } catch (_: Exception) {
+                                emptyList()
+                            }
                         }
-                        remoteResults.addAll(res)
-                    } catch (_: Exception) {
                     }
+                    deferreds.awaitAll().forEach { remoteResults.addAll(it) }
                 }
+
                 val localResults = try {
                     database.mangaQueries.getLibrary().executeAsList()
                         .map { it.toSourceManga() }

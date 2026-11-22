@@ -376,6 +376,46 @@ fun TitleDetailsScreenContent(
                         )
                     }
 
+                    if (chapters.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        val undownloaded = remember(chapters, downloadQueue, completedDownloads) {
+                            chapters.filter { ch ->
+                                val isDownloaded = downloadManager.isChapterDownloaded(displayManga.url, ch.url)
+                                val status = downloadManager.getChapterStatus(displayManga.url, ch.url)
+                                !isDownloaded && status == null
+                            }
+                        }
+
+                        if (undownloaded.isNotEmpty()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                QuickDownloadChip(
+                                    label = "+5 Next",
+                                    onClick = {
+                                        downloadManager.enqueue(displayManga, undownloaded.take(5))
+                                    }
+                                )
+                                if (undownloaded.size > 5) {
+                                    QuickDownloadChip(
+                                        label = "+10 Next",
+                                        onClick = {
+                                            downloadManager.enqueue(displayManga, undownloaded.take(10))
+                                        }
+                                    )
+                                }
+                                QuickDownloadChip(
+                                    label = "All Unread (${undownloaded.size})",
+                                    onClick = {
+                                        downloadManager.enqueue(displayManga, undownloaded)
+                                    }
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(10.dp))
                 }
             }
@@ -740,6 +780,41 @@ fun TitleHeroArtwork(
             center = Offset(width * 0.53f, height * 0.285f)
         )
     }
+    }
+}
+
+@Composable
+private fun QuickDownloadChip(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(CapsuleShape)
+            .background(Color.White.copy(alpha = 0.08f))
+            .border(1.dp, GlassBorder, CapsuleShape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.FileDownload,
+                contentDescription = null,
+                tint = ElectricBlue,
+                modifier = Modifier.size(13.dp)
+            )
+            Text(
+                text = label,
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }
 
