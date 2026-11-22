@@ -35,6 +35,8 @@ import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
 import core.source.SourcePage
+import data.reader.ReaderColorFilters
+import data.settings.ReaderColorFilter
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
@@ -86,6 +88,7 @@ fun MangaPageCanvas(
     isRtl: Boolean = true,
     cropBorders: Boolean = false,
     page: SourcePage? = null,
+    colorFilter: ReaderColorFilter = ReaderColorFilter.DEFAULT,
     modifier: Modifier = Modifier
 ) {
     val pageType = pageIndex % 4
@@ -94,6 +97,9 @@ fun MangaPageCanvas(
     val imageUrl = page?.imageUrl ?: page?.url
     val isRemoteImage = !imageUrl.isNullOrBlank() &&
         (imageUrl.startsWith("http://", ignoreCase = true) || imageUrl.startsWith("https://", ignoreCase = true))
+
+    val canvasBg = remember(colorFilter) { ReaderColorFilters.getCanvasBackgroundColor(colorFilter) }
+    val appliedFilter = remember(colorFilter) { ReaderColorFilters.toColorFilter(colorFilter) }
 
     if (isRemoteImage) {
         val platformContext = LocalPlatformContext.current
@@ -113,7 +119,7 @@ fun MangaPageCanvas(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .background(MangaPaperBg)
+                .background(canvasBg)
                 .padding(if (cropBorders) 0.dp else 8.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -121,6 +127,7 @@ fun MangaPageCanvas(
                 model = imageRequest,
                 contentDescription = "Page $pageNumber",
                 contentScale = ContentScale.Fit,
+                colorFilter = appliedFilter,
                 modifier = Modifier.fillMaxSize(),
                 onState = { state ->
                     when (state) {
@@ -139,7 +146,7 @@ fun MangaPageCanvas(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .background(MangaPaperBg)
+                .background(canvasBg)
                 .padding(if (cropBorders) 0.dp else 8.dp)
         ) {
             // Base Panel Layout

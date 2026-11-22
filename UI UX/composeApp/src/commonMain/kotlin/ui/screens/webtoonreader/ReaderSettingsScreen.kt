@@ -11,11 +11,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Icon
@@ -37,11 +40,11 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import data.settings.DefaultReadingMode
 import data.settings.FakeSettingsRepository
+import data.settings.ReaderColorFilter
 import data.settings.SettingsRepository
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.GlassSegmentedControl
-import ui.components.PanelBottomNavBar
 import ui.components.PanelSlider
 import ui.components.PanelSwitch
 import ui.components.PanelTab
@@ -89,6 +92,8 @@ fun ReaderSettingsScreenContent(
     val dualPageOffset by repo.dualPageOffset.collectAsState()
     val autoDownloadNextChapter by repo.autoDownloadNextChapter.collectAsState()
     val volumeKeyNavigation by repo.volumeKeyNavigation.collectAsState()
+    val readerColorFilter by repo.readerColorFilter.collectAsState()
+    val readerPreloadPages by repo.readerPreloadPages.collectAsState()
 
     val sheetShape = RoundedCornerShape(28.dp)
     val readingModes = listOf(
@@ -151,6 +156,8 @@ fun ReaderSettingsScreenContent(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .heightIn(max = 560.dp)
+                        .verticalScroll(rememberScrollState())
                         .padding(horizontal = 20.dp, vertical = 18.dp)
                 ) {
                     // Drag Handle affordance at top center
@@ -198,6 +205,66 @@ fun ReaderSettingsScreenContent(
                                 DefaultReadingMode.VERTICAL -> "Vertical"
                             }
                         },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // Color Filter Section (OLED, Sepia, High Contrast)
+                    Text(
+                        text = "Color Filter",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = TextSecondary,
+                        fontSize = 13.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    val colorFilters = ReaderColorFilter.entries
+                    GlassSegmentedControl(
+                        items = colorFilters,
+                        selectedIndex = colorFilters.indexOf(readerColorFilter).coerceAtLeast(0),
+                        onItemSelected = { repo.setReaderColorFilter(colorFilters[it]) },
+                        labelProvider = { filter ->
+                            when (filter) {
+                                ReaderColorFilter.DEFAULT -> "Normal"
+                                ReaderColorFilter.INVERTED_OLED -> "OLED"
+                                ReaderColorFilter.SEPIA -> "Sepia"
+                                ReaderColorFilter.HIGH_CONTRAST -> "Contrast"
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    // Background Page Preloading Buffer (Zero-Latency)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Background Preload Buffer",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = TextSecondary,
+                            fontSize = 13.sp
+                        )
+                        Text(
+                            text = "$readerPreloadPages pages ahead",
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    val preloadOptions = listOf(2, 4, 6, 10)
+                    GlassSegmentedControl(
+                        items = preloadOptions,
+                        selectedIndex = preloadOptions.indexOf(readerPreloadPages).let { if (it >= 0) it else 2 },
+                        onItemSelected = { repo.setReaderPreloadPages(preloadOptions[it]) },
+                        labelProvider = { "$it pgs" },
                         modifier = Modifier.fillMaxWidth()
                     )
 
@@ -402,15 +469,7 @@ fun ReaderSettingsScreenContent(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Bottom Navigation Bar visible underneath as floating Liquid Glass dock
-            PanelBottomNavBar(
-                selectedTab = PanelTab.LIBRARY,
-                onTabSelected = onTabSelected,
-                glassState = glassState,
-                modifier = Modifier.padding(horizontal = 24.dp)
-            )
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
