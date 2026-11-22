@@ -42,6 +42,21 @@ data class HistoryGroup(
     val items: List<HistoryItem>
 )
 
+data class LibraryMangaStats(
+    val mangaUrl: String,
+    val totalChapters: Int = 0,
+    val readChapters: Int = 0,
+    val lastReadAt: Long = 0L,
+    val dateAdded: Long = 0L
+) {
+    val isUnread: Boolean
+        get() = readChapters == 0
+    val isInProgress: Boolean
+        get() = readChapters > 0 && (totalChapters == 0 || readChapters < totalChapters)
+    val isCompletedReading: Boolean
+        get() = totalChapters > 0 && readChapters >= totalChapters
+}
+
 data class MockDownloadItem(
     val id: String,
     val manga: SourceManga,
@@ -93,6 +108,7 @@ val AvailableBrowseGenres = listOf(
 
 interface PanelRepository {
     fun getLibrary(category: String): Flow<List<SourceManga>>
+    fun getLibraryStats(): Flow<Map<String, LibraryMangaStats>> = flowOf(emptyMap())
     fun getContinueReading(): Flow<Pair<SourceManga, SourceChapter>?>
     fun getMangaDetails(url: String, sourceId: String? = null, fallbackTitle: String = ""): Flow<SourceManga?>
     fun getChapters(mangaUrl: String, sourceId: String? = null): Flow<List<SourceChapter>>

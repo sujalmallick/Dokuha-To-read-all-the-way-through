@@ -623,4 +623,42 @@ class SqlDelightPanelRepositoryTest {
         assertEquals("Recently Read Manga", shelfItem.manga.title)
         assertEquals("https://example.com/shelf.jpg", shelfItem.manga.thumbnailUrl)
     }
+
+    @Test
+    fun testLibraryMangaStatsCalculation() = runBlocking {
+        val manga = SourceManga(
+            url = "manga/stats-test",
+            title = "Stats Manga",
+            status = MangaStatus.ONGOING
+        )
+        repository.toggleFavorite(manga, isFavorite = true)
+        val mangaEntity = database.mangaQueries.getMangaByUrl(manga.url).executeAsOne()
+
+        for (i in 1..3) {
+            database.chapterQueries.insertOrUpdateChapter(
+                id = null,
+                mangaId = mangaEntity.id,
+                url = "${manga.url}/ch-$i",
+                name = "Chapter $i",
+                scanlator = null,
+                read = if (i == 1) 1L else 0L,
+                bookmark = 0L,
+                lastPageRead = if (i == 1) 25L else 0L,
+                chapterNumber = i.toDouble(),
+                sourceOrder = (i - 1).toLong(),
+                dateFetch = 0L,
+                dateUpload = 0L,
+                lastModifiedAt = if (i == 1) 1000L else 0L
+            )
+        }
+
+        val statsMap = repository.getLibraryStats().first()
+        val stats = statsMap[manga.url]
+        assertNotNull(stats, "Library stats for manga should exist")
+        assertEquals(3, stats.totalChapters, "Total chapters should be 3")
+        assertEquals(1, stats.readChapters, "Read chapters should be 1")
+        assertTrue(stats.isInProgress, "Manga with 1 of 3 read should be in progress")
+        assertFalse(stats.isUnread, "Manga with 1 read should not be unread")
+        assertFalse(stats.isCompletedReading, "Manga with 1 of 3 read should not be completed")
+    }
 }

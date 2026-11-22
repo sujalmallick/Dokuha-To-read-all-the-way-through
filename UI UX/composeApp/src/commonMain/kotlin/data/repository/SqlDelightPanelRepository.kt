@@ -18,6 +18,7 @@ import data.mock.BrowseFilters
 import data.mock.BrowseSortOrder
 import data.mock.HistoryGroup
 import data.mock.HistoryItem
+import data.mock.LibraryMangaStats
 import data.mock.MockDownloadItem
 import data.mock.MockExtension
 import data.mock.MockSourceInfo
@@ -129,6 +130,23 @@ class SqlDelightPanelRepository(
             .asFlow()
             .mapToList(Dispatchers.Default)
             .map { list -> list.map { it.toSourceManga() } }
+    }
+
+    override fun getLibraryStats(): Flow<Map<String, LibraryMangaStats>> {
+        return database.mangaQueries.getLibraryMangaStats()
+            .asFlow()
+            .mapToList(Dispatchers.Default)
+            .map { list ->
+                list.associate { row ->
+                    row.manga_url to LibraryMangaStats(
+                        mangaUrl = row.manga_url,
+                        totalChapters = row.total_chapters.toInt(),
+                        readChapters = (row.read_chapters ?: 0L).toInt(),
+                        lastReadAt = row.last_read_at ?: 0L,
+                        dateAdded = row.date_added
+                    )
+                }
+            }
     }
 
     override fun getContinueReading(): Flow<Pair<SourceManga, SourceChapter>?> {
