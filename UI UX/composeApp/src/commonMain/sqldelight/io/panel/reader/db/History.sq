@@ -66,5 +66,34 @@ deleteHistoryByChapterId:
 DELETE FROM history
 WHERE chapter_id = :chapterId;
 
+deleteHistoryById:
+DELETE FROM history
+WHERE id = :historyId;
+
 clearAllHistory:
 DELETE FROM history;
+
+getRecentlyReadManga:
+SELECT
+    m.url AS manga_url,
+    m.title AS manga_title,
+    m.thumbnail_url AS manga_thumbnail,
+    m.author AS manga_author,
+    m.artist AS manga_artist,
+    m.description AS manga_description,
+    m.genres AS manga_genres,
+    m.status AS manga_status,
+    m.is_novel AS manga_is_novel,
+    m.source_id AS manga_source_id,
+    c.url AS chapter_url,
+    c.name AS chapter_name,
+    c.chapter_number AS chapter_number,
+    c.date_upload AS chapter_date_upload,
+    c.last_page_read AS chapter_last_page_read,
+    MAX(h.read_at) AS last_read_at
+FROM history h
+JOIN chapters c ON h.chapter_id = c.id
+JOIN mangas m ON c.manga_id = m.id
+GROUP BY m.id
+ORDER BY last_read_at DESC
+LIMIT :limit;

@@ -484,4 +484,143 @@ class SqlDelightPanelRepositoryTest {
 
         repository.unregisterSource(2001L)
     }
+
+    @Test
+    fun testReadingHistoryManagement() = runBlocking {
+        val manga = SourceManga(
+            url = "manga/history-test",
+            title = "History Manga",
+            status = MangaStatus.ONGOING
+        )
+        repository.toggleFavorite(manga, isFavorite = true)
+
+        val ch1Url = "manga/history-test/ch-1"
+        val mangaEntity = database.mangaQueries.getMangaByUrl(manga.url).executeAsOne()
+        database.chapterQueries.insertOrUpdateChapter(
+            id = null,
+            mangaId = mangaEntity.id,
+            url = ch1Url,
+            name = "Chapter 1",
+            scanlator = null,
+            read = 0L,
+            bookmark = 0L,
+            lastPageRead = 0L,
+            chapterNumber = 1.0,
+            sourceOrder = 0L,
+            dateFetch = 0L,
+            dateUpload = 0L,
+            lastModifiedAt = 0L
+        )
+
+        // 1. Record reading progress
+        repository.updateChapterProgress(ch1Url, page = 14, isRead = false)
+
+        val historyGroups = repository.getHistory().first()
+        assertTrue(historyGroups.isNotEmpty(), "History groups should not be empty after reading")
+        val allItems = historyGroups.flatMap { it.items }
+        val historyEntry = allItems.find { it.chapter.url == ch1Url }
+        assertNotNull(historyEntry, "History entry for Chapter 1 must exist")
+        assertEquals(14, historyEntry.lastPageRead, "Last page read must be recorded as 14")
+        assertTrue(historyEntry.id > 0L, "History entry must have a valid positive ID")
+
+        // 2. Delete single history item
+        repository.deleteHistoryItem(historyEntry.id)
+
+        val historyAfterDelete = repository.getHistory().first()
+        val allItemsAfterDelete = historyAfterDelete.flatMap { it.items }
+        assertFalse(allItemsAfterDelete.any { it.id == historyEntry.id }, "Deleted history item should be removed")
+    }
+
+    @Test
+    fun testClearAllHistory() = runBlocking {
+        val manga = SourceManga(
+            url = "manga/clear-history-test",
+            title = "Clear History Manga",
+            status = MangaStatus.ONGOING
+        )
+        repository.toggleFavorite(manga, isFavorite = true)
+        val mangaEntity = database.mangaQueries.getMangaByUrl(manga.url).executeAsOne()
+
+        listOf("ch-1", "ch-2").forEachIndexed { index, slug ->
+            database.chapterQueries.insertOrUpdateChapter(
+                id = null,
+                mangaId = mangaEntity.id,
+                url = "${manga.url}/$slug",
+                name = "Chapter ${index + 1}",
+                scanlator = null,
+                read = 0L,
+                bookmark = 0L,
+                lastPageRead = 0L,
+                chapterNumber = (index + 1).toDouble(),
+                sourceOrder = index.toLong(),
+                dateFetch = 0L,
+                dateUpload = 0L,
+                lastModifiedAt = 0L
+            )
+            repository.updateChapterProgress("${manga.url}/$slug", page = 5, isRead = false)
+        }
+
+        val historyBeforeClear = repository.getHistory().first().flatMap { it.items }
+        assertEquals(2, historyBeforeClear.size, "Should have 2 history entries before clear")
+
+        repository.clearAllHistory()
+
+        val historyAfterClear = repository.getHistory().first().flatMap { it.items }
+        assertTrue(historyAfterClear.isEmpty(), "All history items should be wiped after clearAllHistory()")
+    }
+
+    @Test
+    fun testRecentlyReadMangaDeduplication() = runBlocking {
+        val manga = SourceManga(
+            url = "manga/recently-read-test",
+            title = "Recently Read Manga",
+            thumbnailUrl = "https://example.com/shelf.jpg",
+            status = MangaStatus.ONGOING
+        )
+        repository.toggleFavorite(manga, isFavorite = true)
+        val mangaEntity = database.mangaQueries.getMangaByUrl(manga.url).executeAsOne()
+
+        // Insert two chapters
+        database.chapterQueries.insertOrUpdateChapter(
+            id = null,
+            mangaId = mangaEntity.id,
+            url = "${manga.url}/ch-1",
+            name = "Chapter 1",
+            scanlator = null,
+            read = 1L,
+            bookmark = 0L,
+            lastPageRead = 20L,
+            chapterNumber = 1.0,
+            sourceOrder = 0L,
+            dateFetch = 0L,
+            dateUpload = 0L,
+            lastModifiedAt = 0L
+        )
+        database.chapterQueries.insertOrUpdateChapter(
+            id = null,
+            mangaId = mangaEntity.id,
+            url = "${manga.url}/ch-2",
+            name = "Chapter 2",
+            scanlator = null,
+            read = 0L,
+            bookmark = 0L,
+            lastPageRead = 8L,
+            chapterNumber = 2.0,
+            sourceOrder = 1L,
+            dateFetch = 0L,
+            dateUpload = 0L,
+            lastModifiedAt = 0L
+        )
+
+        // Read ch-1 then read ch-2
+        repository.updateChapterProgress("${manga.url}/ch-1", page = 20, isRead = true)
+        repository.updateChapterProgress("${manga.url}/ch-2", page = 8, isRead = false)
+
+        val recentShelf = repository.getRecentlyReadManga(limit = 10L).first()
+        val matchingItems = recentShelf.filter { it.manga.url == manga.url }
+        assertEquals(1, matchingItems.size, "Manga should only appear once on the Recently Read shelf")
+        val shelfItem = matchingItems.first()
+        assertEquals("Recently Read Manga", shelfItem.manga.title)
+        assertEquals("https://example.com/shelf.jpg", shelfItem.manga.thumbnailUrl)
+    }
 }

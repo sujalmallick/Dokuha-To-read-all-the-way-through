@@ -426,7 +426,13 @@ class SqlDelightPanelRepository(
                         name = row.chapter_name,
                         chapterNumber = row.chapter_number.toFloat()
                     )
-                    val item = HistoryItem(manga, chapter, row.read_at)
+                    val item = HistoryItem(
+                        id = row.history_id,
+                        manga = manga,
+                        chapter = chapter,
+                        readAt = row.read_at,
+                        lastPageRead = row.last_page_read.toInt()
+                    )
                     val diff = now - row.read_at
                     when {
                         diff < oneDay -> todayItems.add(item)
@@ -441,6 +447,53 @@ class SqlDelightPanelRepository(
                 if (earlierItems.isNotEmpty()) groups.add(HistoryGroup("Earlier", earlierItems))
                 groups
             }
+    }
+
+    override fun getRecentlyReadManga(limit: Long): Flow<List<HistoryItem>> {
+        return database.historyQueries.getRecentlyReadManga(limit = limit)
+            .asFlow()
+            .mapToList(Dispatchers.Default)
+            .map { list ->
+                list.map { row ->
+                    val manga = SourceManga(
+                        url = row.manga_url,
+                        title = row.manga_title,
+                        thumbnailUrl = row.manga_thumbnail,
+                        author = row.manga_author,
+                        artist = row.manga_artist,
+                        description = row.manga_description,
+                        genres = row.manga_genres?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(),
+                        status = try { MangaStatus.valueOf(row.manga_status) } catch (_: Exception) { MangaStatus.UNKNOWN },
+                        isNovel = row.manga_is_novel == 1L,
+                        sourceId = row.manga_source_id
+                    )
+                    val chapter = SourceChapter(
+                        url = row.chapter_url,
+                        name = row.chapter_name,
+                        dateUpload = row.chapter_date_upload,
+                        chapterNumber = row.chapter_number.toFloat()
+                    )
+                    HistoryItem(
+                        id = 0L,
+                        manga = manga,
+                        chapter = chapter,
+                        readAt = row.last_read_at ?: 0L,
+                        lastPageRead = row.chapter_last_page_read.toInt()
+                    )
+                }
+            }
+    }
+
+    override suspend fun deleteHistoryItem(historyId: Long) {
+        withContext(Dispatchers.Default) {
+            database.historyQueries.deleteHistoryById(historyId)
+        }
+    }
+
+    override suspend fun clearAllHistory() {
+        withContext(Dispatchers.Default) {
+            database.historyQueries.clearAllHistory()
+        }
     }
 
     override fun getDownloads(): Flow<List<MockDownloadItem>> {

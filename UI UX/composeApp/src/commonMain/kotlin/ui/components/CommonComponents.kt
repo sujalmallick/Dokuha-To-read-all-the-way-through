@@ -1249,6 +1249,319 @@ fun UpdateItemCard(
     }
 }
 
+fun formatRelativeTime(timestamp: Long): String {
+    if (timestamp <= 0L) return ""
+    val now = core.platform.currentTimeMillis()
+    val diff = (now - timestamp).coerceAtLeast(0L)
+    val seconds = diff / 1000L
+    val minutes = seconds / 60L
+    val hours = minutes / 60L
+    val days = hours / 24L
+
+    return when {
+        minutes < 1L -> "Just now"
+        minutes < 60L -> "${minutes}m ago"
+        hours < 24L -> "${hours}h ago"
+        days == 1L -> "Yesterday"
+        days < 7L -> "${days}d ago"
+        days < 30L -> "${days / 7L}w ago"
+        else -> "${days / 30L}mo ago"
+    }
+}
+
+@Composable
+fun HistoryItemCard(
+    title: String,
+    chapter: String,
+    timeText: String,
+    progressText: String?,
+    gradientIndex: Int,
+    onResume: () -> Unit,
+    onClick: () -> Unit,
+    onDelete: () -> Unit,
+    thumbnailUrl: String? = null,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(18.dp)
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .glassPress(interactionSource)
+            .clip(shape)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.12f),
+                        Color.White.copy(alpha = 0.04f)
+                    )
+                )
+            )
+            .border(
+                width = 0.75.dp,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.35f),
+                        Color.White.copy(alpha = 0.08f)
+                    )
+                ),
+                shape = shape
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val coverShape = RoundedCornerShape(10.dp)
+            Box(
+                modifier = Modifier
+                    .size(width = 48.dp, height = 62.dp)
+                    .clip(coverShape)
+                    .background(
+                        brush = Brush.verticalGradient(
+                            CoverGradients[gradientIndex.mod(CoverGradients.size)]
+                        )
+                    )
+                    .border(
+                        width = 1.dp,
+                        brush = Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = 0.45f),
+                                Color.White.copy(alpha = 0.12f)
+                            )
+                        ),
+                        shape = coverShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                val isRemoteImage = !thumbnailUrl.isNullOrBlank() &&
+                    (thumbnailUrl.startsWith("http://", ignoreCase = true) || thumbnailUrl.startsWith("https://", ignoreCase = true))
+
+                if (isRemoteImage) {
+                    AsyncImage(
+                        model = thumbnailUrl,
+                        contentDescription = title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Text(
+                        text = title.take(1),
+                        color = Color.White.copy(alpha = 0.35f),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = chapter,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontSize = 12.sp,
+                    color = TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (!progressText.isNullOrBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xFF1E88E5).copy(alpha = 0.22f))
+                                .border(0.5.dp, Color(0xFF1E88E5).copy(alpha = 0.45f), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = progressText,
+                                color = Color(0xFF90CAF9),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    if (timeText.isNotBlank()) {
+                        Text(
+                            text = timeText,
+                            fontSize = 11.sp,
+                            color = TextSecondary.copy(alpha = 0.75f)
+                        )
+                    }
+                }
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                PanelCircleIconButton(
+                    icon = Icons.Default.DeleteOutline,
+                    size = 36.dp,
+                    iconSize = 18.dp,
+                    backgroundColor = Color(0xFFEF4444).copy(alpha = 0.12f),
+                    borderColor = Color(0xFFEF4444).copy(alpha = 0.3f),
+                    tint = Color(0xFFFF6B6B),
+                    onClick = onDelete
+                )
+
+                val resumeInteraction = remember { MutableInteractionSource() }
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White)
+                        .glassPress(resumeInteraction)
+                        .clickable(
+                            interactionSource = resumeInteraction,
+                            indication = null,
+                            onClick = onResume
+                        )
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Resume",
+                        color = Color(0xFF090D15),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.2.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ContinueReadingCompactCard(
+    manga: core.source.SourceManga,
+    chapter: core.source.SourceChapter,
+    progressText: String,
+    onResume: () -> Unit,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val shape = RoundedCornerShape(16.dp)
+
+    Box(
+        modifier = modifier
+            .width(170.dp)
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.08f))
+            .border(1.dp, Color.White.copy(alpha = 0.18f), shape)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = ripple(color = Color.White),
+                onClick = onClick
+            )
+            .padding(10.dp)
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(95.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color(0xFF1E2330)),
+                contentAlignment = Alignment.Center
+            ) {
+                val imageUrl = manga.thumbnailUrl
+                if (!imageUrl.isNullOrBlank() && (imageUrl.startsWith("http://", ignoreCase = true) || imageUrl.startsWith("https://", ignoreCase = true))) {
+                    AsyncImage(
+                        model = imageUrl,
+                        contentDescription = manga.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Text(
+                        text = manga.title.take(1),
+                        color = Color.White.copy(alpha = 0.25f),
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(6.dp)
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .clickable(onClick = onResume),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Resume",
+                        tint = Color(0xFF090D15),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = manga.title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = chapter.name,
+                    fontSize = 11.sp,
+                    color = TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (progressText.isNotBlank()) {
+                    Text(
+                        text = progressText,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF90CAF9)
+                    )
+                }
+            }
+        }
+    }
+}
+
 @Composable
 fun StorageDonutChart(
     usedGb: Float,
