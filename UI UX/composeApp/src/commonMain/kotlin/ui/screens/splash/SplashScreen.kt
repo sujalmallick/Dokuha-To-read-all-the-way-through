@@ -63,6 +63,8 @@ import panelreader.composeapp.generated.resources.dokuha_d_frame
 import panelreader.composeapp.generated.resources.dokuha_page_1
 import panelreader.composeapp.generated.resources.dokuha_page_2
 import panelreader.composeapp.generated.resources.dokuha_page_3
+import panelreader.composeapp.generated.resources.logo_classic
+import panelreader.composeapp.generated.resources.logo_glassmorphic
 import ui.screens.library.LibraryScreen
 import ui.screens.welcome.WelcomeScreen
 
@@ -381,6 +383,16 @@ fun SplashScreenContent(
                 Res.drawable.classic_page_3
             }
 
+            val masterLogoRes = if (activeStyle == AppLogoStyle.GLASSMORPHIC) {
+                Res.drawable.logo_glassmorphic
+            } else {
+                Res.drawable.logo_classic
+            }
+
+            val isPagesAtRest = page1RotZ.value == 0f && page1RotY.value == 0f &&
+                                page2RotZ.value == 0f && page2RotY.value == 0f &&
+                                page3RotZ.value == 0f && page3RotY.value == 0f
+
             Box(
                 modifier = Modifier
                     .size(logoSize)
@@ -388,54 +400,64 @@ fun SplashScreenContent(
                     .alpha(logoAlpha.value),
                 contentAlignment = Alignment.Center
             ) {
-                // Layer 0: The outer D frame (static container with transparent counter)
-                Image(
-                    painter = painterResource(dFrameRes),
-                    contentDescription = null,
-                    modifier = Modifier.fillMaxSize()
-                )
+                if (isPagesAtRest) {
+                    // Pristine, untouched master logo (silky vector-smooth curves, flawless gradients)
+                    Image(
+                        painter = painterResource(masterLogoRes),
+                        contentDescription = "Dokuha Logo",
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    // Cascading 3D animated page-turn layers
+                    // Layer 0: The outer D frame (container with transparent counter)
+                    Image(
+                        painter = painterResource(dFrameRes),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize()
+                    )
 
-                // Layer 1: Page 1 (Top / Back Page) - 3D unfolding page turn
-                Image(
-                    painter = painterResource(page1Res),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            transformOrigin = anchorOrigin
-                            rotationZ = page1RotZ.value
-                            rotationY = page1RotY.value
-                            cameraDistance = 16f * density
-                        }
-                )
+                    // Layer 1: Page 1 (Top / Back Page) - 3D unfolding page turn
+                    Image(
+                        painter = painterResource(page1Res),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                transformOrigin = anchorOrigin
+                                rotationZ = page1RotZ.value
+                                rotationY = page1RotY.value
+                                cameraDistance = 16f * density
+                            }
+                    )
 
-                // Layer 2: Page 2 (Middle Page)
-                Image(
-                    painter = painterResource(page2Res),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            transformOrigin = anchorOrigin
-                            rotationZ = page2RotZ.value
-                            rotationY = page2RotY.value
-                            cameraDistance = 16f * density
-                        }
-                )
+                    // Layer 2: Page 2 (Middle Page)
+                    Image(
+                        painter = painterResource(page2Res),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                transformOrigin = anchorOrigin
+                                rotationZ = page2RotZ.value
+                                rotationY = page2RotY.value
+                                cameraDistance = 16f * density
+                            }
+                    )
 
-                // Layer 3: Page 3 (Front / Bottom Page)
-                Image(
-                    painter = painterResource(page3Res),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            transformOrigin = anchorOrigin
-                            rotationZ = page3RotZ.value
-                            rotationY = page3RotY.value
-                            cameraDistance = 16f * density
-                        }
-                )
+                    // Layer 3: Page 3 (Front / Bottom Page)
+                    Image(
+                        painter = painterResource(page3Res),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                transformOrigin = anchorOrigin
+                                rotationZ = page3RotZ.value
+                                rotationY = page3RotY.value
+                                cameraDistance = 16f * density
+                            }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(34.dp))
