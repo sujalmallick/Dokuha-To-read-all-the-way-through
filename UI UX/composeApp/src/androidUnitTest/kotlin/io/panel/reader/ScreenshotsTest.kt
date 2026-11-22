@@ -33,8 +33,10 @@ import ui.screens.browse.BrowseScreenContent
 import ui.screens.details.BatchDownloadSheet
 import ui.screens.details.TitleDetailsScreenContent
 import ui.screens.downloads.DownloadsScreenContent
+import ui.screens.extensions.AddRepoDialog
 import ui.screens.extensions.ExtensionDetailSheet
 import ui.screens.extensions.ExtensionsScreenContent
+import ui.screens.extensions.SideloadExtensionDialog
 import ui.screens.library.BatchMoveSheet
 import ui.screens.library.CategoryEditSheet
 import ui.screens.library.LibraryScreenContent
@@ -486,5 +488,39 @@ class ScreenshotsTest {
             }
         }
         composeTestRule.onRoot().captureRoboImage("screenshots/21_category_edit_sheet.png")
+    }
+
+    @Test
+    fun capture_23_sideload_extension_dialog() {
+        val extRepo = DefaultExtensionRepository()
+
+        composeTestRule.setContent {
+            PanelTheme {
+                SideloadExtensionDialog(
+                    isVisible = true,
+                    onDismiss = {},
+                    repository = extRepo
+                )
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/23_sideload_extension_dialog.png")
+    }
+
+    @Test
+    fun capture_24_repo_manager_dialog() {
+        val extRepo = DefaultExtensionRepository()
+
+        composeTestRule.setContent {
+            PanelTheme {
+                AddRepoDialog(
+                    isVisible = true,
+                    onDismiss = {},
+                    onAddRepo = { _, _ -> },
+                    repositories = extRepo.repositories.value,
+                    onRemoveRepo = {}
+                )
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/24_repo_manager_dialog.png")
     }
 }

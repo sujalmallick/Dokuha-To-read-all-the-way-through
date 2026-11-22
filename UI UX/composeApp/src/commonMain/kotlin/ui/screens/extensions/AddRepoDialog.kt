@@ -15,14 +15,18 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
@@ -45,6 +49,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import core.extensions.ExtensionRepoValidator
+import data.extension.ExtensionRepo
 import ui.theme.GlassBorder
 import ui.theme.GlassBorderStrong
 import ui.theme.TextMuted
@@ -57,6 +62,8 @@ fun AddRepoDialog(
     isVisible: Boolean,
     onDismiss: () -> Unit,
     onAddRepo: (url: String, name: String?) -> Unit,
+    repositories: List<ExtensionRepo> = emptyList(),
+    onRemoveRepo: (repoId: String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (!isVisible) return
@@ -91,8 +98,9 @@ fun AddRepoDialog(
             val dialogShape = RoundedCornerShape(24.dp)
             Box(
                 modifier = Modifier
-                    .padding(horizontal = 24.dp)
+                    .padding(horizontal = 20.dp, vertical = 24.dp)
                     .fillMaxWidth()
+                    .heightIn(max = 620.dp)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -103,7 +111,11 @@ fun AddRepoDialog(
                     .border(1.dp, GlassBorderStrong, dialogShape)
                     .padding(20.dp)
             ) {
-                Column {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                ) {
                     // Header
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -119,7 +131,7 @@ fun AddRepoDialog(
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
-                                text = "Add Repository",
+                                text = "Repository Manager",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = TextPrimary
@@ -144,13 +156,34 @@ fun AddRepoDialog(
 
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "Enter an HTTPS repository URL or choose a preset below. Private networks and insecure HTTP are strictly blocked for security.",
+                        text = "Manage active extension sources or add custom repositories. Insecure HTTP and private addresses are strictly blocked.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary,
                         lineHeight = 18.sp
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    // Active Repositories List
+                    if (repositories.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Active Repositories (${repositories.size})",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextTertiary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            repositories.forEach { repo ->
+                                ActiveRepoRow(
+                                    repo = repo,
+                                    onDelete = { onRemoveRepo(repo.id) }
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     // Popular Community Presets
                     Text(
@@ -359,6 +392,82 @@ fun AddRepoDialog(
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActiveRepoRow(
+    repo: ExtensionRepo,
+    onDelete: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color.White.copy(alpha = 0.04f))
+            .border(0.5.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = repo.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    if (repo.isOfficial) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFF00DC64).copy(alpha = 0.15f))
+                                .padding(horizontal = 5.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = "OFFICIAL",
+                                color = Color(0xFF00DC64),
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = repo.url,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontSize = 11.sp,
+                    color = TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            if (!repo.isOfficial) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable(onClick = onDelete),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "Remove Repo",
+                        tint = Color(0xFFEF4444).copy(alpha = 0.8f),
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
             }
         }
