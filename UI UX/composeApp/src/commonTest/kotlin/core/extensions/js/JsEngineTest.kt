@@ -85,4 +85,21 @@ class JsEngineTest {
         assertEquals("native_pong_test123", result)
         engine.close()
     }
+
+    @Test
+    fun testHostAsyncCallback() = runBlocking {
+        val engine = JsEngine()
+        var called = false
+        var passedValue = ""
+        engine.setGlobalAsyncFunction("nativeAsyncPing") { args ->
+            called = true
+            passedValue = args.getOrNull(0)?.toString() ?: ""
+            "async_pong_$passedValue"
+        }
+        val result = engine.evaluate("nativeAsyncPing('asyncTest')")
+        assertTrue(called)
+        assertEquals("asyncTest", passedValue)
+        assertEquals("async_pong_asyncTest", result)
+        engine.close()
+    }
 }
