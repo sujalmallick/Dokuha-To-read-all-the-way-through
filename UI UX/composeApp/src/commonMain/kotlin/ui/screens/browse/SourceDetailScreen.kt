@@ -55,8 +55,9 @@ import androidx.compose.ui.unit.sp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import core.source.BrowseFilters
+import core.source.SourceInfo
 import core.source.SourceManga
-import data.mock.BrowseFilters
 import data.mock.MockSourceInfo
 import data.mock.PanelRepository
 import kotlinx.coroutines.delay

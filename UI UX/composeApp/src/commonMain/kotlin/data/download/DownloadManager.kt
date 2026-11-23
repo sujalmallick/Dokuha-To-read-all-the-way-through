@@ -2,6 +2,7 @@ package data.download
 
 import core.source.SourceChapter
 import core.source.SourceManga
+import core.source.StorageInfo
 import data.mock.MockStorageInfo
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

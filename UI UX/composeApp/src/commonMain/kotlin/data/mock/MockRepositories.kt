@@ -68,43 +68,11 @@ data class MockDownloadItem(
     val isPaused: Boolean = false
 )
 
-data class MockStorageInfo(
-    val totalGb: Float = 64f,
-    val usedGb: Float = 2.4f,
-    val mangaMb: Float = 1600f,
-    val manhwaMb: Float = 512f,
-    val novelsMb: Float = 208f,
-    val othersMb: Float = 136f
-)
-
-enum class BrowseSortOrder(val displayName: String) {
-    POPULARITY("Popularity"),
-    LATEST("Latest"),
-    ALPHABETICAL("A-Z")
-}
-
-data class BrowseFilters(
-    val genres: Set<String> = emptySet(),
-    val status: MangaStatus? = null,
-    val isNovel: Boolean? = null,
-    val sortBy: BrowseSortOrder = BrowseSortOrder.POPULARITY
-)
-
-val AvailableBrowseGenres = listOf(
-    "Action",
-    "Adventure",
-    "Cyberpunk",
-    "Dark Fantasy",
-    "Drama",
-    "Fantasy",
-    "Martial Arts",
-    "Mystery",
-    "Psychological",
-    "Reincarnation",
-    "Romance",
-    "Sci-Fi",
-    "Supernatural"
-)
+typealias StorageInfo = core.source.StorageInfo
+typealias MockStorageInfo = core.source.StorageInfo
+typealias BrowseSortOrder = core.source.BrowseSortOrder
+typealias BrowseFilters = core.source.BrowseFilters
+val AvailableBrowseGenres = core.source.AvailableBrowseGenres
 
 interface PanelRepository {
     fun getLibrary(category: String): Flow<List<SourceManga>>
@@ -157,13 +125,8 @@ interface PanelRepository {
     suspend fun importLibraryJson(json: String): Int = 0
 }
 
-data class MockSourceInfo(
-    val id: String,
-    val name: String,
-    val type: String, // Manga, Manhwa, Novel
-    val languages: List<String>,
-    val iconUrl: String? = null
-)
+typealias SourceInfo = core.source.SourceInfo
+typealias MockSourceInfo = core.source.SourceInfo
 
 class FakePanelRepository : PanelRepository {
 

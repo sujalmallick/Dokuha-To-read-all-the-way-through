@@ -94,6 +94,7 @@ import ui.glass.rememberPanelGlassState
 import ui.screens.browse.BrowseScreen
 import ui.screens.browse.SourceDetailScreen
 import ui.screens.library.LibraryScreen
+import ui.screens.maintab.MainTabScreen
 import ui.screens.more.MoreScreen
 import ui.screens.updates.UpdatesScreen
 import ui.theme.CapsuleShape
@@ -303,12 +304,7 @@ class ExtensionsScreen : Screen {
                 }
             },
             onTabSelected = { tab ->
-                when (tab) {
-                    PanelTab.LIBRARY -> navigator.push(LibraryScreen())
-                    PanelTab.UPDATES -> navigator.push(UpdatesScreen())
-                    PanelTab.BROWSE -> navigator.push(BrowseScreen())
-                    PanelTab.MORE -> navigator.push(MoreScreen())
-                }
+                navigator.replaceAll(MainTabScreen(tab))
             }
         )
     }

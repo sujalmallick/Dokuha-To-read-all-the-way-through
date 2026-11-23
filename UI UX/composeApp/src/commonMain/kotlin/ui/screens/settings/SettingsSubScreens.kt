@@ -494,9 +494,11 @@ private fun MinimalLogoCard(
 }
 
 // ==========================================
-// 2. READER SETTINGS SCREEN
+// 2. READER SETTINGS SCREEN (GLOBAL)
 // ==========================================
-class ReaderSettingsScreen : Screen {
+typealias ReaderSettingsScreen = GlobalReaderSettingsScreen
+
+class GlobalReaderSettingsScreen : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow

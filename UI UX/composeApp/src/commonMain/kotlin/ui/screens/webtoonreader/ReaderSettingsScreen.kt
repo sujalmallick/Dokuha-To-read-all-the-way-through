@@ -21,9 +21,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -50,7 +54,6 @@ import ui.components.PanelSwitch
 import ui.components.PanelTab
 import ui.glass.GlassVariant
 import ui.glass.glassDimming
-import ui.glass.glassSource
 import ui.glass.glassSurface
 import ui.glass.rememberPanelGlassState
 import ui.theme.CapsuleShape
@@ -59,26 +62,39 @@ import ui.theme.PanelTheme
 import ui.theme.TextPrimary
 import ui.theme.TextSecondary
 
-class ReaderSettingsScreen : Screen {
-
-    @Composable
-    override fun Content() {
-        val navigator = LocalNavigator.currentOrThrow
-        val settingsRepository: SettingsRepository = koinInject()
-
-        ReaderSettingsScreenContent(
+/**
+ * In-place Modal Bottom Sheet for Reader Settings.
+ * Renders directly over the live, interactive reader canvas with real-time feedback.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ReaderSettingsBottomSheet(
+    onDismiss: () -> Unit,
+    settingsRepository: SettingsRepository? = null,
+    modifier: Modifier = Modifier,
+    sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = Color.Transparent,
+        dragHandle = null,
+        scrimColor = Color.Black.copy(alpha = 0.50f),
+        modifier = modifier
+    ) {
+        ReaderSettingsSheetCard(
             settingsRepository = settingsRepository,
-            onDismiss = { navigator.pop() },
-            onTabSelected = { navigator.pop() }
+            modifier = Modifier.padding(bottom = 16.dp)
         )
     }
 }
 
+/**
+ * Liquid glass card containing all reader setting controls.
+ */
 @Composable
-fun ReaderSettingsScreenContent(
+fun ReaderSettingsSheetCard(
     settingsRepository: SettingsRepository? = null,
-    onDismiss: () -> Unit,
-    onTabSelected: (PanelTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val glassState = rememberPanelGlassState()
@@ -105,372 +121,372 @@ fun ReaderSettingsScreenContent(
 
     Box(
         modifier = modifier
-            .fillMaxSize()
-            .background(PanelBackground)
-    ) {
-        // LAYER 1: Webtoon background canvas (Sampled Source Layer)
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .glassSource(glassState)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onDismiss
-                )
-        ) {
-            WebtoonPanelSlice(
-                sliceIndex = 1,
-                totalSlices = 4,
-                modifier = Modifier.fillMaxSize()
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp)
+            .glassDimming(alpha = 0.30f, shape = sheetShape)
+            .glassSurface(
+                state = glassState,
+                variant = GlassVariant.Regular,
+                shape = sheetShape
             )
-        }
-
-        // Ambient backdrop dark scrim for modal focus
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.40f))
-        )
-
-        // LAYER 2: Functional Overlays (Liquid Glass Bottom Sheet & Floating Dock)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 12.dp)
+                .heightIn(max = 560.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 18.dp)
         ) {
-            // Reading Settings Liquid Glass Modal Bottom Sheet
+            // Drag Handle affordance at top center
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp)
-                    .glassDimming(alpha = 0.30f, shape = sheetShape)
-                    .glassSurface(
-                        state = glassState,
-                        variant = GlassVariant.Regular,
-                        shape = sheetShape
-                    )
+                    .size(width = 36.dp, height = 4.dp)
+                    .clip(CapsuleShape)
+                    .background(Color.White.copy(alpha = 0.35f))
+                    .align(Alignment.CenterHorizontally)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Title
+            Text(
+                text = "Reading Settings",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary,
+                fontSize = 20.sp
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Reading Mode Section
+            Text(
+                text = "Reading Mode",
+                style = MaterialTheme.typography.labelMedium,
+                color = TextSecondary,
+                fontSize = 13.sp
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Unified Glass Segmented Control with sliding lens indicator
+            GlassSegmentedControl(
+                items = readingModes,
+                selectedIndex = readingModes.indexOf(selectedMode).coerceAtLeast(0),
+                onItemSelected = { repo.setDefaultReadingMode(readingModes[it]) },
+                labelProvider = { mode ->
+                    when (mode) {
+                        DefaultReadingMode.WEBTOON -> "Webtoon"
+                        DefaultReadingMode.RIGHT_TO_LEFT -> "RTL"
+                        DefaultReadingMode.LEFT_TO_RIGHT -> "LTR"
+                        DefaultReadingMode.VERTICAL -> "Vertical"
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Color Filter Section (OLED, Sepia, High Contrast)
+            Text(
+                text = "Color Filter",
+                style = MaterialTheme.typography.labelMedium,
+                color = TextSecondary,
+                fontSize = 13.sp
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            val colorFilters = ReaderColorFilter.entries
+            GlassSegmentedControl(
+                items = colorFilters,
+                selectedIndex = colorFilters.indexOf(readerColorFilter).coerceAtLeast(0),
+                onItemSelected = { repo.setReaderColorFilter(colorFilters[it]) },
+                labelProvider = { filter ->
+                    when (filter) {
+                        ReaderColorFilter.DEFAULT -> "Normal"
+                        ReaderColorFilter.INVERTED_OLED -> "OLED"
+                        ReaderColorFilter.SEPIA -> "Sepia"
+                        ReaderColorFilter.HIGH_CONTRAST -> "Contrast"
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            // Background Page Preloading Buffer (Zero-Latency)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 560.dp)
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 20.dp, vertical = 18.dp)
+                Text(
+                    text = "Background Preload Buffer",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = TextSecondary,
+                    fontSize = 13.sp
+                )
+                Text(
+                    text = "$readerPreloadPages pages ahead",
+                    color = TextSecondary,
+                    fontSize = 12.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            val preloadOptions = listOf(2, 4, 6, 10)
+            GlassSegmentedControl(
+                items = preloadOptions,
+                selectedIndex = preloadOptions.indexOf(readerPreloadPages).let { if (it >= 0) it else 2 },
+                onItemSelected = { repo.setReaderPreloadPages(preloadOptions[it]) },
+                labelProvider = { "$it pgs" },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Brightness Slider
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Drag Handle affordance at top center
-                    Box(
-                        modifier = Modifier
-                            .size(width = 36.dp, height = 4.dp)
-                            .clip(CapsuleShape)
-                            .background(Color.White.copy(alpha = 0.35f))
-                            .align(Alignment.CenterHorizontally)
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Title
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.WbSunny,
+                            contentDescription = "Brightness",
+                            tint = TextSecondary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Brightness",
+                            color = TextSecondary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                     Text(
-                        text = "Reading Settings",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
+                        text = "${(brightness * 100).toInt()}%",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                PanelSlider(
+                    value = brightness,
+                    onValueChange = { repo.setBrightness(it) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Side Padding Slider
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Side Padding",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "${(sidePadding * 100).toInt()}%",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                PanelSlider(
+                    value = sidePadding,
+                    onValueChange = { repo.setSidePadding(it) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Crop Borders Toggle Switch
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Crop borders",
+                    color = TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                PanelSwitch(
+                    checked = cropBorders,
+                    onCheckedChange = { repo.setCropBorders(it) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Dual-Page Spread Toggle Switch (Tablets & Foldables)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Dual-page spread",
                         color = TextPrimary,
-                        fontSize = 20.sp
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
                     )
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    // Reading Mode Section
                     Text(
-                        text = "Reading Mode",
-                        style = MaterialTheme.typography.labelMedium,
+                        text = "Facing pages on tablets & landscape",
                         color = TextSecondary,
-                        fontSize = 13.sp
+                        fontSize = 11.sp
                     )
+                }
+                PanelSwitch(
+                    checked = splitDoubleSpread,
+                    onCheckedChange = { repo.setSplitDoubleSpread(it) }
+                )
+            }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+            if (splitDoubleSpread) {
+                Spacer(modifier = Modifier.height(12.dp))
 
-                    // Unified Glass Segmented Control with sliding lens indicator
-                    GlassSegmentedControl(
-                        items = readingModes,
-                        selectedIndex = readingModes.indexOf(selectedMode).coerceAtLeast(0),
-                        onItemSelected = { repo.setDefaultReadingMode(readingModes[it]) },
-                        labelProvider = { mode ->
-                            when (mode) {
-                                DefaultReadingMode.WEBTOON -> "Webtoon"
-                                DefaultReadingMode.RIGHT_TO_LEFT -> "RTL"
-                                DefaultReadingMode.LEFT_TO_RIGHT -> "LTR"
-                                DefaultReadingMode.VERTICAL -> "Vertical"
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    // Color Filter Section (OLED, Sepia, High Contrast)
-                    Text(
-                        text = "Color Filter",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = TextSecondary,
-                        fontSize = 13.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    val colorFilters = ReaderColorFilter.entries
-                    GlassSegmentedControl(
-                        items = colorFilters,
-                        selectedIndex = colorFilters.indexOf(readerColorFilter).coerceAtLeast(0),
-                        onItemSelected = { repo.setReaderColorFilter(colorFilters[it]) },
-                        labelProvider = { filter ->
-                            when (filter) {
-                                ReaderColorFilter.DEFAULT -> "Normal"
-                                ReaderColorFilter.INVERTED_OLED -> "OLED"
-                                ReaderColorFilter.SEPIA -> "Sepia"
-                                ReaderColorFilter.HIGH_CONTRAST -> "Contrast"
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    // Background Page Preloading Buffer (Zero-Latency)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "Background Preload Buffer",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = TextSecondary,
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            text = "$readerPreloadPages pages ahead",
-                            color = TextSecondary,
-                            fontSize = 12.sp
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    val preloadOptions = listOf(2, 4, 6, 10)
-                    GlassSegmentedControl(
-                        items = preloadOptions,
-                        selectedIndex = preloadOptions.indexOf(readerPreloadPages).let { if (it >= 0) it else 2 },
-                        onItemSelected = { repo.setReaderPreloadPages(preloadOptions[it]) },
-                        labelProvider = { "$it pgs" },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // Brightness Slider
+                // Offset Cover Page Toggle Switch
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.WbSunny,
-                                    contentDescription = "Brightness",
-                                    tint = TextSecondary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Brightness",
-                                    color = TextSecondary,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                            Text(
-                                text = "${(brightness * 100).toInt()}%",
-                                color = TextSecondary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                        PanelSlider(
-                            value = brightness,
-                            onValueChange = { repo.setBrightness(it) },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Side Padding Slider
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Side Padding",
-                                color = TextSecondary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = "${(sidePadding * 100).toInt()}%",
-                                color = TextSecondary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                        PanelSlider(
-                            value = sidePadding,
-                            onValueChange = { repo.setSidePadding(it) },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Crop Borders Toggle Switch
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
                         Text(
-                            text = "Crop borders",
+                            text = "Offset cover page",
                             color = TextPrimary,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
                         )
-                        PanelSwitch(
-                            checked = cropBorders,
-                            onCheckedChange = { repo.setCropBorders(it) }
+                        Text(
+                            text = "First page as standalone cover",
+                            color = TextSecondary,
+                            fontSize = 11.sp
                         )
                     }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Dual-Page Spread Toggle Switch (Tablets & Foldables)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "Dual-page spread",
-                                color = TextPrimary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = "Facing pages on tablets & landscape",
-                                color = TextSecondary,
-                                fontSize = 11.sp
-                            )
-                        }
-                        PanelSwitch(
-                            checked = splitDoubleSpread,
-                            onCheckedChange = { repo.setSplitDoubleSpread(it) }
-                        )
-                    }
-
-                    if (splitDoubleSpread) {
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Offset Cover Page Toggle Switch
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = "Offset cover page",
-                                    color = TextPrimary,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = "First page as standalone cover",
-                                    color = TextSecondary,
-                                    fontSize = 11.sp
-                                )
-                            }
-                            PanelSwitch(
-                                checked = dualPageOffset,
-                                onCheckedChange = { repo.setDualPageOffset(it) }
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Auto-Download Next Chapter Toggle Switch
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "Auto-download next chapter",
-                                color = TextPrimary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = "Pre-download next chapter at 80% progress",
-                                color = TextSecondary,
-                                fontSize = 11.sp
-                            )
-                        }
-                        PanelSwitch(
-                            checked = autoDownloadNextChapter,
-                            onCheckedChange = { repo.setAutoDownloadNextChapter(it) }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Volume Key Navigation Toggle
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "Volume key navigation",
-                                color = TextPrimary,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = "Use volume buttons to scroll pages",
-                                color = TextSecondary,
-                                fontSize = 11.sp
-                            )
-                        }
-                        PanelSwitch(
-                            checked = volumeKeyNavigation,
-                            onCheckedChange = { repo.setVolumeKeyNavigation(it) }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
+                    PanelSwitch(
+                        checked = dualPageOffset,
+                        onCheckedChange = { repo.setDualPageOffset(it) }
+                    )
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Auto-Download Next Chapter Toggle Switch
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Auto-download next chapter",
+                        color = TextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "Pre-download next chapter at 80% progress",
+                        color = TextSecondary,
+                        fontSize = 11.sp
+                    )
+                }
+                PanelSwitch(
+                    checked = autoDownloadNextChapter,
+                    onCheckedChange = { repo.setAutoDownloadNextChapter(it) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Volume Key Navigation Toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Volume key navigation",
+                        color = TextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "Use volume buttons to scroll pages",
+                        color = TextSecondary,
+                        fontSize = 11.sp
+                    )
+                }
+                PanelSwitch(
+                    checked = volumeKeyNavigation,
+                    onCheckedChange = { repo.setVolumeKeyNavigation(it) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
         }
+    }
+}
+
+/**
+ * Screen wrapper for Voyager navigation (retains compatibility for existing routes/tests).
+ */
+class ReaderSettingsScreen : Screen {
+
+    @Composable
+    override fun Content() {
+        val navigator = LocalNavigator.currentOrThrow
+        val settingsRepository: SettingsRepository = koinInject()
+
+        ReaderSettingsScreenContent(
+            settingsRepository = settingsRepository,
+            onDismiss = { navigator.pop() },
+            onTabSelected = { navigator.pop() }
+        )
+    }
+}
+
+/**
+ * Fullscreen card content for tests and standalone previews.
+ */
+@Composable
+fun ReaderSettingsScreenContent(
+    settingsRepository: SettingsRepository? = null,
+    onDismiss: () -> Unit,
+    onTabSelected: (PanelTab) -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(PanelBackground),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        ReaderSettingsSheetCard(
+            settingsRepository = settingsRepository,
+            modifier = Modifier
+                .navigationBarsPadding()
+                .padding(bottom = 16.dp)
+        )
     }
 }
 

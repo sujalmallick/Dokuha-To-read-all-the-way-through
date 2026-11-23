@@ -44,10 +44,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import core.source.AvailableBrowseGenres
+import core.source.BrowseFilters
+import core.source.BrowseSortOrder
 import core.source.MangaStatus
-import data.mock.AvailableBrowseGenres
-import data.mock.BrowseFilters
-import data.mock.BrowseSortOrder
 import ui.components.GlassSegmentedControl
 import ui.components.PanelCircleIconButton
 import ui.glass.GlassVariant

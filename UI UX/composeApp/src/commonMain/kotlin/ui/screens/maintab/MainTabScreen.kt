@@ -44,7 +44,7 @@ import ui.screens.settings.AppearanceSettingsScreen
 import ui.screens.settings.BackupSettingsScreen
 import ui.screens.settings.DownloadsSettingsScreen
 import ui.screens.settings.LibrarySettingsScreen
-import ui.screens.settings.ReaderSettingsScreen
+import ui.screens.settings.GlobalReaderSettingsScreen
 import ui.screens.settings.SourcesSettingsScreen
 import ui.screens.settings.StorageSettingsScreen
 import ui.screens.updates.UpdatesScreenContent
@@ -182,7 +182,7 @@ class MainTabScreen(
                             cacheSize = cacheSize,
                             onOpenProfile = { navigator.push(ProfileScreen()) },
                             onNavigateAppearance = { navigator.push(AppearanceSettingsScreen()) },
-                            onNavigateReader = { navigator.push(ReaderSettingsScreen()) },
+                            onNavigateReader = { navigator.push(GlobalReaderSettingsScreen()) },
                             onNavigateLibrary = { navigator.push(LibrarySettingsScreen()) },
                             onNavigateDownloads = { navigator.push(DownloadsSettingsScreen()) },
                             onNavigateSources = { navigator.push(SourcesSettingsScreen()) },

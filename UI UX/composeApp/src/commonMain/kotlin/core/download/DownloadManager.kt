@@ -5,6 +5,7 @@ import core.source.ContentSource
 import core.source.NovelSource
 import core.source.SourceChapter
 import core.source.SourceManga
+import core.source.StorageInfo
 import data.mock.MockDownloadItem
 import data.mock.MockStorageInfo
 import io.ktor.client.HttpClient
