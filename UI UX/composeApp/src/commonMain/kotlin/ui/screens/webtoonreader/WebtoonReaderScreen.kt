@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -113,6 +114,7 @@ data class WebtoonReaderScreen(
     val chapterTitle: String = "Episode 42"
 ) : Screen {
 
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
@@ -152,13 +154,15 @@ data class WebtoonReaderScreen(
             println("[WebtoonReaderScreen] pages state updated, count: ${pages.size}")
         }
 
+        var isSettingsOpen by remember { mutableStateOf(false) }
+
         WebtoonReaderScreenContent(
             chapterUrl = currentChapterUrl,
             chapterTitle = currentChapterTitle,
             pages = pages,
             onBack = { navigator.pop() },
             settingsRepository = settingsRepository,
-            onOpenSettings = { navigator.push(ReaderSettingsScreen()) },
+            onOpenSettings = { isSettingsOpen = true },
             isOfflineCached = isDownloaded,
             onProgressChange = { page, isCompleted ->
                 coroutineScope.launch {
@@ -200,6 +204,13 @@ data class WebtoonReaderScreen(
             hasNextChapter = hasNext,
             nextChapterTitle = nextTitle
         )
+
+        if (isSettingsOpen) {
+            ReaderSettingsBottomSheet(
+                onDismiss = { isSettingsOpen = false },
+                settingsRepository = settingsRepository
+            )
+        }
     }
 }
 

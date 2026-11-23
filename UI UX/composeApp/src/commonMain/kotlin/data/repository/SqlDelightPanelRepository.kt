@@ -12,10 +12,12 @@ import core.source.MangaStatus
 import core.source.NovelContent
 import core.source.NovelSource
 import core.source.SourceChapter
+import core.source.BrowseFilters
+import core.source.BrowseSortOrder
+import core.source.SourceInfo
 import core.source.SourceManga
 import core.source.SourcePage
-import data.mock.BrowseFilters
-import data.mock.BrowseSortOrder
+import core.source.StorageInfo
 import data.mock.HistoryGroup
 import data.mock.HistoryItem
 import data.mock.LibraryMangaStats

@@ -66,6 +66,7 @@ import ui.glass.rememberPanelGlassState
 import ui.screens.browse.BrowseScreen
 import ui.screens.details.TitleDetailsScreen
 import ui.screens.library.LibraryScreen
+import ui.screens.maintab.MainTabScreen
 import ui.screens.more.MoreScreen
 import ui.screens.novelreader.NovelReaderScreen
 import ui.screens.webtoonreader.WebtoonReaderScreen
@@ -118,10 +119,10 @@ class UpdatesScreen : Screen {
             },
             onTabSelected = { tab ->
                 when (tab) {
-                    PanelTab.LIBRARY -> navigator.push(LibraryScreen())
+                    PanelTab.LIBRARY -> navigator.replaceAll(MainTabScreen(PanelTab.LIBRARY))
                     PanelTab.UPDATES -> {} // Current
-                    PanelTab.BROWSE -> navigator.push(BrowseScreen())
-                    PanelTab.MORE -> navigator.push(MoreScreen())
+                    PanelTab.BROWSE -> navigator.replaceAll(MainTabScreen(PanelTab.BROWSE))
+                    PanelTab.MORE -> navigator.replaceAll(MainTabScreen(PanelTab.MORE))
                 }
             }
         )

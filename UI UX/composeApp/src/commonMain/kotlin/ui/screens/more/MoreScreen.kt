@@ -63,13 +63,14 @@ import ui.components.SettingsSeparator
 import ui.screens.browse.BrowseScreen
 import ui.screens.glasslab.GlassLabScreen
 import ui.screens.library.LibraryScreen
+import ui.screens.maintab.MainTabScreen
 import ui.screens.profile.ProfileScreen
 import ui.screens.settings.AboutSettingsScreen
 import ui.screens.settings.AppearanceSettingsScreen
 import ui.screens.settings.BackupSettingsScreen
 import ui.screens.settings.DownloadsSettingsScreen
 import ui.screens.settings.LibrarySettingsScreen
-import ui.screens.settings.ReaderSettingsScreen
+import ui.screens.settings.GlobalReaderSettingsScreen
 import ui.screens.settings.SourcesSettingsScreen
 import ui.screens.settings.StorageSettingsScreen
 import ui.screens.updates.UpdatesScreen
@@ -104,7 +105,7 @@ class MoreScreen : Screen {
             cacheSize = cacheSize,
             onOpenProfile = { navigator.push(ProfileScreen()) },
             onNavigateAppearance = { navigator.push(AppearanceSettingsScreen()) },
-            onNavigateReader = { navigator.push(ReaderSettingsScreen()) },
+            onNavigateReader = { navigator.push(GlobalReaderSettingsScreen()) },
             onNavigateLibrary = { navigator.push(LibrarySettingsScreen()) },
             onNavigateDownloads = { navigator.push(DownloadsSettingsScreen()) },
             onNavigateSources = { navigator.push(SourcesSettingsScreen()) },
@@ -114,9 +115,9 @@ class MoreScreen : Screen {
             onNavigateGlassLab = { navigator.push(GlassLabScreen()) },
             onTabSelected = { tab ->
                 when (tab) {
-                    PanelTab.LIBRARY -> navigator.push(LibraryScreen())
-                    PanelTab.UPDATES -> navigator.push(UpdatesScreen())
-                    PanelTab.BROWSE -> navigator.push(BrowseScreen())
+                    PanelTab.LIBRARY -> navigator.replaceAll(MainTabScreen(PanelTab.LIBRARY))
+                    PanelTab.UPDATES -> navigator.replaceAll(MainTabScreen(PanelTab.UPDATES))
+                    PanelTab.BROWSE -> navigator.replaceAll(MainTabScreen(PanelTab.BROWSE))
                     PanelTab.MORE -> {} // Current
                 }
             }

@@ -60,7 +60,7 @@ class SettingsScreen : Screen {
             cacheSize = cacheSize,
             onBack = { navigator.pop() },
             onNavigateAppearance = { navigator.push(AppearanceSettingsScreen()) },
-            onNavigateReader = { navigator.push(ReaderSettingsScreen()) },
+            onNavigateReader = { navigator.push(GlobalReaderSettingsScreen()) },
             onNavigateLibrary = { navigator.push(LibrarySettingsScreen()) },
             onNavigateDownloads = { navigator.push(DownloadsSettingsScreen()) },
             onNavigateSources = { navigator.push(SourcesSettingsScreen()) },
