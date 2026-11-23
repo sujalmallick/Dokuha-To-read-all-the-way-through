@@ -40,6 +40,7 @@ import org.jetbrains.compose.resources.painterResource
 import panelreader.composeapp.generated.resources.Res
 import panelreader.composeapp.generated.resources.logo_glassmorphic
 import ui.theme.LocalReduceMotion
+import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
@@ -202,7 +203,7 @@ fun LiquidGlassLogo(
                         )
 
                         // A2. Internal Caustic Lens Curvature
-                        val rad = Math.toRadians(sweepAngle.toDouble())
+                        val rad = sweepAngle.toDouble() * (PI / 180.0)
                         val causticCenterX = w * 0.5f + (w * 0.35f * cos(rad)).toFloat()
                         val causticCenterY = h * 0.5f + (h * 0.35f * sin(rad)).toFloat()
                         drawCircle(
