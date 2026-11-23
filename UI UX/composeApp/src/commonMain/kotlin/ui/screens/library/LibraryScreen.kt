@@ -90,6 +90,7 @@ import ui.glass.glassSource
 import ui.glass.rememberPanelGlassState
 import ui.screens.browse.BrowseScreen
 import ui.screens.details.TitleDetailsScreen
+import ui.screens.maintab.MainTabScreen
 import ui.screens.more.MoreScreen
 import ui.screens.updates.UpdatesScreen
 import ui.screens.novelreader.NovelReaderScreen
@@ -134,9 +135,9 @@ class LibraryScreen : Screen {
             onTabSelected = { tab ->
                 when (tab) {
                     PanelTab.LIBRARY -> {} // Current
-                    PanelTab.UPDATES -> navigator.push(UpdatesScreen())
-                    PanelTab.BROWSE -> navigator.push(BrowseScreen())
-                    PanelTab.MORE -> navigator.push(MoreScreen())
+                    PanelTab.UPDATES -> navigator.replaceAll(MainTabScreen(PanelTab.UPDATES))
+                    PanelTab.BROWSE -> navigator.replaceAll(MainTabScreen(PanelTab.BROWSE))
+                    PanelTab.MORE -> navigator.replaceAll(MainTabScreen(PanelTab.MORE))
                 }
             }
         )
