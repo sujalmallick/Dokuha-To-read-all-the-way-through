@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+
 package core.extensions.js
 
 import kotlinx.cinterop.CPointer
@@ -25,6 +27,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.longOrNull
 import platform.JavaScriptCore.JSContext
+import platform.JavaScriptCore.JSContextGetGlobalContext
 import platform.JavaScriptCore.JSContextGetGlobalObject
 import platform.JavaScriptCore.JSContextRef
 import platform.JavaScriptCore.JSGlobalContextRef
@@ -47,54 +50,51 @@ import platform.JavaScriptCore.JSValueMakeNumber
 import platform.JavaScriptCore.JSValueMakeString
 import platform.JavaScriptCore.JSValueMakeUndefined
 import platform.JavaScriptCore.JSValueRef
+import platform.JavaScriptCore.JSValueRefVar
 import platform.JavaScriptCore.JSValueToBoolean
 import platform.JavaScriptCore.JSValueToNumber
 import platform.JavaScriptCore.JSValueToStringCopy
 import platform.posix.size_t
 
-@OptIn(ExperimentalForeignApi::class)
 private val activeEngines = mutableMapOf<JSGlobalContextRef, JsEngine>()
 
-@OptIn(ExperimentalForeignApi::class)
 private fun syncDispatcherCallback(
     ctx: JSContextRef?,
     function: JSObjectRef?,
     thisObject: JSObjectRef?,
     argumentCount: size_t,
-    arguments: CPointer<JSValueRef?>?,
-    exception: CPointer<JSValueRef?>?
+    arguments: CPointer<JSValueRefVar>?,
+    exception: CPointer<JSValueRefVar>?
 ): JSValueRef? {
     if (ctx == null) return null
-    val engine = activeEngines[ctx] ?: return JSValueMakeUndefined(ctx)
+    val engine = activeEngines[ctx] ?: activeEngines[JSContextGetGlobalContext(ctx)] ?: return JSValueMakeUndefined(ctx)
     return engine.handleSyncDispatch(ctx, argumentCount, arguments)
 }
 
-@OptIn(ExperimentalForeignApi::class)
 private fun asyncDispatcherCallback(
     ctx: JSContextRef?,
     function: JSObjectRef?,
     thisObject: JSObjectRef?,
     argumentCount: size_t,
-    arguments: CPointer<JSValueRef?>?,
-    exception: CPointer<JSValueRef?>?
+    arguments: CPointer<JSValueRefVar>?,
+    exception: CPointer<JSValueRefVar>?
 ): JSValueRef? {
     if (ctx == null) return null
-    val engine = activeEngines[ctx] ?: return JSValueMakeUndefined(ctx)
+    val engine = activeEngines[ctx] ?: activeEngines[JSContextGetGlobalContext(ctx)] ?: return JSValueMakeUndefined(ctx)
     engine.handleAsyncDispatch(ctx, argumentCount, arguments)
     return JSValueMakeUndefined(ctx)
 }
 
-@OptIn(ExperimentalForeignApi::class)
 private fun finishCallback(
     ctx: JSContextRef?,
     function: JSObjectRef?,
     thisObject: JSObjectRef?,
     argumentCount: size_t,
-    arguments: CPointer<JSValueRef?>?,
-    exception: CPointer<JSValueRef?>?
+    arguments: CPointer<JSValueRefVar>?,
+    exception: CPointer<JSValueRefVar>?
 ): JSValueRef? {
     if (ctx == null) return null
-    val engine = activeEngines[ctx] ?: return JSValueMakeUndefined(ctx)
+    val engine = activeEngines[ctx] ?: activeEngines[JSContextGetGlobalContext(ctx)] ?: return JSValueMakeUndefined(ctx)
     engine.handleFinish(ctx, argumentCount, arguments)
     return JSValueMakeUndefined(ctx)
 }
@@ -110,8 +110,7 @@ actual class JsEngine actual constructor() {
 
     init {
         context?.let { ctx ->
-            @OptIn(ExperimentalForeignApi::class)
-            val globalContextRef = ctx.JSGlobalContextRef
+            val globalContextRef = ctx.JSGlobalContextRef()
             if (globalContextRef != null) {
                 activeEngines[globalContextRef] = this
                 registerNativeFunction(globalContextRef, "__dokuha_native_sync_dispatch", staticCFunction(::syncDispatcherCallback))
@@ -282,8 +281,7 @@ actual class JsEngine actual constructor() {
     }
 
     actual fun close() {
-        @OptIn(ExperimentalForeignApi::class)
-        val globalContextRef = context?.JSGlobalContextRef
+        val globalContextRef = context?.JSGlobalContextRef()
         if (globalContextRef != null) {
             activeEngines.remove(globalContextRef)
         }
@@ -295,11 +293,10 @@ actual class JsEngine actual constructor() {
         asyncFunctions.clear()
     }
 
-    @OptIn(ExperimentalForeignApi::class)
     internal fun handleSyncDispatch(
         ctx: JSContextRef,
         argumentCount: size_t,
-        arguments: CPointer<JSValueRef?>?
+        arguments: CPointer<JSValueRefVar>?
     ): JSValueRef? {
         val count = argumentCount.toInt()
         if (count < 1 || arguments == null) {
@@ -325,11 +322,10 @@ actual class JsEngine actual constructor() {
         }
     }
 
-    @OptIn(ExperimentalForeignApi::class)
     internal fun handleAsyncDispatch(
         ctx: JSContextRef,
         argumentCount: size_t,
-        arguments: CPointer<JSValueRef?>?
+        arguments: CPointer<JSValueRefVar>?
     ) {
         val count = argumentCount.toInt()
         if (count < 2 || arguments == null) return
@@ -353,11 +349,10 @@ actual class JsEngine actual constructor() {
         }
     }
 
-    @OptIn(ExperimentalForeignApi::class)
     internal fun handleFinish(
         ctx: JSContextRef,
         argumentCount: size_t,
-        arguments: CPointer<JSValueRef?>?
+        arguments: CPointer<JSValueRefVar>?
     ) {
         val count = argumentCount.toInt()
         if (count < 1 || arguments == null) return
