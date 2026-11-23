@@ -1,9 +1,11 @@
 package ui.theme
 
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -33,7 +35,7 @@ private val DarkColorScheme = darkColorScheme(
     onPrimaryContainer = TextPrimary,
     secondary = ElectricBlueLight,
     onSecondary = TextPrimary,
-    background = PanelBackground,
+    background = PanelBackgroundStatic,
     onBackground = TextPrimary,
     surface = PanelSurface,
     onSurface = TextPrimary,
@@ -113,7 +115,8 @@ fun PanelTheme(
     CompositionLocalProvider(
         LocalPanelSpacing provides PanelSpacing(),
         LocalReduceGlass provides reduceGlass,
-        LocalReduceMotion provides reduceMotion
+        LocalReduceMotion provides reduceMotion,
+        LocalIndication provides ripple(color = finalScheme.primary.copy(alpha = 0.16f))
     ) {
         MaterialTheme(
             colorScheme = finalScheme,

@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.shape.RoundedCornerShape
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -150,7 +151,7 @@ fun WelcomeScreenContent(
             contentAlignment = Alignment.Center
         ) {
             val interactionSource = remember { MutableInteractionSource() }
-            val buttonShape = CapsuleShape
+            val buttonShape = RoundedCornerShape(12.dp)
 
             Box(
                 modifier = Modifier
@@ -194,137 +195,23 @@ fun WelcomeScreenContent(
 }
 
 /**
- * Procedural stylized background replicating the starry sky, meteor streak,
- * city twilight glow and rooftop silhouettes from option 2.png Screen 1.
+ * Clean, lightweight dark luxury gradient background for the welcome flow.
  */
 @Composable
 fun WelcomeIllustrationBackground(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        val width = size.width
-        val height = size.height
-        if (width <= 0f || height <= 0f) return@Canvas
-
-        // Deep vertical twilight gradient
-        drawRect(
-            brush = Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xFF080D1D), // Deep midnight blue
-                    Color(0xFF141F3C), // Royal navy
-                    Color(0xFF281C3F), // Purple dusk
-                    Color(0xFF4C274B), // Magenta sunset horizon
-                    Color(0xFF231628), // Lower dark shadow
-                    Color(0xFF090C14)  // Base dark navy
-                ),
-                startY = 0f,
-                endY = height
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF0D111C),
+                        Color(0xFF090D16),
+                        Color(0xFF05070B)
+                    )
+                )
             )
-        )
-
-        // Meteor / Shooting star streak from top right toward center left
-        val meteorStart = Offset(width * 0.85f, height * 0.10f)
-        val meteorEnd = Offset(width * 0.40f, height * 0.28f)
-        drawLine(
-            brush = Brush.linearGradient(
-                colors = listOf(Color.Transparent, Color(0xFF70B4FF), Color.White),
-                start = meteorStart,
-                end = meteorEnd
-            ),
-            start = meteorStart,
-            end = meteorEnd,
-            strokeWidth = 3f
-        )
-        // Meteor head glow
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(Color.White, Color(0xFF60A5FA), Color.Transparent),
-                center = meteorEnd,
-                radius = 16f
-            ),
-            radius = 16f,
-            center = meteorEnd
-        )
-
-        // Background twinkling stars
-        val stars = listOf(
-            Offset(width * 0.15f, height * 0.08f) to 2.5f,
-            Offset(width * 0.28f, height * 0.16f) to 1.8f,
-            Offset(width * 0.72f, height * 0.05f) to 2.2f,
-            Offset(width * 0.88f, height * 0.22f) to 1.5f,
-            Offset(width * 0.60f, height * 0.14f) to 2.0f,
-            Offset(width * 0.08f, height * 0.26f) to 1.6f,
-            Offset(width * 0.35f, height * 0.06f) to 2.4f,
-            Offset(width * 0.52f, height * 0.24f) to 1.8f
-        )
-        for ((offset, r) in stars) {
-            drawCircle(
-                color = Color.White.copy(alpha = 0.85f),
-                radius = r,
-                center = offset
-            )
-        }
-
-        // Horizon twilight glow
-        val horizonRadius = (width * 0.7f).coerceAtLeast(1f)
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(Color(0xFFF472B6).copy(alpha = 0.35f), Color.Transparent),
-                center = Offset(width * 0.5f, height * 0.65f),
-                radius = horizonRadius
-            ),
-            center = Offset(width * 0.5f, height * 0.65f),
-            radius = horizonRadius
-        )
-
-        // City skyline silhouettes & Rooftop baseline
-        val skylinePath = Path().apply {
-            moveTo(0f, height * 0.72f)
-            lineTo(width * 0.15f, height * 0.72f)
-            lineTo(width * 0.15f, height * 0.67f)
-            lineTo(width * 0.25f, height * 0.67f)
-            lineTo(width * 0.25f, height * 0.70f)
-            lineTo(width * 0.38f, height * 0.70f)
-            lineTo(width * 0.38f, height * 0.65f)
-            lineTo(width * 0.48f, height * 0.65f)
-            lineTo(width * 0.48f, height * 0.73f)
-            lineTo(width * 0.70f, height * 0.73f)
-            lineTo(width * 0.70f, height * 0.68f)
-            lineTo(width * 0.85f, height * 0.68f)
-            lineTo(width * 0.85f, height * 0.74f)
-            lineTo(width, height * 0.74f)
-            lineTo(width, height)
-            lineTo(0f, height)
-            close()
-        }
-        drawPath(skylinePath, Color(0xFF131024).copy(alpha = 0.9f))
-
-        // Foreground silhouette: Rooftop ledge where character sits
-        val rooftopLedge = Path().apply {
-            moveTo(0f, height * 0.82f)
-            lineTo(width * 0.60f, height * 0.82f)
-            lineTo(width * 0.65f, height * 0.78f)
-            lineTo(width, height * 0.78f)
-            lineTo(width, height)
-            lineTo(0f, height)
-            close()
-        }
-        drawPath(rooftopLedge, Color(0xFF090A12))
-
-        // Character silhouette sitting on the ledge looking up
-        val charCenter = Offset(width * 0.72f, height * 0.72f)
-        drawCircle(
-            color = Color(0xFF090A12),
-            radius = 16f,
-            center = Offset(charCenter.x, charCenter.y - 36f) // Head
-        )
-        val bodyPath = Path().apply {
-            moveTo(charCenter.x - 18f, charCenter.y + 24f)
-            lineTo(charCenter.x - 12f, charCenter.y - 20f)
-            lineTo(charCenter.x + 14f, charCenter.y - 20f)
-            lineTo(charCenter.x + 22f, charCenter.y + 24f)
-            close()
-        }
-        drawPath(bodyPath, Color(0xFF090A12))
-    }
+    )
 }
 
 @Preview

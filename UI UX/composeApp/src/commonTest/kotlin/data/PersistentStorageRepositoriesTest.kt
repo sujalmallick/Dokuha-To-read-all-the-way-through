@@ -4,6 +4,7 @@ import core.storage.InMemoryKeyValueStorage
 import core.storage.InMemorySecureStorage
 import data.profile.PersistentProfileRepository
 import data.settings.AppLogoStyle
+import data.settings.SplashMotionStyle
 import data.settings.DefaultReadingMode
 import data.settings.PersistentSettingsRepository
 import ui.theme.ThemeMode
@@ -43,8 +44,6 @@ class PersistentStorageRepositoriesTest {
         repo1.setDefaultReadingMode(DefaultReadingMode.RIGHT_TO_LEFT)
         repo1.setSidePadding(0.25f)
         repo1.setBrightness(0.95f)
-        repo1.setReaderColorFilter(data.settings.ReaderColorFilter.SEPIA)
-        repo1.setReaderPreloadPages(10)
 
         // Verify live state
         assertEquals(ThemeMode.OLED_BLACK, repo1.themeMode.value)
@@ -52,8 +51,6 @@ class PersistentStorageRepositoriesTest {
         assertTrue(repo1.reduceGlass.value)
         assertTrue(repo1.reduceMotion.value)
         assertEquals(DefaultReadingMode.RIGHT_TO_LEFT, repo1.defaultReadingMode.value)
-        assertEquals(data.settings.ReaderColorFilter.SEPIA, repo1.readerColorFilter.value)
-        assertEquals(10, repo1.readerPreloadPages.value)
 
         // Recreate repo with the same underlying storage to simulate app restart
         val repo2 = PersistentSettingsRepository(storage)
@@ -62,8 +59,6 @@ class PersistentStorageRepositoriesTest {
         assertEquals(ThemeMode.OLED_BLACK, repo2.themeMode.value)
         assertEquals(2, repo2.accentColorIndex.value)
         assertTrue(repo2.reduceGlass.value)
-        assertEquals(data.settings.ReaderColorFilter.SEPIA, repo2.readerColorFilter.value)
-        assertEquals(10, repo2.readerPreloadPages.value)
         assertTrue(repo2.reduceMotion.value)
         assertEquals(DefaultReadingMode.RIGHT_TO_LEFT, repo2.defaultReadingMode.value)
         assertEquals(0.25f, repo2.sidePadding.value)

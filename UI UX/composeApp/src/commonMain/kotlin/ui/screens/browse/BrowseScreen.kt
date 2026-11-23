@@ -132,6 +132,7 @@ fun BrowseScreenContent(
     onSeeAllSources: () -> Unit,
     onOpenManga: (SourceManga) -> Unit,
     onTabSelected: (PanelTab) -> Unit,
+    showBottomBar: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val glassState = rememberPanelGlassState()
@@ -558,15 +559,17 @@ fun BrowseScreenContent(
         }
 
         // LAYER 2: Floating Liquid Glass Bottom Navigation Dock
-        PanelBottomNavBar(
-            selectedTab = PanelTab.BROWSE,
-            onTabSelected = onTabSelected,
-            glassState = glassState,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 12.dp)
-        )
+        if (showBottomBar) {
+            PanelBottomNavBar(
+                selectedTab = PanelTab.BROWSE,
+                onTabSelected = onTabSelected,
+                glassState = glassState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+            )
+        }
 
         // Sibling Overlay: Filter Bottom Sheet
         BrowseFilterBottomSheet(

@@ -1,12 +1,17 @@
 package io.panel.reader
 
 import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import cafe.adriel.voyager.navigator.Navigator
 import cafe.adriel.voyager.transitions.FadeTransition
 import cafe.adriel.voyager.transitions.SlideTransition
@@ -20,6 +25,7 @@ import org.koin.mp.KoinPlatformTools
 import org.koin.dsl.KoinAppDeclaration
 import ui.components.AntiBotChallengeSheet
 import ui.screens.library.LibraryScreen
+import ui.screens.maintab.MainTabScreen
 import ui.screens.splash.SplashScreenContent
 import ui.screens.welcome.WelcomeScreen
 import coil3.compose.setSingletonImageLoaderFactory
@@ -63,7 +69,7 @@ private fun PanelAppRoot() {
     val reduceMotion by settingsRepository.reduceMotion.collectAsState()
     val isOnboarded by settingsRepository.isOnboardingCompleted.collectAsState()
 
-    var showSplash by remember { mutableStateOf(true) }
+    var showSplash by rememberSaveable { mutableStateOf(true) }
 
     val accentColor = PanelAccentColors.getOrElse(accentIndex) { PanelAccentColors[0] }
 
@@ -73,26 +79,31 @@ private fun PanelAppRoot() {
         reduceGlass = reduceGlass,
         reduceMotion = reduceMotion
     ) {
-        Crossfade(targetState = showSplash, label = "SplashCrossfade") { isSplash ->
-            if (isSplash) {
-                SplashScreenContent(
-                    onFinished = {
-                        showSplash = false
-                    }
-                )
-            } else {
-                val initialScreen = remember {
-                    if (isOnboarded) LibraryScreen() else WelcomeScreen()
-                }
-                Navigator(initialScreen) { navigator ->
-                    FadeTransition(
-                        navigator = navigator,
-                        disposeScreenAfterTransitionEnd = true
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Crossfade(targetState = showSplash, label = "SplashCrossfade") { isSplash ->
+                if (isSplash) {
+                    SplashScreenContent(
+                        onFinished = {
+                            showSplash = false
+                        }
                     )
+                } else {
+                    val initialScreen = remember {
+                        if (isOnboarded) MainTabScreen() else WelcomeScreen()
+                    }
+                    Navigator(initialScreen) { navigator ->
+                        SlideTransition(
+                            navigator = navigator,
+                            disposeScreenAfterTransitionEnd = true
+                        )
+                    }
                 }
             }
-        }
 
-        AntiBotChallengeSheet(activeChallenge)
+            AntiBotChallengeSheet(activeChallenge)
+        }
     }
 }

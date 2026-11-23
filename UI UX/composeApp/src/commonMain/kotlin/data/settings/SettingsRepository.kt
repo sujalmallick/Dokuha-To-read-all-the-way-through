@@ -41,6 +41,19 @@ enum class AppLogoStyle(val displayName: String, val subtitle: String) {
     CLASSIC("Classic Edition", "Monochrome flat Dokuha symbol with clean contrast")
 }
 
+enum class SplashMotionStyle(
+    val displayName: String,
+    val subtitle: String,
+    val isMobileOnly: Boolean = false
+) {
+    AMBIENT_RIBBON("Ambient Ribbon Flow", "Flowing translucent ribbons with subtle breathing light"),
+    MANGA_RAZOR_SLICE("Manga Razor Slice", "Diagonal katana slice with silver edge gleam and reveal"),
+    INK_DROP("Ink Drop Expansion", "Expanding sumi-e ink wash ripple settling into logo"),
+    DIMENSIONAL_GLASS("Dimensional Glass Warp", "Prism flare with dynamic chromatic edge dispersion"),
+    LUNAR_SILVER_GLOW("Lunar Silver Glow", "Luminous silver halo that smoothly dissipates at ending"),
+    LIQUID_GLASS("Liquid Glass Logo", "Fluid sphere-to-tile glass entrance with bevel refraction (Mobile)", isMobileOnly = true)
+}
+
 enum class ReaderColorFilter(val displayName: String, val subtitle: String) {
     DEFAULT("Normal", "Original untouched page colors"),
     INVERTED_OLED("Inverted OLED", "Inverted black canvas for night reading on OLED screens"),
@@ -70,12 +83,14 @@ interface SettingsRepository {
     val reduceGlass: StateFlow<Boolean>
     val reduceMotion: StateFlow<Boolean>
     val appLogoStyle: StateFlow<AppLogoStyle>
+    val splashMotionStyle: StateFlow<SplashMotionStyle>
 
     fun setThemeMode(mode: ThemeMode)
     fun setAccentColorIndex(index: Int)
     fun setReduceGlass(enabled: Boolean)
     fun setReduceMotion(enabled: Boolean)
     fun setAppLogoStyle(style: AppLogoStyle)
+    fun setSplashMotionStyle(style: SplashMotionStyle)
 
     // Reader
     val defaultReadingMode: StateFlow<DefaultReadingMode>
@@ -183,6 +198,9 @@ class FakeSettingsRepository : SettingsRepository {
     private val _appLogoStyle = MutableStateFlow(AppLogoStyle.GLASSMORPHIC)
     override val appLogoStyle: StateFlow<AppLogoStyle> = _appLogoStyle.asStateFlow()
 
+    private val _splashMotionStyle = MutableStateFlow(SplashMotionStyle.LUNAR_SILVER_GLOW)
+    override val splashMotionStyle: StateFlow<SplashMotionStyle> = _splashMotionStyle.asStateFlow()
+
     override fun setThemeMode(mode: ThemeMode) {
         _themeMode.value = mode
     }
@@ -201,6 +219,10 @@ class FakeSettingsRepository : SettingsRepository {
 
     override fun setAppLogoStyle(style: AppLogoStyle) {
         _appLogoStyle.value = style
+    }
+
+    override fun setSplashMotionStyle(style: SplashMotionStyle) {
+        _splashMotionStyle.value = style
     }
 
     // Reader

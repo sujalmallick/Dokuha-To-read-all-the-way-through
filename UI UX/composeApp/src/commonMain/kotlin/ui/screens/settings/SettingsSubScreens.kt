@@ -50,11 +50,13 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import core.extensions.ExtensionRepoValidator
 import core.platform.PlatformInfo
 import data.settings.AppLogoStyle
+import data.settings.SplashMotionStyle
+import ui.screens.splash.SplashScreen
+import ui.theme.CapsuleShape
 import data.settings.ExtensionRepo
 import data.settings.DefaultReadingMode
 import data.settings.NovelFont
 import data.settings.NovelReaderTheme
-import data.settings.ReaderColorFilter
 import data.settings.REPOSITORY_SECURITY_WARNING
 import data.settings.SettingsRepository
 import data.settings.UpdateInterval
@@ -205,11 +207,11 @@ fun AppearanceSettingsScreenContent(
 
             // App Logo Section
             item {
-                SectionHeader(text = "App Logo")
+                SectionHeader(text = "App Logo & Splash Screen")
                 Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                     SettingsGroup {
                         SettingsRow.Navigation(
-                            title = "App Logo",
+                            title = "App Logo & Splash Motion",
                             value = appLogoStyle.displayName,
                             onClick = onNavigateAppLogo
                         )
@@ -258,11 +260,17 @@ class AppLogoSettingsScreen : Screen {
         val navigator = LocalNavigator.currentOrThrow
         val repo: SettingsRepository = koinInject()
         val currentStyle by repo.appLogoStyle.collectAsState()
+        val currentMotion by repo.splashMotionStyle.collectAsState()
 
         AppLogoSettingsScreenContent(
             selectedStyle = currentStyle,
+            selectedMotion = currentMotion,
             onBack = { navigator.pop() },
-            onSelectStyle = { repo.setAppLogoStyle(it) }
+            onSelectStyle = { repo.setAppLogoStyle(it) },
+            onSelectMotion = { repo.setSplashMotionStyle(it) },
+            onPreviewSplash = {
+                navigator.push(SplashScreen(motionStyle = currentMotion, logoStyle = currentStyle))
+            }
         )
     }
 }
@@ -270,52 +278,152 @@ class AppLogoSettingsScreen : Screen {
 @Composable
 fun AppLogoSettingsScreenContent(
     selectedStyle: AppLogoStyle,
+    selectedMotion: SplashMotionStyle = SplashMotionStyle.LUNAR_SILVER_GLOW,
     onBack: () -> Unit,
     onSelectStyle: (AppLogoStyle) -> Unit,
+    onSelectMotion: (SplashMotionStyle) -> Unit = {},
+    onPreviewSplash: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val scrollState = rememberLazyListState()
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(PanelBackground)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = 80.dp, bottom = 40.dp, start = 20.dp, end = 20.dp),
+        LazyColumn(
+            state = scrollState,
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(top = 74.dp, bottom = 48.dp, start = 20.dp, end = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Minimal 2-column grid of logo edition cards
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                AppLogoStyle.entries.forEach { style ->
-                    val isSelected = style == selectedStyle
-                    MinimalLogoCard(
-                        style = style,
-                        isSelected = isSelected,
-                        onClick = { onSelectStyle(style) },
-                        modifier = Modifier.weight(1f)
-                    )
+            // SECTION 1: LOGO EDITIONS
+            item {
+                SectionHeader(text = "Logo Edition")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    AppLogoStyle.entries.forEach { style ->
+                        val isSelected = style == selectedStyle
+                        MinimalLogoCard(
+                            style = style,
+                            isSelected = isSelected,
+                            onClick = { onSelectStyle(style) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
+                Spacer(modifier = Modifier.height(28.dp))
             }
 
-            Spacer(modifier = Modifier.height(28.dp))
+            // SECTION 2: SPLASH SCREEN MOTION (6 CONCEPTS)
+            item {
+                SectionHeader(text = "Splash Screen Motion (6 Concepts)")
+                SettingsGroup {
+                    SplashMotionStyle.entries.forEachIndexed { index, motion ->
+                        val isSelected = motion == selectedMotion
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelectMotion(motion) }
+                                .padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = motion.displayName,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else TextPrimary
+                                    )
+                                    if (motion.isMobileOnly) {
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(CapsuleShape)
+                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+                                                .border(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.40f), CapsuleShape)
+                                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "Android & iOS Only",
+                                                fontSize = 10.sp,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(3.dp))
+                                Text(
+                                    text = motion.subtitle,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextMuted
+                                )
+                            }
+                            if (isSelected) {
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(22.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.primary),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Selected",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                        }
+                        if (index < SplashMotionStyle.entries.size - 1) {
+                            SettingsSeparator()
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
 
-            Text(
-                text = "The selected icon applies seamlessly across splash screens, headers, and about branding.",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextMuted,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
+            // SECTION 3: PREVIEW SPLASH BUTTON
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.primary)
+                        .clickable(onClick = onPreviewSplash)
+                        .padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Preview Splash Screen",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "The selected logo and motion style trigger automatically upon launch or preview.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
         }
 
         GlassCollapsingTopBar(
-            title = "App Logo",
+            title = "App Logo & Splash",
             onBack = onBack,
-            scrollOffset = 0f
+            scrollOffset = scrollState.firstVisibleItemScrollOffset.toFloat()
         )
     }
 }
@@ -399,8 +507,6 @@ class ReaderSettingsScreen : Screen {
         val brightness by repo.brightness.collectAsState()
         val cropBorders by repo.cropBorders.collectAsState()
         val keepScreenOn by repo.keepScreenOn.collectAsState()
-        val readerColorFilter by repo.readerColorFilter.collectAsState()
-        val readerPreloadPages by repo.readerPreloadPages.collectAsState()
 
         val novelFont by repo.novelFont.collectAsState()
         val novelFontSize by repo.novelFontSize.collectAsState()
@@ -413,8 +519,6 @@ class ReaderSettingsScreen : Screen {
             brightness = brightness,
             cropBorders = cropBorders,
             keepScreenOn = keepScreenOn,
-            readerColorFilter = readerColorFilter,
-            readerPreloadPages = readerPreloadPages,
             novelFont = novelFont,
             novelFontSize = novelFontSize,
             novelLineHeight = novelLineHeight,
@@ -425,8 +529,6 @@ class ReaderSettingsScreen : Screen {
             onChangeBrightness = { repo.setBrightness(it) },
             onToggleCropBorders = { repo.setCropBorders(it) },
             onToggleKeepScreenOn = { repo.setKeepScreenOn(it) },
-            onSelectReaderColorFilter = { repo.setReaderColorFilter(it) },
-            onSelectReaderPreloadPages = { repo.setReaderPreloadPages(it) },
             onSelectNovelTheme = { repo.setNovelTheme(it) },
             onChangeNovelFontSize = { repo.setNovelFontSize(it) },
             onChangeNovelLineHeight = { repo.setNovelLineHeight(it) }
@@ -454,10 +556,6 @@ fun GlobalReaderSettingsScreenContent(
     onSelectNovelTheme: (NovelReaderTheme) -> Unit,
     onChangeNovelFontSize: (Float) -> Unit,
     onChangeNovelLineHeight: (Float) -> Unit,
-    readerColorFilter: ReaderColorFilter = ReaderColorFilter.DEFAULT,
-    onSelectReaderColorFilter: (ReaderColorFilter) -> Unit = {},
-    readerPreloadPages: Int = 6,
-    onSelectReaderPreloadPages: (Int) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberLazyListState()
@@ -528,43 +626,6 @@ fun GlobalReaderSettingsScreenContent(
                             onClick = { /* Placeholder page */ }
                         )
                     }
-                }
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-
-            // Color Filter & Eye Comfort Section
-            item {
-                SectionHeader(text = "Color Filter & Eye Comfort")
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    val filters = ReaderColorFilter.entries
-                    GlassSegmentedControl(
-                        items = filters,
-                        selectedIndex = filters.indexOf(readerColorFilter).coerceAtLeast(0),
-                        onItemSelected = { onSelectReaderColorFilter(filters[it]) },
-                        labelProvider = { filter ->
-                            when (filter) {
-                                ReaderColorFilter.DEFAULT -> "Normal"
-                                ReaderColorFilter.INVERTED_OLED -> "OLED"
-                                ReaderColorFilter.SEPIA -> "Sepia"
-                                ReaderColorFilter.HIGH_CONTRAST -> "Contrast"
-                            }
-                        }
-                    )
-                }
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-
-            // Zero-Latency Background Preload Buffer
-            item {
-                SectionHeader(text = "Background Preload Buffer (Zero-Latency)")
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    val preloadOptions = listOf(2, 4, 6, 10)
-                    GlassSegmentedControl(
-                        items = preloadOptions,
-                        selectedIndex = preloadOptions.indexOf(readerPreloadPages).let { if (it >= 0) it else 2 },
-                        onItemSelected = { onSelectReaderPreloadPages(preloadOptions[it]) },
-                        labelProvider = { "$it pages ahead" }
-                    )
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }

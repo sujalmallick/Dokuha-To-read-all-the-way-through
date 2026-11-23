@@ -75,6 +75,7 @@ import data.library.DefaultCategories
 import data.library.DefaultCategoryRepository
 import data.mock.FakePanelRepository
 import data.mock.PanelRepository
+import data.settings.SettingsRepository
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.CategoryPillRow
@@ -146,6 +147,8 @@ class LibraryScreen : Screen {
 fun LibraryScreenContent(
     repository: PanelRepository,
     categoryRepository: CategoryRepository? = null,
+    settingsRepository: SettingsRepository? = null,
+    showBottomBar: Boolean = true,
     onOpenManga: (SourceManga) -> Unit,
     onResumeChapter: (SourceManga, SourceChapter) -> Unit,
     onTabSelected: (PanelTab) -> Unit,
@@ -153,6 +156,7 @@ fun LibraryScreenContent(
     initialSelectionMode: Boolean = false,
     initialSelectedUrls: Set<String> = emptySet()
 ) {
+    val showUnreadCount = settingsRepository?.showUnreadCount?.collectAsState()?.value ?: true
     val catRepo = remember(categoryRepository) {
         categoryRepository ?: DefaultCategoryRepository()
     }
@@ -178,9 +182,6 @@ fun LibraryScreenContent(
             allLibraryItems.filter { manga ->
                 val assigned = mappings[manga.url] ?: mappings[manga.title.lowercase().replace(" ", "-")] ?: emptySet()
                 selectedCategory in assigned
-            }.ifEmpty {
-                // If filter is empty, fallback to showing items so category doesn't look blank
-                allLibraryItems.take(4)
             }
         }
     }
@@ -473,7 +474,13 @@ fun LibraryScreenContent(
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Text(
-                                text = if (libraryFilter.isActive) "No matching titles" else "Your library is empty",
+                                text = if (libraryFilter.isActive) {
+                                    "No matching titles"
+                                } else if (selectedCategory != DefaultCategories.ALL) {
+                                    "No titles in this category"
+                                } else {
+                                    "Your library is empty"
+                                },
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = TextPrimary
@@ -481,6 +488,8 @@ fun LibraryScreenContent(
                             Text(
                                 text = if (libraryFilter.isActive) {
                                     "No titles match your active filter criteria."
+                                } else if (selectedCategory != DefaultCategories.ALL) {
+                                    "Add titles to \"$selectedCategory\" to see them here."
                                 } else {
                                     "Install an extension and favorite manga or novels to see them here."
                                 },
@@ -525,6 +534,8 @@ fun LibraryScreenContent(
                 }
 
                 val isSelected = manga.url in selectedMangaUrls
+                val stats = libraryStats[manga.url]
+                val unread = if (stats != null) (stats.totalChapters - stats.readChapters).coerceAtLeast(0) else null
 
                 MangaCoverCard(
                     title = manga.title,
@@ -533,6 +544,8 @@ fun LibraryScreenContent(
                     thumbnailUrl = manga.thumbnailUrl,
                     isSelected = isSelected,
                     isSelectionMode = isSelectionMode,
+                    unreadCount = unread,
+                    showUnreadBadge = showUnreadCount,
                     onClick = {
                         if (isSelectionMode) {
                             selectedMangaUrls = if (isSelected) {
@@ -586,7 +599,7 @@ fun LibraryScreenContent(
                     .navigationBarsPadding()
                     .padding(horizontal = 20.dp, vertical = 14.dp)
             )
-        } else {
+        } else if (showBottomBar) {
             // STANDARD NAVIGATION DOCK
             PanelBottomNavBar(
                 selectedTab = PanelTab.LIBRARY,

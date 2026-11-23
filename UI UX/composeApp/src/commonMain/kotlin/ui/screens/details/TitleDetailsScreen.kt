@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
@@ -70,7 +71,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.ChapterRowItem
 import ui.components.PanelCircleIconButton
-import ui.components.PanelPillButton
+import ui.components.PanelButton
 import ui.glass.glassPress
 import ui.glass.glassSource
 import ui.glass.nonGlassPress
@@ -142,7 +143,7 @@ data class TitleDetailsScreen(
             onBack = { navigator.pop() },
             onReadChapter = { chapter ->
                 if (manga?.isNovel == true) {
-                    navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name))
+                    navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name, mangaUrl))
                 } else {
                     navigator.push(WebtoonReaderScreen(mangaUrl, chapter.url, chapter.name))
                 }
@@ -214,6 +215,7 @@ fun TitleDetailsScreenContent(
                 ) {
                     TitleHeroArtwork(
                         thumbnailUrl = displayManga.thumbnailUrl,
+                        title = displayManga.title,
                         modifier = Modifier.fillMaxSize()
                     )
 
@@ -251,10 +253,18 @@ fun TitleDetailsScreenContent(
 
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Secondary text replacing badges: Status & Rating
-                    val statusText = if (displayManga.status == MangaStatus.ONGOING) "Ongoing" else "Completed"
+                    // Secondary text: Status (without fake hardcoded rating)
+                    val statusText = when (displayManga.status) {
+                        MangaStatus.ONGOING -> "Ongoing"
+                        MangaStatus.COMPLETED -> "Completed"
+                        MangaStatus.LICENSED -> "Licensed"
+                        MangaStatus.PUBLISHING_FINISHED -> "Finished"
+                        MangaStatus.CANCELLED -> "Cancelled"
+                        MangaStatus.ON_HIATUS -> "On Hiatus"
+                        MangaStatus.UNKNOWN -> "Unknown Status"
+                    }
                     Text(
-                        text = "$statusText · 4.8 (12.4K)",
+                        text = statusText,
                         color = TextSecondary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
@@ -272,7 +282,7 @@ fun TitleDetailsScreenContent(
                     Spacer(modifier = Modifier.height(20.dp))
 
                     // Primary CTA Button: "Start Reading" (flat ElectricBlue fill, no gradient slop)
-                    PanelPillButton(
+                    PanelButton(
                         text = "Start Reading",
                         icon = Icons.Default.PlayArrow,
                         onClick = {
@@ -619,12 +629,12 @@ fun ActionGlassButton(
 }
 
 /**
- * Procedural stylized hero artwork composition evoking the anime protagonist
- * with dark hair, glowing cyan aura, and crimson cape.
+ * Clean neutral dark glass hero artwork cover placeholder with title initial or icon.
  */
 @Composable
 fun TitleHeroArtwork(
     thumbnailUrl: String? = null,
+    title: String? = null,
     modifier: Modifier = Modifier
 ) {
     val isRemote = !thumbnailUrl.isNullOrBlank() &&
@@ -634,152 +644,43 @@ fun TitleHeroArtwork(
         Box(modifier = modifier) {
             AsyncImage(
                 model = thumbnailUrl,
-                contentDescription = null,
+                contentDescription = title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
             )
         }
     } else {
-        Canvas(modifier = modifier) {
-        val width = size.width
-        val height = size.height
-        if (width <= 0f || height <= 0f) return@Canvas
-
-        // Dark Crimson & Night Navy backdrop
-        drawRect(
-            brush = Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xFF2E0A12),
-                    Color(0xFF1F0D1E),
-                    Color(0xFF0F1528),
-                    Color(0xFF080B11)
+        Box(
+            modifier = modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color(0xFF141926),
+                            Color(0xFF0C101A),
+                            Color(0xFF070A10)
+                        )
+                    )
                 ),
-                startY = 0f,
-                endY = height
-            )
-        )
-
-        // Radial crimson energy flare on the right
-        val crimsonRadius = (width * 0.55f).coerceAtLeast(1f)
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    Color(0xFFE50914).copy(alpha = 0.45f),
-                    Color(0xFF990000).copy(alpha = 0.20f),
-                    Color.Transparent
-                ),
-                center = Offset(width * 0.85f, height * 0.35f),
-                radius = crimsonRadius
-            ),
-            center = Offset(width * 0.85f, height * 0.35f),
-            radius = crimsonRadius
-        )
-
-        // Radial electric blue / cyan magic flare on the left
-        val cyanRadius = (width * 0.45f).coerceAtLeast(1f)
-        drawCircle(
-            brush = Brush.radialGradient(
-                colors = listOf(
-                    ElectricBlue.copy(alpha = 0.35f),
-                    Color(0xFF0055AA).copy(alpha = 0.15f),
-                    Color.Transparent
-                ),
-                center = Offset(width * 0.15f, height * 0.5f),
-                radius = cyanRadius
-            ),
-            center = Offset(width * 0.15f, height * 0.5f),
-            radius = cyanRadius
-        )
-
-        // Stylized anime character silhouette: Cape
-        val capePath = Path().apply {
-            moveTo(width * 0.28f, height * 0.32f)
-            cubicTo(
-                width * 0.15f, height * 0.45f,
-                width * 0.05f, height * 0.70f,
-                width * 0.18f, height * 0.95f
-            )
-            lineTo(width * 0.82f, height * 0.95f)
-            cubicTo(
-                width * 0.92f, height * 0.70f,
-                width * 0.85f, height * 0.45f,
-                width * 0.72f, height * 0.32f
-            )
-            close()
-        }
-        drawPath(
-            path = capePath,
-            brush = Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xFF1B0409),
-                    Color(0xFF0A0205)
+            contentAlignment = Alignment.Center
+        ) {
+            val initial = title?.trim()?.firstOrNull()?.uppercase()
+            if (initial != null) {
+                Text(
+                    text = initial,
+                    fontSize = 72.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.2f)
                 )
-            )
-        )
-
-        // Stylized anime character silhouette: Torso & Shoulders
-        val bodyPath = Path().apply {
-            moveTo(width * 0.36f, height * 0.38f)
-            lineTo(width * 0.64f, height * 0.38f)
-            lineTo(width * 0.70f, height * 0.85f)
-            lineTo(width * 0.30f, height * 0.85f)
-            close()
-        }
-        drawPath(
-            path = bodyPath,
-            brush = Brush.verticalGradient(
-                colors = listOf(
-                    Color(0xFF0F1424),
-                    Color(0xFF050810)
+            } else {
+                Icon(
+                    imageVector = Icons.Default.Book,
+                    contentDescription = null,
+                    tint = Color.White.copy(alpha = 0.2f),
+                    modifier = Modifier.size(64.dp)
                 )
-            )
-        )
-
-        // Head and Spiky Hair Silhouette
-        val hairPath = Path().apply {
-            moveTo(width * 0.50f, height * 0.16f)
-            lineTo(width * 0.44f, height * 0.20f)
-            lineTo(width * 0.42f, height * 0.23f)
-            lineTo(width * 0.38f, height * 0.22f)
-            lineTo(width * 0.40f, height * 0.27f)
-            lineTo(width * 0.44f, height * 0.32f)
-            lineTo(width * 0.50f, height * 0.36f)
-            lineTo(width * 0.56f, height * 0.32f)
-            lineTo(width * 0.60f, height * 0.27f)
-            lineTo(width * 0.62f, height * 0.22f)
-            lineTo(width * 0.58f, height * 0.23f)
-            lineTo(width * 0.56f, height * 0.20f)
-            close()
+            }
         }
-        drawPath(
-            path = hairPath,
-            color = Color(0xFF060912)
-        )
-
-        // Glowing Cyan Eyes
-        drawCircle(
-            color = Color(0xFF64D2FF),
-            radius = 3.5.dp.toPx(),
-            center = Offset(width * 0.47f, height * 0.285f)
-        )
-        drawCircle(
-            color = Color(0xFF64D2FF),
-            radius = 3.5.dp.toPx(),
-            center = Offset(width * 0.53f, height * 0.285f)
-        )
-
-        // Cyan Eye Glow
-        drawCircle(
-            color = Color(0xFF00D1FF).copy(alpha = 0.4f),
-            radius = 9.dp.toPx(),
-            center = Offset(width * 0.47f, height * 0.285f)
-        )
-        drawCircle(
-            color = Color(0xFF00D1FF).copy(alpha = 0.4f),
-            radius = 9.dp.toPx(),
-            center = Offset(width * 0.53f, height * 0.285f)
-        )
-    }
     }
 }
 

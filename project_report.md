@@ -354,7 +354,7 @@ A modern, open-source, cross-platform reader for **Manhwa, Manga, and Webnovels*
 
 | Layer | Selected Technology | Rationale |
 | :--- | :--- | :--- |
-| **Language** | Kotlin 2.1+ | Shared codebase across Android, iOS, and future Desktop targets. |
+| **Language** | Kotlin 2.1+ | Primary mobile priority across Android and iOS; desktop targets are explicitly excluded. |
 | **UI Framework** | Compose Multiplatform (CMP) | Single declarative UI codebase for Android and iOS; native rendering speed. |
 | **Design System** | Material 3 + MaterialKolor | Dynamic palette theming based on cover art or system accents. |
 | **Navigation** | Voyager / Navigation Compose KMP | Tab navigation, screen stacks, and nested modal sheets across platforms. |
@@ -389,7 +389,7 @@ gantt
     Two-Way Cloud Sync (WebDAV/Self-Host):p10, 2027-03-01, 28d
     Automated Kotlin->JS Transpiler CI  :p11, after p10, 28d
     Advanced Webnovel TTS Audio Engine   :p12, after p11, 21d
-    Desktop Client (macOS & Windows)     :p13, after p12, 28d
+    Mobile Native Refinements (Android & iOS):p13, after p12, 28d
 ```
 
 #### Complete Breakdown of Scope
@@ -460,8 +460,8 @@ gantt
 | 5. TRACKER INTEGRATION                                                                             |
 |    - AniList GraphQL, MyAnimeList OAuth2, and Kitsu two-way read progress sync.                    |
 |                                                                                                    |
-| 6. DESKTOP BUILDS                                                                                  |
-|    - Build targets for macOS, Windows, and Linux via Compose for Desktop.                          |
+| 6. MOBILE FIRST FOCUS                                                                              |
+|    - Primary mobile focus for Android (phones/tablets) & iOS (iPhone/iPad); desktop not required.   |
 +----------------------------------------------------------------------------------------------------+
 ```
 
