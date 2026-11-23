@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -139,6 +140,7 @@ fun MoreScreenContent(
     onNavigateAbout: () -> Unit,
     onNavigateGlassLab: () -> Unit = {},
     onTabSelected: (PanelTab) -> Unit,
+    showBottomBar: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberLazyListState()
@@ -324,11 +326,16 @@ fun MoreScreenContent(
         }
 
         // Bottom Navigation Bar
-        PanelBottomNavBar(
-            selectedTab = PanelTab.MORE,
-            onTabSelected = onTabSelected,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
+        if (showBottomBar) {
+            PanelBottomNavBar(
+                selectedTab = PanelTab.MORE,
+                onTabSelected = onTabSelected,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+            )
+        }
     }
 }
 

@@ -132,14 +132,14 @@ data class WebtoonReaderScreen(
         val currentChapterIndex = chapters.indexOfFirst { it.url == currentChapterUrl || it.name == currentChapterTitle }
         val hasPrevious = if (chapters.isNotEmpty() && currentChapterIndex >= 0) {
             currentChapterIndex < chapters.lastIndex
-        } else true
+        } else false
         val hasNext = if (chapters.isNotEmpty() && currentChapterIndex >= 0) {
             currentChapterIndex > 0
-        } else true
+        } else false
 
         val nextTitle = if (chapters.isNotEmpty() && currentChapterIndex > 0) {
             chapters[currentChapterIndex - 1].name
-        } else "Episode 43"
+        } else ""
 
         val coroutineScope = rememberCoroutineScope()
 
@@ -173,6 +173,7 @@ data class WebtoonReaderScreen(
                                 val isNextDownloaded = downloadManager.isChapterDownloaded(mangaUrl, nextChapter.url)
                                 val nextStatus = downloadManager.getChapterStatus(mangaUrl, nextChapter.url)
                                 if (!isNextDownloaded && nextStatus == null) {
+                                    // TODO(#19): Wire real core.download.DownloadManager instead of DefaultDownloadManager simulator
                                     val dummyManga = SourceManga(url = mangaUrl, title = currentChapterTitle)
                                     downloadManager.enqueue(dummyManga, listOf(nextChapter))
                                 }
@@ -186,9 +187,6 @@ data class WebtoonReaderScreen(
                     val prevChapter = chapters[currentChapterIndex + 1]
                     currentChapterUrl = prevChapter.url
                     currentChapterTitle = prevChapter.name
-                } else {
-                    currentChapterTitle = "Episode 41"
-                    currentChapterUrl = "ch-209"
                 }
             },
             onNextChapter = {
@@ -196,9 +194,6 @@ data class WebtoonReaderScreen(
                     val nextChapter = chapters[currentChapterIndex - 1]
                     currentChapterUrl = nextChapter.url
                     currentChapterTitle = nextChapter.name
-                } else {
-                    currentChapterTitle = "Episode 43"
-                    currentChapterUrl = "ch-211"
                 }
             },
             hasPreviousChapter = hasPrevious,
@@ -222,7 +217,7 @@ fun WebtoonReaderScreenContent(
     onNextChapter: () -> Unit = {},
     hasPreviousChapter: Boolean = true,
     hasNextChapter: Boolean = true,
-    nextChapterTitle: String = "Episode 43",
+    nextChapterTitle: String = "",
     modifier: Modifier = Modifier
 ) {
     val glassState = rememberPanelGlassState()
@@ -437,7 +432,7 @@ fun WebtoonReaderScreenContent(
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
                             Spacer(modifier = Modifier.height(24.dp))
-                            ui.components.PanelPillButton(
+                            ui.components.PanelButton(
                                 text = "Open in Browser",
                                 icon = Icons.Default.PlayArrow,
                                 onClick = { uriHandler.openUri(chapterUrl) }
@@ -1112,8 +1107,9 @@ fun WebtoonEndOfChapterCard(
                 color = TextPrimary
             )
             Spacer(modifier = Modifier.height(6.dp))
+            val nextLabel = if (nextChapterTitle.isNotBlank()) "Up Next: $nextChapterTitle" else "Up Next: Next Chapter"
             Text(
-                text = if (hasNextChapter) "Up Next: $nextChapterTitle" else "You have caught up to the latest chapter",
+                text = if (hasNextChapter) nextLabel else "You have caught up to the latest chapter",
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Normal,
                 color = TextSecondary

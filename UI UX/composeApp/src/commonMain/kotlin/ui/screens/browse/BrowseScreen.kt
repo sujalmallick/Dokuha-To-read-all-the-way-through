@@ -74,6 +74,7 @@ import ui.glass.rememberPanelGlassState
 import ui.screens.details.TitleDetailsScreen
 import ui.screens.extensions.ExtensionsScreen
 import ui.screens.library.LibraryScreen
+import ui.screens.maintab.MainTabScreen
 import ui.screens.more.MoreScreen
 import ui.screens.updates.UpdatesScreen
 import ui.theme.CapsuleShape
@@ -112,10 +113,10 @@ class BrowseScreen : Screen {
             },
             onTabSelected = { tab ->
                 when (tab) {
-                    PanelTab.LIBRARY -> navigator.push(LibraryScreen())
-                    PanelTab.UPDATES -> navigator.push(UpdatesScreen())
+                    PanelTab.LIBRARY -> navigator.replaceAll(MainTabScreen(PanelTab.LIBRARY))
+                    PanelTab.UPDATES -> navigator.replaceAll(MainTabScreen(PanelTab.UPDATES))
                     PanelTab.BROWSE -> {}
-                    PanelTab.MORE -> navigator.push(MoreScreen())
+                    PanelTab.MORE -> navigator.replaceAll(MainTabScreen(PanelTab.MORE))
                 }
             }
         )
@@ -132,6 +133,7 @@ fun BrowseScreenContent(
     onSeeAllSources: () -> Unit,
     onOpenManga: (SourceManga) -> Unit,
     onTabSelected: (PanelTab) -> Unit,
+    showBottomBar: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val glassState = rememberPanelGlassState()
@@ -558,15 +560,17 @@ fun BrowseScreenContent(
         }
 
         // LAYER 2: Floating Liquid Glass Bottom Navigation Dock
-        PanelBottomNavBar(
-            selectedTab = PanelTab.BROWSE,
-            onTabSelected = onTabSelected,
-            glassState = glassState,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 12.dp)
-        )
+        if (showBottomBar) {
+            PanelBottomNavBar(
+                selectedTab = PanelTab.BROWSE,
+                onTabSelected = onTabSelected,
+                glassState = glassState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 24.dp, vertical = 12.dp)
+            )
+        }
 
         // Sibling Overlay: Filter Bottom Sheet
         BrowseFilterBottomSheet(

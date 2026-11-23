@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.Explore
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -137,7 +138,7 @@ fun PanelBottomNavBar(
             ) {
                 PanelTab.entries.forEach { tab ->
                     val isSelected = tab == selectedTab
-                    val contentColor = if (isSelected) ElectricBlue else TextSecondary
+                    val contentColor = if (isSelected) MaterialTheme.colorScheme.primary else TextSecondary
                     val interactionSource = remember { MutableInteractionSource() }
 
                     Column(

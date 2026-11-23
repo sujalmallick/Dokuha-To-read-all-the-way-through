@@ -3,7 +3,7 @@
 
 **Document Version**: 2.0.0 (Hardened Master Architectural Specification)  
 **Target Platform**: Dokuha (Compose Multiplatform / Kotlin Multiplatform)  
-**Target Architectures**: Android (API 26+), Desktop (JVM / macOS, Linux, Windows), iOS (iOS 15+)  
+**Target Architectures**: Android (API 26+) and iOS (iOS 15+) [Primary Mobile Priority; Desktop is not required]  
 **Date**: November 2026  
 **Status**: Approved Master Architectural Specification (Adversarially Hardened — Iteration 2)  
 

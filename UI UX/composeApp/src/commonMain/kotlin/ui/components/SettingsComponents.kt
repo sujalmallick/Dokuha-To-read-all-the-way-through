@@ -5,9 +5,12 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -47,6 +50,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,10 +58,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -537,7 +543,8 @@ fun GlassSwitch(
 }
 
 /**
- * Segmented control with a sliding lens glass indicator animated with a strict spring (no overshoot).
+ * Segmented control with Apple-style continuous slide-over dragging,
+ * frosted glass capsule indicator, and zero-overshoot spring physics.
  */
 @Composable
 fun <T> GlassSegmentedControl(
@@ -548,6 +555,7 @@ fun <T> GlassSegmentedControl(
     labelProvider: (T) -> String = { it.toString() }
 ) {
     val haptic = LocalHapticFeedback.current
+    val density = LocalDensity.current
 
     BoxWithConstraints(
         modifier = modifier
@@ -558,27 +566,102 @@ fun <T> GlassSegmentedControl(
             .border(1.dp, GlassBorder, CapsuleShape)
             .padding(3.dp)
     ) {
-        val segmentWidth = maxWidth / items.size.coerceAtLeast(1)
+        val segmentCount = items.size.coerceAtLeast(1)
+        val segmentWidth = maxWidth / segmentCount
+        val segmentWidthPx = with(density) { segmentWidth.toPx() }
+        val maxWidthPx = with(density) { maxWidth.toPx() }
+
+        var isDragging by remember { mutableStateOf(false) }
+        var dragOffsetXPx by remember { mutableFloatStateOf(0f) }
+        var lastHoveredIndex by remember { mutableIntStateOf(selectedIndex) }
+
+        val restingOffset = segmentWidth * selectedIndex
+
         val indicatorOffset by animateDpAsState(
-            targetValue = segmentWidth * selectedIndex,
-            animationSpec = rememberSegmentedIndicatorSpring()
+            targetValue = if (isDragging) {
+                with(density) { dragOffsetXPx.coerceIn(0f, (maxWidthPx - segmentWidthPx).coerceAtLeast(0f)).toDp() }
+            } else {
+                restingOffset
+            },
+            animationSpec = if (isDragging) {
+                spring(stiffness = Spring.StiffnessHigh, dampingRatio = Spring.DampingRatioNoBouncy)
+            } else {
+                rememberSegmentedIndicatorSpring()
+            },
+            label = "segmentedIndicatorOffset"
         )
 
-        // Sliding Lens Glass Indicator
+        // Apple-style sliding frosted glass lens indicator
         Box(
             modifier = Modifier
                 .offset(x = indicatorOffset)
                 .width(segmentWidth)
                 .height(34.dp)
-                .glassSurface(
+                .clip(CapsuleShape)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.22f),
+                            Color.White.copy(alpha = 0.12f)
+                        )
+                    )
+                )
+                .border(
+                    width = 0.5.dp,
+                    brush = Brush.verticalGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.45f),
+                            Color.White.copy(alpha = 0.18f)
+                        )
+                    ),
                     shape = CapsuleShape
                 )
         )
 
-        // Labels row
+        // Gesture detector for continuous drag / slide-over
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(items.size) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { offset ->
+                            isDragging = true
+                            dragOffsetXPx = (offset.x - segmentWidthPx / 2f).coerceIn(0f, (maxWidthPx - segmentWidthPx).coerceAtLeast(0f))
+                            val hoverIdx = (offset.x / segmentWidthPx).toInt().coerceIn(0, segmentCount - 1)
+                            if (hoverIdx != lastHoveredIndex) {
+                                lastHoveredIndex = hoverIdx
+                                triggerLightHaptic(haptic)
+                            }
+                        },
+                        onDragEnd = {
+                            isDragging = false
+                            val finalIdx = ((dragOffsetXPx + segmentWidthPx / 2f) / segmentWidthPx).toInt().coerceIn(0, segmentCount - 1)
+                            if (finalIdx != selectedIndex) {
+                                triggerLightHaptic(haptic)
+                                onItemSelected(finalIdx)
+                            }
+                        },
+                        onDragCancel = {
+                            isDragging = false
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            dragOffsetXPx = (dragOffsetXPx + dragAmount).coerceIn(0f, (maxWidthPx - segmentWidthPx).coerceAtLeast(0f))
+                            val hoverIdx = ((dragOffsetXPx + segmentWidthPx / 2f) / segmentWidthPx).toInt().coerceIn(0, segmentCount - 1)
+                            if (hoverIdx != lastHoveredIndex) {
+                                lastHoveredIndex = hoverIdx
+                                triggerLightHaptic(haptic)
+                                onItemSelected(hoverIdx)
+                            }
+                        }
+                    )
+                }
+        )
+
+        // Labels row with tap support
         Row(modifier = Modifier.fillMaxSize()) {
             items.forEachIndexed { index, item ->
-                val isSelected = index == selectedIndex
+                val isSelected = index == if (isDragging) lastHoveredIndex else selectedIndex
                 Box(
                     modifier = Modifier
                         .weight(1f)

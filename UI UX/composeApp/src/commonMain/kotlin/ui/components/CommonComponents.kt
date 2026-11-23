@@ -299,19 +299,21 @@ fun MangaCoverCard(
     thumbnailUrl: String? = null,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
+    unreadCount: Int? = null,
+    showUnreadBadge: Boolean = true,
     onLongClick: (() -> Unit)? = null
 ) {
     val clickModifier = if (onLongClick != null) {
         Modifier.combinedClickable(
             interactionSource = remember { MutableInteractionSource() },
-            indication = ripple(color = Color.White),
+            indication = ripple(color = Color.White.copy(alpha = 0.12f)),
             onClick = onClick,
             onLongClick = onLongClick
         )
     } else {
         Modifier.clickable(
             interactionSource = remember { MutableInteractionSource() },
-            indication = ripple(color = Color.White),
+            indication = ripple(color = Color.White.copy(alpha = 0.12f)),
             onClick = onClick
         )
     }
@@ -394,6 +396,24 @@ fun MangaCoverCard(
                         )
                     }
                 }
+            } else if (showUnreadBadge && unreadCount != null && unreadCount > 0) {
+                // Dynamic unread count badge pill
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .clip(CapsuleShape)
+                        .background(MaterialTheme.colorScheme.primary)
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (unreadCount > 99) "99+" else unreadCount.toString(),
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
         Spacer(modifier = Modifier.height(6.dp))
@@ -464,7 +484,7 @@ fun ChapterRowItem(
             .clip(RoundedCornerShape(12.dp))
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = Color.White),
+                indication = ripple(color = Color.White.copy(alpha = 0.12f)),
                 onClick = onClick
             )
             .padding(vertical = 10.dp, horizontal = 4.dp),
@@ -613,7 +633,7 @@ fun ReaderModeTile(
             )
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = Color.White),
+                indication = ripple(color = Color.White.copy(alpha = 0.12f)),
                 onClick = onClick
             )
             .padding(vertical = 12.dp, horizontal = 6.dp),
@@ -1473,7 +1493,7 @@ fun ContinueReadingCompactCard(
             .border(1.dp, Color.White.copy(alpha = 0.18f), shape)
             .clickable(
                 interactionSource = interactionSource,
-                indication = ripple(color = Color.White),
+                indication = ripple(color = Color.White.copy(alpha = 0.12f)),
                 onClick = onClick
             )
             .padding(10.dp)

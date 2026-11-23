@@ -49,16 +49,16 @@ enum class ButtonVariant {
     OUTLINE
 }
 
-val PanelButtonShape = RoundedCornerShape(16.dp)
+val PanelButtonShape = RoundedCornerShape(12.dp)
 
 /**
- * Modern rounded-rectangle action button.
+ * Modern rounded-rectangle action button with 12.dp corner radius.
  * - Crisp Luxe White fill with dark charcoal ink on PRIMARY (professional minimalist luxury)
  * - Liquid glass lens on GLASS variant
  * - Modern spring press feedback
  */
 @Composable
-fun PanelPillButton(
+fun PanelButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -137,6 +137,33 @@ fun PanelPillButton(
     }
 }
 
+@Deprecated(
+    message = "Use PanelButton with standard 12.dp rounded corners instead",
+    replaceWith = ReplaceWith("PanelButton(text, onClick, modifier, variant, glassState, icon, trailingIcon, contentPadding)")
+)
+@Composable
+fun PanelPillButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    variant: ButtonVariant = ButtonVariant.PRIMARY,
+    glassState: PanelGlassState? = null,
+    icon: ImageVector? = null,
+    trailingIcon: ImageVector? = null,
+    contentPadding: PaddingValues = PaddingValues(horizontal = 24.dp, vertical = 14.dp)
+) {
+    PanelButton(
+        text = text,
+        onClick = onClick,
+        modifier = modifier,
+        variant = variant,
+        glassState = glassState,
+        icon = icon,
+        trailingIcon = trailingIcon,
+        contentPadding = contentPadding
+    )
+}
+
 /**
  * Circular glass icon button with specular rim lighting and gentle swell press feedback.
  */
@@ -194,13 +221,13 @@ fun PanelCircleIconButton(
 
 @Preview
 @Composable
-fun PanelPillButtonPreview() {
+fun PanelButtonPreview() {
     PanelTheme {
         Row(
             modifier = Modifier.padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            PanelPillButton(
+            PanelButton(
                 text = "Get Started",
                 trailingIcon = Icons.AutoMirrored.Filled.ArrowForward,
                 onClick = {}

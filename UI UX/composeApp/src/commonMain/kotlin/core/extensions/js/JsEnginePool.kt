@@ -15,11 +15,13 @@ class JsEnginePool(
 ) {
     private val lock = Mutex()
     private val activeEngines = mutableMapOf<Long, PooledEngineEntry>()
+    private var accessCounter: Long = 0L
 
     data class PooledEngineEntry(
         val sourceId: Long,
         val engine: JsEngine,
-        var lastAccessedAt: Long
+        var lastAccessedAt: Long,
+        var accessOrder: Long = 0L
     )
 
     /**
@@ -42,14 +44,16 @@ class JsEnginePool(
     private suspend fun acquireEngine(sourceId: Long, initializer: suspend (JsEngine) -> Unit): JsEngine {
         val (engineToUse, needsInit) = lock.withLock {
             val now = currentTimeMillis()
+            val order = ++accessCounter
             val existing = activeEngines[sourceId]
             if (existing != null) {
                 existing.lastAccessedAt = now
+                existing.accessOrder = order
                 existing.engine to false
             } else {
                 // Evict LRU engine if max limit reached
                 if (activeEngines.size >= maxActiveEngines) {
-                    val oldestKey = activeEngines.minByOrNull { it.value.lastAccessedAt }?.key
+                    val oldestKey = activeEngines.minByOrNull { it.value.accessOrder }?.key
                     val evicted = oldestKey?.let { activeEngines.remove(it) }
                     try {
                         evicted?.engine?.close()
@@ -57,7 +61,7 @@ class JsEnginePool(
                 }
 
                 val engine = JsEngine()
-                activeEngines[sourceId] = PooledEngineEntry(sourceId, engine, now)
+                activeEngines[sourceId] = PooledEngineEntry(sourceId, engine, now, order)
                 engine to true
             }
         }

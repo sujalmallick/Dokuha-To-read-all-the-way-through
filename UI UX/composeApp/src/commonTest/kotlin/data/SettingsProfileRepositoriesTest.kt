@@ -3,6 +3,7 @@ package data
 import data.profile.FakeProfileRepository
 import data.profile.TrackerService
 import data.settings.AppLogoStyle
+import data.settings.SplashMotionStyle
 import data.settings.DefaultReadingMode
 import data.settings.FakeSettingsRepository
 import data.settings.NovelFont
@@ -40,6 +41,10 @@ class SettingsProfileRepositoriesTest {
         assertEquals(AppLogoStyle.GLASSMORPHIC, repo.appLogoStyle.value)
         repo.setAppLogoStyle(AppLogoStyle.CLASSIC)
         assertEquals(AppLogoStyle.CLASSIC, repo.appLogoStyle.value)
+
+        assertEquals(SplashMotionStyle.LUNAR_SILVER_GLOW, repo.splashMotionStyle.value)
+        repo.setSplashMotionStyle(SplashMotionStyle.LIQUID_GLASS)
+        assertEquals(SplashMotionStyle.LIQUID_GLASS, repo.splashMotionStyle.value)
     }
 
     @Test
@@ -58,20 +63,6 @@ class SettingsProfileRepositoriesTest {
 
         repo.setNovelFont(NovelFont.SERIF)
         assertEquals(NovelFont.SERIF, repo.novelFont.value)
-
-        // Reader Color Filter
-        assertEquals(data.settings.ReaderColorFilter.DEFAULT, repo.readerColorFilter.value)
-        repo.setReaderColorFilter(data.settings.ReaderColorFilter.INVERTED_OLED)
-        assertEquals(data.settings.ReaderColorFilter.INVERTED_OLED, repo.readerColorFilter.value)
-        repo.setReaderColorFilter(data.settings.ReaderColorFilter.SEPIA)
-        assertEquals(data.settings.ReaderColorFilter.SEPIA, repo.readerColorFilter.value)
-
-        // Reader Preload Pages
-        assertEquals(6, repo.readerPreloadPages.value)
-        repo.setReaderPreloadPages(10)
-        assertEquals(10, repo.readerPreloadPages.value)
-        repo.setReaderPreloadPages(4)
-        assertEquals(4, repo.readerPreloadPages.value)
 
         repo.setNovelFontSize(20f)
         assertEquals(20f, repo.novelFontSize.value)

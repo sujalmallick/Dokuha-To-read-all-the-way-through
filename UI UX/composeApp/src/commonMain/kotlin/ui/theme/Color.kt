@@ -1,9 +1,18 @@
 package ui.theme
 
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
 
 // Core Theme Colors
-val PanelBackground = Color(0xFF080B11)
+val PanelBackgroundStatic = Color(0xFF080B11)
+
+val PanelBackground: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = MaterialTheme.colorScheme.background
+
 val PanelSurface = Color(0xFF101623)
 val PanelSurfaceGlass = Color(0x99101623)
 val PanelSurfaceGlassHigh = Color(0xB3182235)

@@ -116,7 +116,8 @@ fun NovelFont.toFontFamily(): FontFamily {
 data class NovelReaderScreen(
     val chapterUrl: String = "manga/the-wind-rises/ch-12",
     val chapterNumber: String = "Chapter 12",
-    val chapterTitle: String = "The Wind Rises"
+    val chapterTitle: String = "The Wind Rises",
+    val mangaUrl: String? = null
 ) : Screen {
 
     @Composable
@@ -129,7 +130,19 @@ data class NovelReaderScreen(
         var currentChapterNumber by remember(chapterNumber) { mutableStateOf(chapterNumber) }
         var currentChapterTitle by remember(chapterTitle) { mutableStateOf(chapterTitle) }
 
+        val targetMangaUrl = remember(mangaUrl, currentChapterUrl) {
+            mangaUrl ?: if (currentChapterUrl.contains("/")) currentChapterUrl.substringBeforeLast("/") else ""
+        }
+        val chapters by repository.getChapters(targetMangaUrl).collectAsState(initial = emptyList())
         val novelContent by repository.getNovelContent(currentChapterUrl).collectAsState(initial = null)
+
+        val currentChapterIndex = chapters.indexOfFirst { it.url == currentChapterUrl || it.name == currentChapterTitle }
+        val hasPrevious = if (chapters.isNotEmpty() && currentChapterIndex >= 0) {
+            currentChapterIndex < chapters.lastIndex
+        } else false
+        val hasNext = if (chapters.isNotEmpty() && currentChapterIndex >= 0) {
+            currentChapterIndex > 0
+        } else false
 
         LaunchedEffect(currentChapterUrl) {
             repository.recordHistory(currentChapterUrl)
@@ -142,15 +155,23 @@ data class NovelReaderScreen(
             settingsRepository = settingsRepository,
             onBack = { navigator.pop() },
             onPreviousChapter = {
-                currentChapterNumber = "Chapter 11"
-                currentChapterTitle = "Shadows in the Mist"
-                currentChapterUrl = "manga/the-wind-rises/ch-11"
+                if (chapters.isNotEmpty() && currentChapterIndex in 0 until chapters.lastIndex) {
+                    val prevChapter = chapters[currentChapterIndex + 1]
+                    currentChapterUrl = prevChapter.url
+                    currentChapterNumber = if (prevChapter.chapterNumber > 0) "Chapter ${prevChapter.chapterNumber}" else prevChapter.name
+                    currentChapterTitle = prevChapter.name
+                }
             },
             onNextChapter = {
-                currentChapterNumber = "Chapter 13"
-                currentChapterTitle = "Beyond the Horizon"
-                currentChapterUrl = "manga/the-wind-rises/ch-13"
-            }
+                if (chapters.isNotEmpty() && currentChapterIndex > 0) {
+                    val nextChapter = chapters[currentChapterIndex - 1]
+                    currentChapterUrl = nextChapter.url
+                    currentChapterNumber = if (nextChapter.chapterNumber > 0) "Chapter ${nextChapter.chapterNumber}" else nextChapter.name
+                    currentChapterTitle = nextChapter.name
+                }
+            },
+            hasPreviousChapter = hasPrevious,
+            hasNextChapter = hasNext
         )
     }
 }
@@ -166,6 +187,7 @@ fun NovelReaderScreenContent(
     onNextChapter: () -> Unit = {},
     hasPreviousChapter: Boolean = true,
     hasNextChapter: Boolean = true,
+    onRetry: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val glassState = rememberPanelGlassState()
@@ -232,7 +254,7 @@ fun NovelReaderScreenContent(
                 Spacer(modifier = Modifier.height(28.dp))
             }
 
-            // Paragraphs: render from novelContent or procedural fallback matching UI mockups
+            // Paragraphs: render from novelContent or real empty state
             if (parsedParagraphs.isNotEmpty()) {
                 parsedParagraphs.forEachIndexed { index, para ->
                     item {
@@ -273,70 +295,72 @@ fun NovelReaderScreenContent(
                     }
                 }
             } else {
-                // Procedural fallback paragraphs matching mockups
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.Top
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 60.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "T",
-                            fontSize = 52.sp,
-                            lineHeight = 52.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = themeColors.textColor,
-                            fontFamily = fontFamily,
-                            modifier = Modifier.padding(end = 8.dp, top = 2.dp)
-                        )
-                        Text(
-                            text = "he morning light filtered through the leaves, casting moving shadows on the stone path. Wei Wuxian adjusted his sword at his side and looked toward the distant mountains. A new journey awaited, and with it, countless unknowns.",
-                            fontSize = fontSize.sp,
-                            lineHeight = lineHeight,
-                            color = themeColors.textColor.copy(alpha = 0.9f),
-                            fontFamily = fontFamily
-                        )
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                text = "No chapter content found",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = themeColors.textColor,
+                                fontFamily = fontFamily
+                            )
+                            Text(
+                                text = "This chapter could not be loaded or is empty.",
+                                fontSize = 14.sp,
+                                color = themeColors.textColor.copy(alpha = 0.6f),
+                                fontFamily = fontFamily
+                            )
+                            if (onRetry != null) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color.White.copy(alpha = 0.1f))
+                                        .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                                        .clickable { onRetry() }
+                                        .padding(horizontal = 18.dp, vertical = 9.dp)
+                                ) {
+                                    Text(
+                                        text = "Retry",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = themeColors.textColor
+                                    )
+                                }
+                            }
+                        }
                     }
-                    Spacer(modifier = Modifier.height(20.dp))
-                }
-
-                item {
-                    Text(
-                        text = "\"We'll set out at dawn,\" he said, turning to his companions. \"This time, we don't just fight the darkness—we understand it.\"",
-                        fontSize = fontSize.sp,
-                        lineHeight = lineHeight,
-                        color = themeColors.textColor.copy(alpha = 0.9f),
-                        fontFamily = fontFamily
-                    )
-                    Spacer(modifier = Modifier.height(20.dp))
-                }
-
-                item {
-                    Text(
-                        text = "A gentle breeze rustled the bamboo groves nearby, carrying the faint scent of rain. The map lay unrolled on the weathered wooden table before them, its ink faded by years of travel, yet each contour held memories of battles fought and quiet moments shared under foreign stars.",
-                        fontSize = fontSize.sp,
-                        lineHeight = lineHeight,
-                        color = themeColors.textColor.copy(alpha = 0.9f),
-                        fontFamily = fontFamily
-                    )
-                    Spacer(modifier = Modifier.height(28.dp))
                 }
             }
 
             // Reading Progress Metadata Row
             item {
+                val wordCount = remember(parsedParagraphs) {
+                    parsedParagraphs.sumOf { p -> p.split("\\s+".toRegex()).count { it.isNotBlank() } }
+                }
+                val readTimeMinutes = (wordCount / 225).coerceAtLeast(1)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "12 min left",
+                        text = if (parsedParagraphs.isNotEmpty()) "~$readTimeMinutes min read" else "",
                         fontSize = 12.sp,
                         color = themeColors.textColor.copy(alpha = 0.5f),
                         fontWeight = FontWeight.Medium
                     )
                     Text(
-                        text = "$chapterNumber • 100%",
+                        text = chapterNumber,
                         fontSize = 12.sp,
                         color = themeColors.textColor.copy(alpha = 0.5f),
                         fontWeight = FontWeight.Medium
@@ -597,7 +621,7 @@ fun NovelEndOfChapterCard(
                     modifier = Modifier
                         .fillMaxWidth(0.85f)
                         .height(48.dp)
-                        .clip(CapsuleShape)
+                        .clip(RoundedCornerShape(12.dp))
                         .glassPress(buttonInteraction)
                         .background(ElectricBlue)
                         .clickable(
