@@ -102,4 +102,40 @@ class JsEngineTest {
         assertEquals("async_pong_asyncTest", result)
         engine.close()
     }
+
+    @Test
+    fun testHostCallbackWithComplexStructures() = runBlocking {
+        val engine = JsEngine()
+        engine.setGlobalFunction("processPayload") { args ->
+            val map = args.getOrNull(0) as? Map<*, *>
+            val title = map?.get("title")?.toString() ?: ""
+            mapOf("receivedTitle" to title, "status" to 200)
+        }
+        val result = engine.evaluate("JSON.stringify(processPayload({ title: 'Solo Leveling' }))")
+        assertTrue(result.contains("\"receivedTitle\":\"Solo Leveling\""))
+        assertTrue(result.contains("\"status\":200") || result.contains("\"status\":200.0"))
+        engine.close()
+    }
+
+    @Test
+    fun testHostAsyncCallbackRejection() = runBlocking {
+        val engine = JsEngine()
+        engine.setGlobalAsyncFunction("failingAsync") {
+            throw IllegalStateException("Intentional host async failure")
+        }
+        val result = engine.evaluate(
+            """
+            (async () => {
+                try {
+                    await failingAsync();
+                    return "should_not_reach";
+                } catch (e) {
+                    return "caught: " + e.message;
+                }
+            })()
+            """.trimIndent()
+        )
+        assertTrue(result.startsWith("caught: Intentional host async failure"))
+        engine.close()
+    }
 }
