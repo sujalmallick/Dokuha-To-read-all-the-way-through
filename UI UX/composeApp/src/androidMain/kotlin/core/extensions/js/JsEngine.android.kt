@@ -8,6 +8,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.longOrNull
 
 actual class JsEngine actual constructor() {
     private var quickJs: QuickJs? = QuickJs.create(Dispatchers.Default)
@@ -21,15 +31,17 @@ actual class JsEngine actual constructor() {
         quickJs?.let { qjs ->
             qjs.function("__dokuha_dispatch") { args ->
                 val fnName = args.getOrNull(0)?.toString() ?: error("Missing function name")
+                val argsJson = args.getOrNull(1)?.toString() ?: "[]"
                 val fn = syncFunctions[fnName] ?: error("Unregistered host function: $fnName")
-                val subArgs = if (args.size > 1) args.drop(1) else emptyList()
-                fn(subArgs)
+                val subArgs = parseArgsJson(argsJson)
+                encodeReturnEnvelope(fn(subArgs))
             }
             qjs.asyncFunction("__dokuha_dispatchAsync") { args ->
                 val fnName = args.getOrNull(0)?.toString() ?: error("Missing async function name")
+                val argsJson = args.getOrNull(1)?.toString() ?: "[]"
                 val fn = asyncFunctions[fnName] ?: error("Unregistered async host function: $fnName")
-                val subArgs = if (args.size > 1) args.drop(1) else emptyList()
-                fn(subArgs)
+                val subArgs = parseArgsJson(argsJson)
+                encodeReturnEnvelope(fn(subArgs))
             }
             qjs.asyncFunction("__dokuha_yield") {
                 // Yield to allow microtasks and coroutine event loops to execute
@@ -106,7 +118,7 @@ actual class JsEngine actual constructor() {
         val qjs = quickJs ?: error("JsEngine is closed")
         syncFunctions[name] = block
         val escapedName = name.replace("'", "\\'")
-        val bridgeScript = "globalThis['$escapedName'] = function(...args) { return __dokuha_dispatch('$escapedName', ...args); };"
+        val bridgeScript = "globalThis['$escapedName'] = function(...args) { return JSON.parse(__dokuha_dispatch('$escapedName', JSON.stringify(args))).v; };"
         kotlinx.coroutines.runBlocking {
             mutex.withLock {
                 qjs.evaluate<Any?>(bridgeScript)
@@ -118,7 +130,7 @@ actual class JsEngine actual constructor() {
         val qjs = quickJs ?: error("JsEngine is closed")
         asyncFunctions[name] = block
         val escapedName = name.replace("'", "\\'")
-        val bridgeScript = "globalThis['$escapedName'] = async function(...args) { return await __dokuha_dispatchAsync('$escapedName', ...args); };"
+        val bridgeScript = "globalThis['$escapedName'] = async function(...args) { return JSON.parse(await __dokuha_dispatchAsync('$escapedName', JSON.stringify(args))).v; };"
         kotlinx.coroutines.runBlocking {
             mutex.withLock {
                 qjs.evaluate<Any?>(bridgeScript)
@@ -197,5 +209,57 @@ actual class JsEngine actual constructor() {
         quickJs = null
         syncFunctions.clear()
         asyncFunctions.clear()
+    }
+
+    private fun parseArgsJson(jsonStr: String): List<Any?> {
+        if (jsonStr.isBlank() || jsonStr == "[]" || jsonStr == "null") return emptyList()
+        return try {
+            val element = Json.parseToJsonElement(jsonStr)
+            if (element is JsonArray) {
+                element.map { jsonElementToAny(it) }
+            } else {
+                listOf(jsonElementToAny(element))
+            }
+        } catch (_: Throwable) {
+            listOf(jsonStr)
+        }
+    }
+
+    private fun jsonElementToAny(element: JsonElement): Any? {
+        return when (element) {
+            is JsonNull -> null
+            is JsonPrimitive -> {
+                if (element.isString) {
+                    element.content
+                } else {
+                    element.booleanOrNull
+                        ?: element.longOrNull
+                        ?: element.doubleOrNull
+                        ?: element.content
+                }
+            }
+            is JsonArray -> element.map { jsonElementToAny(it) }
+            is JsonObject -> element.mapValues { jsonElementToAny(it.value) }
+        }
+    }
+
+    private fun encodeReturnEnvelope(value: Any?): String {
+        return buildJsonObject {
+            put("v", anyToJsonElement(value))
+        }.toString()
+    }
+
+    private fun anyToJsonElement(value: Any?): JsonElement {
+        return when (value) {
+            null -> JsonNull
+            is JsonElement -> value
+            is Boolean -> JsonPrimitive(value)
+            is Number -> JsonPrimitive(value)
+            is String -> JsonPrimitive(value)
+            is Map<*, *> -> JsonObject(value.entries.associate { (k, v) -> (k?.toString() ?: "") to anyToJsonElement(v) })
+            is Iterable<*> -> JsonArray(value.map { anyToJsonElement(it) })
+            is Array<*> -> JsonArray(value.map { anyToJsonElement(it) })
+            else -> JsonPrimitive(value.toString())
+        }
     }
 }

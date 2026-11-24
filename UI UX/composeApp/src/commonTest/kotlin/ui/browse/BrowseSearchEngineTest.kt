@@ -25,12 +25,13 @@ class BrowseSearchEngineTest {
     @Test
     fun testCaseInsensitiveTitleSearch() = runTest {
         val lowerResults = repository.searchManga(query = "solo").first()
-        assertEquals(1, lowerResults.size)
-        assertEquals("Solo Leveling", lowerResults.first().title)
+        assertEquals(2, lowerResults.size)
+        assertTrue(lowerResults.any { it.title == "Solo Leveling" })
+        assertTrue(lowerResults.any { it.title == "Solo Leveling (Novel)" })
 
         val upperResults = repository.searchManga(query = "SOLO").first()
-        assertEquals(1, upperResults.size)
-        assertEquals("Solo Leveling", upperResults.first().title)
+        assertEquals(2, upperResults.size)
+        assertTrue(upperResults.any { it.title == "Solo Leveling" })
 
         val partialResults = repository.searchManga(query = "horiz").first()
         assertTrue(partialResults.any { it.title == "The Last Horizon" })
@@ -148,7 +149,8 @@ class BrowseSearchEngineTest {
     fun testCombinedQueryAndFilterNarrowing() = runTest {
         val combinedFilters = BrowseFilters(
             genres = setOf("Action"),
-            status = MangaStatus.COMPLETED
+            status = MangaStatus.COMPLETED,
+            isNovel = false
         )
         val results = repository.searchManga(query = "Solo", filters = combinedFilters).first()
 
