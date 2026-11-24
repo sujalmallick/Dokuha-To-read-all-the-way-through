@@ -5,7 +5,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 data class UserProfile(
-    val name: String = "Ritwik",
+    val name: String = "Reader",
     val memberSince: String = "Member since November 2026",
     val avatarColorHex: Long = 0xFF38BDF8,
     val initials: String = "R"
@@ -55,7 +55,7 @@ class FakeProfileRepository : ProfileRepository {
 
     private val _profile = MutableStateFlow(
         UserProfile(
-            name = "Ritwik",
+            name = "Reader",
             memberSince = "Member since November 2026",
             avatarColorHex = 0xFF38BDF8,
             initials = "R"

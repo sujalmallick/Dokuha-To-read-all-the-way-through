@@ -31,7 +31,6 @@ val LocalReduceGlass = compositionLocalOf { false }
  * HARD RULE: A [glassSurface] must NEVER be a descendant of a [glassSource] using the same state.
  */
 fun Modifier.glassSource(state: PanelGlassState): Modifier {
-    if (!PlatformInfo.isAndroid) return this
     return this.liquefiable(state.liquidState)
 }
 
@@ -63,7 +62,7 @@ fun Modifier.glassSurface(
         .background(effectiveTuning.tint)
         .border(0.5.dp, Color.White.copy(alpha = 0.20f), shape)
 
-    return if (reduceGlass || state == null || !PlatformInfo.isAndroid) {
+    return if (reduceGlass || state == null) {
         fallback
     } else {
         try {

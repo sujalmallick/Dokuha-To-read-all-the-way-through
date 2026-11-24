@@ -40,14 +40,21 @@ import androidx.compose.material.icons.automirrored.filled.NavigateBefore
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.isActive
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
 import coil3.compose.LocalPlatformContext
@@ -99,7 +106,6 @@ import ui.glass.glassSource
 import ui.glass.glassSurface
 import ui.glass.rememberPanelGlassState
 import ui.theme.CapsuleShape
-import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
 import ui.theme.GlassBorderStrong
 import ui.theme.PanelBackground
@@ -266,6 +272,47 @@ fun WebtoonReaderScreenContent(
     var areControlsVisible by remember { mutableStateOf(true) }
     var isBookmarked by remember { mutableStateOf(false) }
 
+    var isAutoscrollActive by remember { mutableStateOf(false) }
+    var autoscrollSpeed by remember { mutableFloatStateOf(1f) }
+    var isAutoscrollPausedByTouch by remember { mutableStateOf(false) }
+
+    // Clean up autoscroll when leaving screen
+    DisposableEffect(Unit) {
+        onDispose {
+            isAutoscrollActive = false
+        }
+    }
+
+    // Touch-to-pause: If user drags or flings, pause autoscroll
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (listState.isScrollInProgress && isAutoscrollActive && !isAutoscrollPausedByTouch) {
+            isAutoscrollPausedByTouch = true
+        }
+    }
+
+    // Autoscroll continuous frame pump
+    LaunchedEffect(isAutoscrollActive, isAutoscrollPausedByTouch, autoscrollSpeed, hasNextChapter) {
+        if (!isAutoscrollActive || isAutoscrollPausedByTouch) return@LaunchedEffect
+        val baseSpeedPx = 36f * autoscrollSpeed
+        var lastTime = 0L
+        while (isActive && isAutoscrollActive && !isAutoscrollPausedByTouch) {
+            withFrameNanos { now ->
+                if (lastTime > 0L) {
+                    val dt = (now - lastTime) / 1_000_000_000f
+                    val delta = baseSpeedPx * dt
+                    if (listState.canScrollForward) {
+                        listState.dispatchRawDelta(delta)
+                    } else if (hasNextChapter) {
+                        onNextChapter()
+                    } else {
+                        isAutoscrollActive = false
+                    }
+                }
+                lastTime = now
+            }
+        }
+    }
+
     val displayPages = pages
 
     val isRtl = readingMode == DefaultReadingMode.RIGHT_TO_LEFT
@@ -406,7 +453,11 @@ fun WebtoonReaderScreenContent(
         }
 
         val handleToggleControls: () -> Unit = {
-            areControlsVisible = !areControlsVisible
+            if (isAutoscrollActive) {
+                isAutoscrollPausedByTouch = !isAutoscrollPausedByTouch
+            } else {
+                areControlsVisible = !areControlsVisible
+            }
         }
 
         // LAYER 1: Artwork Reading Viewport (Multi-Mode Engine with Side Padding)
@@ -456,7 +507,7 @@ fun WebtoonReaderScreenContent(
                             modifier = Modifier.padding(24.dp)
                         ) {
                             androidx.compose.material3.CircularProgressIndicator(
-                                color = ElectricBlue,
+                                color = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(40.dp)
                             )
                             Spacer(modifier = Modifier.height(16.dp))
@@ -501,14 +552,23 @@ fun WebtoonReaderScreenContent(
                                     )
                             )
                         }
-                        item {
-                            WebtoonEndOfChapterCard(
-                                chapterTitle = chapterTitle,
-                                nextChapterTitle = nextChapterTitle,
-                                hasNextChapter = hasNextChapter,
-                                onNextChapter = onNextChapter,
-                                glassState = glassState
-                            )
+                        if (hasNextChapter) {
+                            item(key = "seamless_gap_${chapterTitle}") {
+                                WebtoonChapterTransitionGap(
+                                    currentChapterTitle = chapterTitle,
+                                    nextChapterTitle = nextChapterTitle,
+                                    onContinueToNextChapter = onNextChapter,
+                                    glassState = glassState
+                                )
+                            }
+                        } else {
+                            item(key = "end_of_series_${chapterTitle}") {
+                                WebtoonEndOfSeriesCard(
+                                    chapterTitle = chapterTitle,
+                                    onBack = onBack,
+                                    glassState = glassState
+                                )
+                            }
                         }
                     }
                 }
@@ -765,7 +825,7 @@ fun WebtoonReaderScreenContent(
                             icon = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                             size = 42.dp,
                             iconSize = 20.dp,
-                            tint = if (isBookmarked) ElectricBlue else Color.White,
+                            tint = if (isBookmarked) MaterialTheme.colorScheme.primary else Color.White,
                             glassState = null,
                             backgroundColor = Color(0xF50F1219),
                             borderColor = GlassBorderStrong,
@@ -888,21 +948,52 @@ fun WebtoonReaderScreenContent(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Step previous page
-                        Row(
-                            modifier = Modifier
-                                .clip(CapsuleShape)
-                                .clickable { handlePrevious() }
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.NavigateBefore,
-                                contentDescription = "Previous Page",
-                                tint = Color.White.copy(alpha = 0.85f),
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Text("Prev", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Medium)
+                        if (readingMode == DefaultReadingMode.WEBTOON) {
+                            // Autoscroll toggle button
+                            val primaryAccent = MaterialTheme.colorScheme.primary
+                            Row(
+                                modifier = Modifier
+                                    .clip(CapsuleShape)
+                                    .background(if (isAutoscrollActive) primaryAccent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f))
+                                    .border(0.5.dp, if (isAutoscrollActive) primaryAccent else Color.White.copy(alpha = 0.15f), CapsuleShape)
+                                    .clickable {
+                                        isAutoscrollActive = !isAutoscrollActive
+                                        isAutoscrollPausedByTouch = false
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = if (isAutoscrollActive && !isAutoscrollPausedByTouch) Icons.Default.Pause else Icons.Default.PlayArrow,
+                                    contentDescription = "Auto Scroll",
+                                    tint = if (isAutoscrollActive) primaryAccent else Color.White,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = if (isAutoscrollActive) (if (isAutoscrollPausedByTouch) "Paused" else "Auto-Scroll") else "Auto-Scroll",
+                                    fontSize = 11.sp,
+                                    color = if (isAutoscrollActive) primaryAccent else Color.White,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        } else {
+                            // Step previous page
+                            Row(
+                                modifier = Modifier
+                                    .clip(CapsuleShape)
+                                    .clickable { handlePrevious() }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.NavigateBefore,
+                                    contentDescription = "Previous Page",
+                                    tint = Color.White.copy(alpha = 0.85f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text("Prev", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Medium)
+                            }
                         }
 
                         // Page Indicator Badge
@@ -929,21 +1020,47 @@ fun WebtoonReaderScreenContent(
                             )
                         }
 
-                        // Step next page
-                        Row(
-                            modifier = Modifier
-                                .clip(CapsuleShape)
-                                .clickable { handleNext() }
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Next", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Medium)
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.NavigateNext,
-                                contentDescription = "Next Page",
-                                tint = Color.White.copy(alpha = 0.85f),
-                                modifier = Modifier.size(16.dp)
-                            )
+                        if (readingMode == DefaultReadingMode.WEBTOON) {
+                            // Quick Speed Stepper Pill
+                            Row(
+                                modifier = Modifier
+                                    .clip(CapsuleShape)
+                                    .background(Color.White.copy(alpha = 0.08f))
+                                    .border(0.5.dp, Color.White.copy(alpha = 0.15f), CapsuleShape)
+                                    .clickable {
+                                        autoscrollSpeed = when {
+                                            autoscrollSpeed <= 1.2f -> 2f
+                                            autoscrollSpeed <= 2.2f -> 3f
+                                            else -> 1f
+                                        }
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Speed: ${if (autoscrollSpeed <= 1.2f) "1x" else if (autoscrollSpeed <= 2.2f) "2x" else "3x"}",
+                                    fontSize = 11.sp,
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        } else {
+                            // Step next page
+                            Row(
+                                modifier = Modifier
+                                    .clip(CapsuleShape)
+                                    .clickable { handleNext() }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Next", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Medium)
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.NavigateNext,
+                                    contentDescription = "Next Page",
+                                    tint = Color.White.copy(alpha = 0.85f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                     }
 
@@ -1002,6 +1119,41 @@ fun WebtoonReaderScreenContent(
                     }
                 }
             }
+        }
+
+        // LAYER 4: Floating Autoscroll Pill (accessible even when reader controls are hidden for immersive reading)
+        AnimatedVisibility(
+            visible = isAutoscrollActive,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .navigationBarsPadding()
+                .padding(end = 20.dp, bottom = if (areControlsVisible) 130.dp else 24.dp)
+        ) {
+            WebtoonAutoscrollPill(
+                isPlaying = isAutoscrollActive,
+                isPausedByTouch = isAutoscrollPausedByTouch,
+                speed = autoscrollSpeed,
+                onTogglePlay = {
+                    if (isAutoscrollPausedByTouch) {
+                        isAutoscrollPausedByTouch = false
+                    } else {
+                        isAutoscrollPausedByTouch = true
+                    }
+                },
+                onCycleSpeed = {
+                    autoscrollSpeed = when {
+                        autoscrollSpeed <= 1.2f -> 2f
+                        autoscrollSpeed <= 2.2f -> 3f
+                        else -> 1f
+                    }
+                },
+                onClose = {
+                    isAutoscrollActive = false
+                    isAutoscrollPausedByTouch = false
+                }
+            )
         }
     }
 }
@@ -1065,6 +1217,316 @@ private fun ReaderModeSwitcher(
 }
 
 /**
+ * Inline seamless chapter transition gap for continuous webtoon vertical reading.
+ * Provides a clean visual boundary showing the next chapter title and number with tap/scroll continuation.
+ */
+@Composable
+fun WebtoonChapterTransitionGap(
+    currentChapterTitle: String,
+    nextChapterTitle: String,
+    onContinueToNextChapter: () -> Unit,
+    glassState: PanelGlassState,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 24.dp, horizontal = 16.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFF0F131D).copy(alpha = 0.85f))
+                .border(1.dp, GlassBorderStrong, RoundedCornerShape(20.dp))
+                .clickable(
+                    interactionSource = interactionSource,
+                    indication = null,
+                    onClick = onContinueToNextChapter
+                )
+                .padding(vertical = 20.dp, horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Subtle glowing divider line
+            val primaryAccent = MaterialTheme.colorScheme.primary
+            Box(
+                modifier = Modifier
+                    .width(48.dp)
+                    .height(3.dp)
+                    .clip(CapsuleShape)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color.Transparent,
+                                primaryAccent,
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Finished chapter label
+            Text(
+                text = "$currentChapterTitle Complete",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = TextSecondary
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Next chapter banner badge
+            Row(
+                modifier = Modifier
+                    .clip(CapsuleShape)
+                    .background(primaryAccent.copy(alpha = 0.15f))
+                    .border(1.dp, primaryAccent.copy(alpha = 0.35f), CapsuleShape)
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "NEXT: $nextChapterTitle",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = primaryAccent
+                )
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Action / scroll prompt
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "Tap or scroll to continue",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Normal,
+                    color = Color.White.copy(alpha = 0.65f)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.NavigateNext,
+                    contentDescription = null,
+                    tint = primaryAccent,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * End-of-series milestone card presented when all chapters have been read.
+ */
+@Composable
+fun WebtoonEndOfSeriesCard(
+    chapterTitle: String,
+    onBack: () -> Unit,
+    glassState: PanelGlassState,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 32.dp, horizontal = 20.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color(0xFF0F131D).copy(alpha = 0.90f))
+                .border(1.dp, GlassBorderStrong, RoundedCornerShape(24.dp))
+                .padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(CapsuleShape)
+                    .background(Color(0xFF10B981).copy(alpha = 0.15f))
+                    .border(1.dp, Color(0xFF10B981).copy(alpha = 0.35f), CapsuleShape)
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = "SERIES CAUGHT UP",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF10B981),
+                    letterSpacing = 1.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Text(
+                text = "$chapterTitle Finished",
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = "You've read all available chapters for this title.",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Normal,
+                color = TextSecondary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Box(
+                modifier = Modifier
+                    .clip(CapsuleShape)
+                    .background(Color.White.copy(alpha = 0.10f))
+                    .border(1.dp, GlassBorderStrong, CapsuleShape)
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                        onClick = onBack
+                    )
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Return to Title Details",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Floating glass autoscroll controller pill with Play/Pause, speed stepper, and close button.
+ */
+@Composable
+fun WebtoonAutoscrollPill(
+    isPlaying: Boolean,
+    isPausedByTouch: Boolean,
+    speed: Float,
+    onTogglePlay: () -> Unit,
+    onCycleSpeed: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val playInteraction = remember { MutableInteractionSource() }
+    val speedInteraction = remember { MutableInteractionSource() }
+    val closeInteraction = remember { MutableInteractionSource() }
+
+    val speedLabel = when {
+        speed <= 1.2f -> "1x"
+        speed <= 2.2f -> "2x"
+        else -> "3x"
+    }
+
+    val primaryAccent = MaterialTheme.colorScheme.primary
+    Box(
+        modifier = modifier
+            .clip(CapsuleShape)
+            .background(Color(0xF00A0D14))
+            .border(1.dp, if (isPlaying && !isPausedByTouch) primaryAccent.copy(alpha = 0.6f) else GlassBorderStrong, CapsuleShape)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            // Play/Pause icon button
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(if (isPlaying && !isPausedByTouch) primaryAccent else Color.White.copy(alpha = 0.12f))
+                    .clickable(
+                        interactionSource = playInteraction,
+                        indication = null,
+                        onClick = onTogglePlay
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isPlaying && !isPausedByTouch) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    contentDescription = if (isPlaying && !isPausedByTouch) "Pause Autoscroll" else "Start Autoscroll",
+                    tint = if (isPlaying && !isPausedByTouch) Color.Black else Color.White,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+
+            // Speed selector badge
+            Box(
+                modifier = Modifier
+                    .clip(CapsuleShape)
+                    .background(Color.White.copy(alpha = 0.08f))
+                    .border(0.5.dp, GlassBorder, CapsuleShape)
+                    .clickable(
+                        interactionSource = speedInteraction,
+                        indication = null,
+                        onClick = onCycleSpeed
+                    )
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = speedLabel,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isPlaying && !isPausedByTouch) primaryAccent else Color.White
+                )
+            }
+
+            // Status hint if paused by touch
+            if (isPausedByTouch) {
+                Text(
+                    text = "Paused",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color(0xFFFBBF24),
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+
+            // Close button
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.06f))
+                    .clickable(
+                        interactionSource = closeInteraction,
+                        indication = null,
+                        onClick = onClose
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Exit Autoscroll",
+                    tint = Color.White.copy(alpha = 0.7f),
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
  * End-of-Chapter transition glass card presented after the last page of a chapter.
  */
 @Composable
@@ -1092,6 +1554,7 @@ fun WebtoonEndOfChapterCard(
             .padding(28.dp),
         contentAlignment = Alignment.Center
     ) {
+        val primaryAccent = MaterialTheme.colorScheme.primary
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
@@ -1099,14 +1562,14 @@ fun WebtoonEndOfChapterCard(
             Box(
                 modifier = Modifier
                     .clip(CapsuleShape)
-                    .background(ElectricBlue.copy(alpha = 0.15f))
+                    .background(primaryAccent.copy(alpha = 0.15f))
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text(
                     text = "CHAPTER COMPLETE",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = ElectricBlue,
+                    color = primaryAccent,
                     letterSpacing = 1.sp
                 )
             }
@@ -1134,7 +1597,7 @@ fun WebtoonEndOfChapterCard(
                         .height(50.dp)
                         .clip(CapsuleShape)
                         .glassPress(buttonInteraction)
-                        .background(ElectricBlue)
+                        .background(primaryAccent)
                         .clickable(
                             interactionSource = buttonInteraction,
                             indication = null,

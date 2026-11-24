@@ -103,6 +103,7 @@ interface PanelRepository {
         query: String = "",
         filters: BrowseFilters = BrowseFilters()
     ): Flow<List<SourceManga>>
+    fun getAdaptation(manga: SourceManga): Flow<SourceManga?> = flowOf(null)
 
     fun registerSource(source: core.source.ContentSource) {}
     fun unregisterSource(sourceId: Long) {}
@@ -246,6 +247,26 @@ class FakePanelRepository : PanelRepository {
         isNovel = false
     )
 
+    private val soloLevelingNovel = SourceManga(
+        url = "novel/solo-leveling",
+        title = "Solo Leveling (Novel)",
+        author = "Chugong",
+        genres = listOf("Action", "Fantasy"),
+        status = MangaStatus.COMPLETED,
+        thumbnailUrl = "solo_leveling_cover",
+        isNovel = true
+    )
+
+    private val orvNovel = SourceManga(
+        url = "novel/orv",
+        title = "Omniscient Reader's Viewpoint (Novel)",
+        author = "sing N song",
+        genres = listOf("Action", "Fantasy", "Supernatural"),
+        status = MangaStatus.COMPLETED,
+        thumbnailUrl = "orv_cover",
+        isNovel = true
+    )
+
     private val allMangaList = listOf(
         lastHorizon,
         soloLeveling,
@@ -259,7 +280,9 @@ class FakePanelRepository : PanelRepository {
         silentWinter,
         tbate,
         shadowSlave,
-        omniscientReader
+        omniscientReader,
+        soloLevelingNovel,
+        orvNovel
     )
 
     private val sourceMangaMap = mapOf(
@@ -433,6 +456,19 @@ class FakePanelRepository : PanelRepository {
                 plainText = "The morning light filtered through the leaves, casting moving shadows on the stone path. Wei Wuxian adjusted his sword at his side and looked toward the distant mountains. A new journey awaited, and with it, countless unknowns.\n\n\"We'll set out at dawn,\" he said, turning to his companions. \"This time, we don't just fight the darkness—we understand it.\""
             )
         )
+    }
+
+    override fun getAdaptation(manga: SourceManga): Flow<SourceManga?> {
+        val cleanTitle = manga.title
+            .replace(Regex("""(?i)\s*(\(Novel\)|\(Manhwa\)|\(Manga\)|\(Webtoon\)|\[Novel\]|\[Comic\])"""), "")
+            .trim()
+        val targetIsNovel = !manga.isNovel
+        val found = allMangaList.firstOrNull { other ->
+            other.url != manga.url &&
+            other.isNovel == targetIsNovel &&
+            (other.title.contains(cleanTitle, ignoreCase = true) || cleanTitle.contains(other.title, ignoreCase = true))
+        }
+        return flowOf(found)
     }
 
     override fun getTrending(): Flow<List<SourceManga>> {

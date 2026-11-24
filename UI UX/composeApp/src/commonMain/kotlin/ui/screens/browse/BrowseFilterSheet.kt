@@ -275,12 +275,12 @@ fun BrowseFilterBottomSheet(
                                         .clip(CapsuleShape)
                                         .glassPress(chipInteraction)
                                         .background(
-                                            if (isSelected) Color.White.copy(alpha = 0.22f)
+                                            if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
                                             else Color.White.copy(alpha = 0.06f)
                                         )
                                         .border(
                                             width = 1.dp,
-                                            color = if (isSelected) Color.White.copy(alpha = 0.55f) else GlassBorder,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.65f) else GlassBorder,
                                             shape = CapsuleShape
                                         )
                                         .clickable(
@@ -305,7 +305,7 @@ fun BrowseFilterBottomSheet(
                                             Icon(
                                                 imageVector = Icons.Default.Check,
                                                 contentDescription = null,
-                                                tint = Color.White,
+                                                tint = MaterialTheme.colorScheme.primary,
                                                 modifier = Modifier.size(13.dp)
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
@@ -367,7 +367,7 @@ fun BrowseFilterBottomSheet(
                                     .height(48.dp)
                                     .clip(CapsuleShape)
                                     .glassPress(applyInteraction)
-                                    .background(Color.White)
+                                    .background(MaterialTheme.colorScheme.primary)
                                     .clickable(
                                         interactionSource = applyInteraction,
                                         indication = null,
@@ -389,7 +389,7 @@ fun BrowseFilterBottomSheet(
                                     text = "Apply Filters",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF090D15)
+                                    color = MaterialTheme.colorScheme.onPrimary
                                 )
                             }
                         }

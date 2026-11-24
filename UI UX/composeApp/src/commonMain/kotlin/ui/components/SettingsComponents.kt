@@ -78,7 +78,6 @@ import ui.motion.rememberSegmentedIndicatorSpring
 import ui.theme.BadgeRed
 import ui.theme.BottomSheetShape
 import ui.theme.CapsuleShape
-import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
 import ui.theme.GlassBorderStrong
 import ui.theme.PanelBackground
@@ -382,7 +381,7 @@ object SettingsRow {
                         text = valueDisplay,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = ElectricBlue
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
 
@@ -393,8 +392,8 @@ object SettingsRow {
                     onValueChange = onValueChange,
                     valueRange = valueRange,
                     colors = SliderDefaults.colors(
-                        thumbColor = ElectricBlue,
-                        activeTrackColor = ElectricBlue,
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
                         inactiveTrackColor = Color.White.copy(alpha = 0.15f)
                     ),
                     modifier = Modifier.fillMaxWidth()
@@ -425,7 +424,7 @@ object SettingsRow {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
-                            tint = ElectricBlue,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
@@ -434,7 +433,7 @@ object SettingsRow {
                         text = text,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = ElectricBlue
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
                 if (secondaryText != null) {
@@ -507,7 +506,7 @@ fun GlassSwitch(
 
     val trackColor = when {
         !enabled -> PanelSurfaceSubtle
-        checked -> ElectricBlue
+        checked -> MaterialTheme.colorScheme.primary
         else -> Color.White.copy(alpha = 0.12f)
     }
 
@@ -881,7 +880,7 @@ fun GlassConfirmDialog(
                         text = confirmText,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (isDestructive) BadgeRed else ElectricBlue,
+                        color = if (isDestructive) BadgeRed else MaterialTheme.colorScheme.primary,
                         modifier = Modifier
                             .clickable {
                                 onConfirm()

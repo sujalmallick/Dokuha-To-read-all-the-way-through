@@ -57,7 +57,6 @@ import data.download.DownloadManager
 import data.download.DownloadStatus
 import ui.components.PanelCircleIconButton
 import ui.theme.CapsuleShape
-import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
 import ui.theme.GlassBorderStrong
 import ui.theme.PanelBackground
@@ -214,7 +213,7 @@ fun BatchDownloadSheet(
                             Icon(
                                 imageVector = Icons.Default.Storage,
                                 contentDescription = null,
-                                tint = ElectricBlue,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
@@ -321,17 +320,18 @@ fun BatchDownloadSheet(
                                             .padding(horizontal = 12.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
+                                        val primaryColor = MaterialTheme.colorScheme.primary
                                         Box(
                                             modifier = Modifier
                                                 .size(20.dp)
                                                 .clip(RoundedCornerShape(6.dp))
                                                 .background(
-                                                    if (isSelected || isDownloaded) ElectricBlue
+                                                    if (isSelected || isDownloaded) primaryColor
                                                     else Color.White.copy(alpha = 0.08f)
                                                 )
                                                 .border(
                                                     1.dp,
-                                                    if (isSelected || isDownloaded) ElectricBlue else GlassBorder,
+                                                    if (isSelected || isDownloaded) primaryColor else GlassBorder,
                                                     RoundedCornerShape(6.dp)
                                                 ),
                                             contentAlignment = Alignment.Center
@@ -359,7 +359,7 @@ fun BatchDownloadSheet(
                                             Text(
                                                 text = "Downloaded",
                                                 style = MaterialTheme.typography.labelSmall,
-                                                color = ElectricBlue
+                                                color = primaryColor
                                             )
                                         }
                                     }
@@ -446,6 +446,7 @@ private fun PresetSelectionRow(
 ) {
     val shape = RoundedCornerShape(14.dp)
 
+    val primaryColor = MaterialTheme.colorScheme.primary
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -456,7 +457,7 @@ private fun PresetSelectionRow(
             )
             .border(
                 width = if (isSelected) 1.dp else 0.75.dp,
-                color = if (isSelected) ElectricBlue else GlassBorder,
+                color = if (isSelected) primaryColor else GlassBorder,
                 shape = shape
             )
             .clickable(enabled = enabled, onClick = onClick)
@@ -470,7 +471,7 @@ private fun PresetSelectionRow(
                 .clip(CircleShape)
                 .border(
                     width = 1.5.dp,
-                    color = if (isSelected) ElectricBlue else GlassBorderStrong,
+                    color = if (isSelected) primaryColor else GlassBorderStrong,
                     shape = CircleShape
                 ),
             contentAlignment = Alignment.Center
@@ -480,7 +481,7 @@ private fun PresetSelectionRow(
                     modifier = Modifier
                         .size(10.dp)
                         .clip(CircleShape)
-                        .background(ElectricBlue)
+                        .background(primaryColor)
                 )
             }
         }
@@ -510,7 +511,7 @@ private fun PresetSelectionRow(
             text = sizeEstimate,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Medium,
-            color = if (isSelected) ElectricBlue else TextTertiary
+            color = if (isSelected) primaryColor else TextTertiary
         )
     }
 }

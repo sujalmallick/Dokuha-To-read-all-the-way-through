@@ -90,3 +90,8 @@ LEFT JOIN chapters c ON m.id = c.manga_id
 WHERE m.favorite = 1
 GROUP BY m.id;
 
+searchMangaByTitle:
+SELECT *
+FROM mangas
+WHERE title LIKE ('%' || :query || '%');
+

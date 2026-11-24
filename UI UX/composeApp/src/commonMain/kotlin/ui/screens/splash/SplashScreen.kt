@@ -14,7 +14,20 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.key
+import androidx.compose.ui.draw.clip
+import ui.theme.GlassBorder
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -68,28 +81,81 @@ private val KanjiColor = Color(0x66FFFFFF)
 
 class SplashScreen(
     private val motionStyle: SplashMotionStyle? = null,
-    private val logoStyle: AppLogoStyle? = null
+    private val logoStyle: AppLogoStyle? = null,
+    private val isPreview: Boolean = false
 ) : Screen {
 
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val settingsRepository: SettingsRepository = koinInject()
+        var replayKey by remember { mutableStateOf(0) }
 
-        SplashScreenContent(
-            logoStyle = logoStyle,
-            motionStyle = motionStyle,
-            onFinished = {
-                val isOnboarded = runCatching { settingsRepository.isOnboardingCompleted.value }.getOrDefault(false)
-                if (navigator.size > 1) {
-                    navigator.pop()
-                } else if (isOnboarded) {
-                    navigator.replaceAll(MainTabScreen())
-                } else {
-                    navigator.replaceAll(WelcomeScreen())
+        Box(modifier = Modifier.fillMaxSize()) {
+            key(replayKey) {
+                SplashScreenContent(
+                    logoStyle = logoStyle,
+                    motionStyle = motionStyle,
+                    autoFinish = !isPreview,
+                    onFinished = {
+                        val isOnboarded = runCatching { settingsRepository.isOnboardingCompleted.value }.getOrDefault(false)
+                        if (navigator.size > 1) {
+                            navigator.pop()
+                        } else if (isOnboarded) {
+                            navigator.replaceAll(MainTabScreen())
+                        } else {
+                            navigator.replaceAll(WelcomeScreen())
+                        }
+                    }
+                )
+            }
+
+            if (isPreview) {
+                // Floating top controls: Close and Replay
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(horizontal = 20.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.65f))
+                            .border(1.dp, GlassBorder, CircleShape)
+                            .clickable { navigator.pop() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close Preview",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.65f))
+                            .border(1.dp, GlassBorder, CircleShape)
+                            .clickable { replayKey++ },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Replay Preview",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
-        )
+        }
     }
 }
 
@@ -103,7 +169,8 @@ fun SplashScreenContent(
     onFinished: () -> Unit,
     modifier: Modifier = Modifier,
     logoStyle: AppLogoStyle? = null,
-    motionStyle: SplashMotionStyle? = null
+    motionStyle: SplashMotionStyle? = null,
+    autoFinish: Boolean = true
 ) {
     val settingsRepo: SettingsRepository? = runCatching { koinInject<SettingsRepository>() }.getOrNull()
     val currentSelectedStyle by (settingsRepo?.appLogoStyle ?: remember { MutableStateFlow(AppLogoStyle.GLASSMORPHIC) }).collectAsState()
@@ -112,7 +179,7 @@ fun SplashScreenContent(
     val activeMotion = motionStyle ?: currentSelectedMotion
 
     var hasFinished by remember { mutableStateOf(false) }
-    val safeFinish = remember(onFinished) {
+    val safeFinish: () -> Unit = remember(onFinished) {
         {
             if (!hasFinished) {
                 hasFinished = true
@@ -137,7 +204,7 @@ fun SplashScreenContent(
             LiquidGlassLogo(
                 logo = if (activeStyle == AppLogoStyle.GLASSMORPHIC) Res.drawable.logo_glassmorphic else Res.drawable.logo_classic,
                 ending = LiquidGlassEnding.LOGO,
-                onAnimationEnd = safeFinish
+                onAnimationEnd = if (autoFinish) safeFinish else null
             )
         }
         return
@@ -270,8 +337,10 @@ fun SplashScreenContent(
         }
 
         // 4. Auto-transition into the app
-        delay(2250)
-        safeFinish()
+        if (autoFinish) {
+            delay(2250)
+            safeFinish()
+        }
     }
 
     Box(

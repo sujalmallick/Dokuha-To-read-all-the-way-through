@@ -76,7 +76,6 @@ import ui.glass.glassSurface
 import ui.glass.rememberPanelGlassState
 import ui.screens.details.TitleDetailsScreen
 import ui.theme.CapsuleShape
-import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
 import ui.theme.GlassBorderStrong
 import ui.theme.PanelBackground
@@ -477,7 +476,7 @@ fun SourceDetailScreenContent(
                         ) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(36.dp),
-                                color = ElectricBlue,
+                                color = MaterialTheme.colorScheme.primary,
                                 strokeWidth = 3.dp
                             )
                             Text(
@@ -546,7 +545,7 @@ fun SourceDetailScreenContent(
                             ) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(16.dp),
-                                    color = ElectricBlue,
+                                    color = MaterialTheme.colorScheme.primary,
                                     strokeWidth = 2.dp
                                 )
                                 Text(

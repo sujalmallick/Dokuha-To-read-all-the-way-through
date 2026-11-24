@@ -47,6 +47,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -155,7 +156,8 @@ fun LibraryScreenContent(
     onTabSelected: (PanelTab) -> Unit,
     modifier: Modifier = Modifier,
     initialSelectionMode: Boolean = false,
-    initialSelectedUrls: Set<String> = emptySet()
+    initialSelectedUrls: Set<String> = emptySet(),
+    onModalSheetVisibilityChanged: (Boolean) -> Unit = {}
 ) {
     val showUnreadCount = settingsRepository?.showUnreadCount?.collectAsState()?.value ?: true
     val catRepo = remember(categoryRepository) {
@@ -203,6 +205,11 @@ fun LibraryScreenContent(
     // Modal Sheets State
     var isCategoryEditSheetVisible by remember { mutableStateOf(false) }
     var isBatchMoveSheetVisible by remember { mutableStateOf(false) }
+
+    val isAnyModalSheetOpen = isFilterSheetVisible || isCategoryEditSheetVisible || isBatchMoveSheetVisible
+    LaunchedEffect(isAnyModalSheetOpen) {
+        onModalSheetVisibilityChanged(isAnyModalSheetOpen)
+    }
 
     Box(
         modifier = modifier

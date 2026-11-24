@@ -1,5 +1,10 @@
 package ui.screens.novelreader
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -29,19 +35,28 @@ import androidx.compose.material.icons.automirrored.filled.NavigateBefore
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import core.platform.PlatformTts
+import core.platform.TtsListener
+import core.platform.rememberPlatformTts
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
@@ -68,7 +83,8 @@ import ui.glass.glassSurface
 import ui.glass.nonGlassPress
 import ui.glass.rememberPanelGlassState
 import ui.theme.CapsuleShape
-import ui.theme.ElectricBlue
+import ui.theme.GlassBorder
+import ui.theme.GlassBorderStrong
 import ui.theme.PanelTheme
 import ui.theme.TextPrimary
 import ui.theme.TextSecondary
@@ -202,8 +218,12 @@ fun NovelReaderScreenContent(
     val fontFamily = remember(novelFont) { novelFont.toFontFamily() }
     val lineHeight = (fontSize * lineHeightMultiplier).sp
 
+    val tts = rememberPlatformTts()
     var isListening by remember { mutableStateOf(false) }
+    var currentSpeakingIndex by remember { mutableIntStateOf(-1) }
+    var ttsSpeed by remember { mutableFloatStateOf(1.0f) }
     var isBookmarked by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
 
     val parsedParagraphs: List<String> = remember(novelContent) {
         novelContent?.plainText
@@ -213,6 +233,14 @@ fun NovelReaderScreenContent(
             ?: emptyList()
     }
 
+    // Auto-scroll to currently spoken paragraph
+    LaunchedEffect(currentSpeakingIndex, isListening) {
+        if (currentSpeakingIndex >= 0 && isListening) {
+            val target = (currentSpeakingIndex + 1).coerceIn(0, parsedParagraphs.size)
+            listState.animateScrollToItem(target)
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -220,6 +248,7 @@ fun NovelReaderScreenContent(
     ) {
         // LAYER 1: Main Scrollable Reader Content (Sampled by Glass Overlays)
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .glassSource(glassState),
@@ -257,39 +286,56 @@ fun NovelReaderScreenContent(
             // Paragraphs: render from novelContent or real empty state
             if (parsedParagraphs.isNotEmpty()) {
                 parsedParagraphs.forEachIndexed { index, para ->
-                    item {
-                        if (index == 0) {
-                            val firstChar = para.take(1)
-                            val restOfPara = para.drop(1)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.Top
-                            ) {
-                                Text(
-                                    text = firstChar,
-                                    fontSize = (fontSize * 2.8f).sp,
-                                    lineHeight = (fontSize * 2.8f).sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = themeColors.textColor,
-                                    fontFamily = fontFamily,
-                                    modifier = Modifier.padding(end = 8.dp, top = 2.dp)
+                    item(key = "para_$index") {
+                        val isCurrentSpeech = isListening && currentSpeakingIndex == index
+                        val highlightShape = RoundedCornerShape(8.dp)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(highlightShape)
+                                .background(
+                                    if (isCurrentSpeech) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                                    else Color.Transparent
                                 )
+                                .then(
+                                    if (isCurrentSpeech) Modifier.border(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), highlightShape)
+                                    else Modifier
+                                )
+                                .padding(horizontal = if (isCurrentSpeech) 10.dp else 0.dp, vertical = if (isCurrentSpeech) 6.dp else 0.dp)
+                        ) {
+                            if (index == 0) {
+                                val firstChar = para.take(1)
+                                val restOfPara = para.drop(1)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Text(
+                                        text = firstChar,
+                                        fontSize = (fontSize * 2.8f).sp,
+                                        lineHeight = (fontSize * 2.8f).sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isCurrentSpeech) MaterialTheme.colorScheme.primary else themeColors.textColor,
+                                        fontFamily = fontFamily,
+                                        modifier = Modifier.padding(end = 8.dp, top = 2.dp)
+                                    )
+                                    Text(
+                                        text = restOfPara,
+                                        fontSize = fontSize.sp,
+                                        lineHeight = lineHeight,
+                                        color = themeColors.textColor.copy(alpha = if (isCurrentSpeech) 1.0f else 0.9f),
+                                        fontFamily = fontFamily
+                                    )
+                                }
+                            } else {
                                 Text(
-                                    text = restOfPara,
+                                    text = para,
                                     fontSize = fontSize.sp,
                                     lineHeight = lineHeight,
-                                    color = themeColors.textColor.copy(alpha = 0.9f),
+                                    color = themeColors.textColor.copy(alpha = if (isCurrentSpeech) 1.0f else 0.9f),
                                     fontFamily = fontFamily
                                 )
                             }
-                        } else {
-                            Text(
-                                text = para,
-                                fontSize = fontSize.sp,
-                                lineHeight = lineHeight,
-                                color = themeColors.textColor.copy(alpha = 0.9f),
-                                fontFamily = fontFamily
-                            )
                         }
                         Spacer(modifier = Modifier.height(20.dp))
                     }
@@ -415,7 +461,7 @@ fun NovelReaderScreenContent(
                     icon = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                     size = 40.dp,
                     iconSize = 20.dp,
-                    tint = if (isBookmarked) ElectricBlue else themeColors.textColor,
+                    tint = if (isBookmarked) MaterialTheme.colorScheme.primary else themeColors.textColor,
                     glassState = glassState,
                     hasDimming = true,
                     onClick = { isBookmarked = !isBookmarked }
@@ -504,6 +550,7 @@ fun NovelReaderScreenContent(
                         val colors = theme.toColors()
                         val isSelected = theme == selectedTheme
                         val dotInteraction = remember { MutableInteractionSource() }
+                        val primaryAccent = MaterialTheme.colorScheme.primary
                         Box(
                             modifier = Modifier
                                 .size(20.dp)
@@ -512,7 +559,7 @@ fun NovelReaderScreenContent(
                                 .background(colors.dotColor)
                                 .border(
                                     width = if (isSelected) 2.dp else 1.dp,
-                                    color = if (isSelected) ElectricBlue else Color.White.copy(alpha = 0.25f),
+                                    color = if (isSelected) primaryAccent else Color.White.copy(alpha = 0.25f),
                                     shape = CircleShape
                                 )
                                 .clickable(
@@ -526,22 +573,53 @@ fun NovelReaderScreenContent(
 
                 // TTS "Listen" Audio Button
                 val ttsInteraction = remember { MutableInteractionSource() }
+                val primaryAccent = MaterialTheme.colorScheme.primary
                 Row(
                     modifier = Modifier
                         .clip(CapsuleShape)
+                        .background(if (isListening) primaryAccent.copy(alpha = 0.20f) else Color.Transparent)
+                        .border(
+                            width = if (isListening) 1.dp else 0.dp,
+                            color = if (isListening) primaryAccent.copy(alpha = 0.40f) else Color.Transparent,
+                            shape = CapsuleShape
+                        )
                         .nonGlassPress(ttsInteraction)
                         .clickable(
                             interactionSource = ttsInteraction,
                             indication = null,
-                            onClick = { isListening = !isListening }
+                            onClick = {
+                                if (isListening) {
+                                    isListening = false
+                                    tts.pause()
+                                } else if (parsedParagraphs.isNotEmpty()) {
+                                    isListening = true
+                                    val startIdx = if (currentSpeakingIndex >= 0) currentSpeakingIndex else 0
+                                    tts.speak(
+                                        paragraphs = parsedParagraphs,
+                                        startIndex = startIdx,
+                                        listener = object : TtsListener {
+                                            override fun onParagraphStart(index: Int) {
+                                                currentSpeakingIndex = index
+                                            }
+                                            override fun onComplete() {
+                                                isListening = false
+                                                currentSpeakingIndex = -1
+                                            }
+                                            override fun onError(message: String) {
+                                                isListening = false
+                                            }
+                                        }
+                                    )
+                                }
+                            }
                         )
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Headphones,
+                        imageVector = if (isListening) Icons.Default.Pause else Icons.Default.Headphones,
                         contentDescription = "Listen",
-                        tint = if (isListening) ElectricBlue else themeColors.textColor,
+                        tint = if (isListening) primaryAccent else themeColors.textColor,
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -549,7 +627,7 @@ fun NovelReaderScreenContent(
                         text = if (isListening) "Playing" else "Listen",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (isListening) ElectricBlue else themeColors.textColor
+                        color = if (isListening) primaryAccent else themeColors.textColor
                     )
                 }
 
@@ -564,6 +642,220 @@ fun NovelReaderScreenContent(
                     borderColor = Color.White.copy(alpha = 0.12f),
                     onClick = { if (hasNextChapter) onNextChapter() }
                 )
+            }
+        }
+
+        // Floating Audio Player Glass Bar for TTS
+        AnimatedVisibility(
+            visible = isListening,
+            enter = fadeIn() + slideInVertically { it },
+            exit = fadeOut() + slideOutVertically { it },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = 80.dp, start = 20.dp, end = 20.dp)
+        ) {
+            NovelAudioPlayerBar(
+                currentParagraph = currentSpeakingIndex + 1,
+                totalParagraphs = parsedParagraphs.size,
+                speed = ttsSpeed,
+                onTogglePlay = {
+                    if (isListening) {
+                        isListening = false
+                        tts.pause()
+                    } else {
+                        isListening = true
+                        tts.resume()
+                    }
+                },
+                onPreviousParagraph = {
+                    if (currentSpeakingIndex > 0) {
+                        currentSpeakingIndex--
+                        tts.speak(parsedParagraphs, currentSpeakingIndex, object : TtsListener {
+                            override fun onParagraphStart(index: Int) { currentSpeakingIndex = index }
+                            override fun onComplete() { isListening = false }
+                            override fun onError(message: String) { isListening = false }
+                        })
+                    }
+                },
+                onNextParagraph = {
+                    if (currentSpeakingIndex < parsedParagraphs.lastIndex) {
+                        currentSpeakingIndex++
+                        tts.speak(parsedParagraphs, currentSpeakingIndex, object : TtsListener {
+                            override fun onParagraphStart(index: Int) { currentSpeakingIndex = index }
+                            override fun onComplete() { isListening = false }
+                            override fun onError(message: String) { isListening = false }
+                        })
+                    }
+                },
+                onCycleSpeed = {
+                    ttsSpeed = when {
+                        ttsSpeed <= 0.9f -> 1.0f
+                        ttsSpeed <= 1.1f -> 1.25f
+                        ttsSpeed <= 1.35f -> 1.5f
+                        ttsSpeed <= 1.7f -> 2.0f
+                        else -> 0.8f
+                    }
+                    tts.setSpeed(ttsSpeed)
+                },
+                onClose = {
+                    isListening = false
+                    tts.stop()
+                    currentSpeakingIndex = -1
+                }
+            )
+        }
+    }
+}
+
+/**
+ * Floating glass audio player control bar for novel Text-to-Speech playback.
+ */
+@Composable
+fun NovelAudioPlayerBar(
+    currentParagraph: Int,
+    totalParagraphs: Int,
+    speed: Float,
+    onTogglePlay: () -> Unit,
+    onPreviousParagraph: () -> Unit,
+    onNextParagraph: () -> Unit,
+    onCycleSpeed: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val barShape = RoundedCornerShape(20.dp)
+    val playInteraction = remember { MutableInteractionSource() }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(barShape)
+            .background(Color(0xF20B0E17))
+            .border(1.dp, GlassBorderStrong, barShape)
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left: Paragraph indicator
+            Column {
+                Text(
+                    text = "AUDIO READER",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    letterSpacing = 1.sp
+                )
+                Text(
+                    text = "Para $currentParagraph / $totalParagraphs",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Color.White
+                )
+            }
+
+            // Center: Playback Controls (Prev, Play/Pause, Next)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Prev paragraph
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .clickable(onClick = onPreviousParagraph),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.NavigateBefore,
+                        contentDescription = "Previous Paragraph",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                // Play / Pause main button
+                Box(
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary)
+                        .clickable(
+                            interactionSource = playInteraction,
+                            indication = null,
+                            onClick = onTogglePlay
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Pause,
+                        contentDescription = "Pause",
+                        tint = Color.Black,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                // Next paragraph
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .clickable(onClick = onNextParagraph),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.NavigateNext,
+                        contentDescription = "Next Paragraph",
+                        tint = Color.White,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+
+            // Right: Speed Stepper & Close
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Speed pill
+                Box(
+                    modifier = Modifier
+                        .clip(CapsuleShape)
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .border(0.5.dp, GlassBorder, CapsuleShape)
+                        .clickable(onClick = onCycleSpeed)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "${speed}x",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                // Close button
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.06f))
+                        .clickable(onClick = onClose),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close Audio Reader",
+                        tint = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
             }
         }
     }
@@ -623,7 +915,7 @@ fun NovelEndOfChapterCard(
                         .height(48.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .glassPress(buttonInteraction)
-                        .background(ElectricBlue)
+                        .background(MaterialTheme.colorScheme.primary)
                         .clickable(
                             interactionSource = buttonInteraction,
                             indication = null,

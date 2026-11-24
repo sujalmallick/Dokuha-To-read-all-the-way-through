@@ -284,7 +284,7 @@ class ScreenshotsTest {
     @Test
     fun capture_11_profile_screen() {
         val profile = UserProfile(
-            name = "Ritwik",
+            name = "Reader",
             memberSince = "Member since November 2026",
             avatarColorHex = 0xFF38BDF8,
             initials = "R"
@@ -330,7 +330,7 @@ class ScreenshotsTest {
     @Test
     fun capture_12_more_hub_screen() {
         val profile = UserProfile(
-            name = "Ritwik",
+            name = "Reader",
             memberSince = "Member since November 2026",
             avatarColorHex = 0xFF38BDF8,
             initials = "R"

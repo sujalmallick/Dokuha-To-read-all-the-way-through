@@ -351,8 +351,8 @@ fun LibraryFilterSheet(
                                             draftFilter = draftFilter.copy(downloadedOnly = it)
                                         },
                                         colors = SwitchDefaults.colors(
-                                            checkedThumbColor = Color.White,
-                                            checkedTrackColor = Color(0xFF3B82F6),
+                                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                                            checkedTrackColor = MaterialTheme.colorScheme.primary,
                                             uncheckedThumbColor = Color.White.copy(alpha = 0.6f),
                                             uncheckedTrackColor = Color.White.copy(alpha = 0.12f)
                                         )
@@ -370,7 +370,7 @@ fun LibraryFilterSheet(
                                 .fillMaxWidth()
                                 .padding(horizontal = 20.dp)
                                 .clip(CapsuleShape)
-                                .background(Color.White)
+                                .background(MaterialTheme.colorScheme.primary)
                                 .clickable {
                                     onApply(draftFilter)
                                     onDismiss()
@@ -380,7 +380,7 @@ fun LibraryFilterSheet(
                         ) {
                             Text(
                                 text = if (draftFilter.isActive) "Apply Filters (${draftFilter.activeFilterCount})" else "Apply",
-                                color = Color(0xFF090D15),
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 0.3.sp
@@ -412,9 +412,9 @@ fun FilterChoiceChip(
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null
 ) {
     val shape = CapsuleShape
-    val backgroundColor = if (isSelected) Color.White else Color.White.copy(alpha = 0.08f)
-    val contentColor = if (isSelected) Color(0xFF090D15) else Color.White.copy(alpha = 0.85f)
-    val borderColor = if (isSelected) Color.White else Color.White.copy(alpha = 0.16f)
+    val backgroundColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.08f)
+    val contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else Color.White.copy(alpha = 0.85f)
+    val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.16f)
 
     Box(
         modifier = modifier

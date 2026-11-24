@@ -1,7 +1,12 @@
 package ui.screens.maintab
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -9,9 +14,11 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -67,6 +74,11 @@ class MainTabScreen(
         val settingsRepository: SettingsRepository = koinInject()
 
         val glassState = rememberPanelGlassState()
+        var isModalSheetOpen by remember { mutableStateOf(false) }
+
+        LaunchedEffect(currentTab) {
+            isModalSheetOpen = false
+        }
 
         Box(
             modifier = Modifier
@@ -104,7 +116,8 @@ class MainTabScreen(
                                 }
                             },
                             onTabSelected = { currentTab = it },
-                            showBottomBar = false
+                            showBottomBar = false,
+                            onModalSheetVisibilityChanged = { isModalSheetOpen = it }
                         )
                     }
                     PanelTab.UPDATES -> {
@@ -164,7 +177,8 @@ class MainTabScreen(
                                 )
                             },
                             onTabSelected = { currentTab = it },
-                            showBottomBar = false
+                            showBottomBar = false,
+                            onModalSheetVisibilityChanged = { isModalSheetOpen = it }
                         )
                     }
                     PanelTab.MORE -> {
@@ -197,16 +211,22 @@ class MainTabScreen(
                 }
             }
 
-            // Single, persistent bottom nav bar dock across all tabs
-            PanelBottomNavBar(
-                selectedTab = currentTab,
-                onTabSelected = { currentTab = it },
-                glassState = glassState,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(horizontal = 24.dp, vertical = 12.dp)
-            )
+            // Single, persistent bottom nav bar dock across all tabs (auto-hides when modal sheets/filter sheets are open)
+            AnimatedVisibility(
+                visible = !isModalSheetOpen,
+                enter = slideInVertically(initialOffsetY = { it * 2 }) + fadeIn(tween(180)),
+                exit = slideOutVertically(targetOffsetY = { it * 2 }) + fadeOut(tween(180)),
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                PanelBottomNavBar(
+                    selectedTab = currentTab,
+                    onTabSelected = { currentTab = it },
+                    glassState = glassState,
+                    modifier = Modifier
+                        .navigationBarsPadding()
+                        .padding(horizontal = 24.dp, vertical = 12.dp)
+                )
+            }
         }
     }
 }
