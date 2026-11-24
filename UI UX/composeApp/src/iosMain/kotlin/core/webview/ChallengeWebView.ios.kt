@@ -1,36 +1,27 @@
 package core.webview
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.interop.UIKitView
-import androidx.compose.ui.unit.sp
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.ObjCSignatureOverride
 import kotlinx.cinterop.readValue
 import platform.CoreGraphics.CGRectZero
 import platform.Foundation.NSError
+import platform.Foundation.NSHTTPCookie
 import platform.Foundation.NSURL
 import platform.Foundation.NSURLRequest
 import platform.WebKit.WKHTTPCookieStore
 import platform.WebKit.WKNavigation
-import platform.WebKit.WKNavigationAction
-import platform.WebKit.WKNavigationActionPolicy
 import platform.WebKit.WKNavigationDelegateProtocol
-import platform.WebKit.WKNavigationResponse
-import platform.WebKit.WKNavigationResponsePolicy
-import platform.WebKit.WKPreferences
 import platform.WebKit.WKWebView
 import platform.WebKit.WKWebViewConfiguration
+import platform.WebKit.WKWebpagePreferences
 import platform.WebKit.WKWebsiteDataStore
 import platform.darwin.NSObject
 
@@ -64,7 +55,7 @@ actual fun ChallengeWebView(
                 if (hasResolved) return
 
                 cookieStore.getAllCookies { cookies ->
-                    val cookieList = cookies?.filterIsInstance<platform.Foundation.NSHTTPCookie>() ?: emptyList()
+                    val cookieList = cookies?.filterIsInstance<NSHTTPCookie>() ?: emptyList()
                     val cookieMap = cookieList.associate { it.name to it.value }
 
                     if (cookieMap.isNotEmpty()) {
@@ -95,18 +86,26 @@ actual fun ChallengeWebView(
                 }
             }
 
+            @ObjCSignatureOverride
+            @Suppress("CONFLICTING_OVERLOADS")
             override fun webView(webView: WKWebView, didStartProvisionalNavigation: WKNavigation?) {
                 checkClearance(webView, isPageFinished = false)
             }
 
+            @ObjCSignatureOverride
+            @Suppress("CONFLICTING_OVERLOADS")
             override fun webView(webView: WKWebView, didCommitNavigation: WKNavigation?) {
                 checkClearance(webView, isPageFinished = false)
             }
 
+            @ObjCSignatureOverride
+            @Suppress("CONFLICTING_OVERLOADS")
             override fun webView(webView: WKWebView, didFinishNavigation: WKNavigation?) {
                 checkClearance(webView, isPageFinished = true)
             }
 
+            @ObjCSignatureOverride
+            @Suppress("CONFLICTING_OVERLOADS")
             override fun webView(
                 webView: WKWebView,
                 didFailNavigation: WKNavigation?,
@@ -115,6 +114,8 @@ actual fun ChallengeWebView(
                 onError(withError.localizedDescription ?: "Navigation failed")
             }
 
+            @ObjCSignatureOverride
+            @Suppress("CONFLICTING_OVERLOADS")
             override fun webView(
                 webView: WKWebView,
                 didFailProvisionalNavigation: WKNavigation?,
@@ -128,8 +129,8 @@ actual fun ChallengeWebView(
     UIKitView(
         factory = {
             val config = WKWebViewConfiguration().apply {
-                preferences = WKPreferences().apply {
-                    javaScriptEnabled = true
+                defaultWebpagePreferences = WKWebpagePreferences().apply {
+                    allowsContentJavaScript = true
                 }
                 websiteDataStore = WKWebsiteDataStore.defaultDataStore()
             }
@@ -139,7 +140,10 @@ actual fun ChallengeWebView(
                     customUserAgent = userAgent
                 }
                 navigationDelegate = delegate
-                loadRequest(NSURLRequest.requestWithURL(NSURL.URLWithString(url)!!))
+                val requestUrl = NSURL.URLWithString(url) ?: NSURL(string = url)
+                if (requestUrl != null) {
+                    loadRequest(NSURLRequest.requestWithURL(requestUrl))
+                }
             }
         },
         modifier = modifier.fillMaxSize(),
