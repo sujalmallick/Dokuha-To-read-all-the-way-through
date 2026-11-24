@@ -17,6 +17,7 @@ androidx-test-runner = "1.6.2"
 compose-ui-test = "1.7.1"
 roborazzi = "1.26.0"
 quickjs = "1.0.0-alpha13"
+okio = "3.9.1"
 ktor = "3.0.1"
 sqldelight = "2.0.2"
 
@@ -58,6 +59,9 @@ koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", ver
 # QuickJS
 quickjs = { module = "io.github.dokar3:quickjs-kt", version.ref = "quickjs" }
 quickjs-jvm = { module = "io.github.dokar3:quickjs-kt-jvm", version.ref = "quickjs" }
+
+# Okio
+okio = { module = "com.squareup.okio:okio", version.ref = "okio" }
 
 # SQLDelight
 sqldelight-runtime = { module = "app.cash.sqldelight:runtime", version.ref = "sqldelight" }

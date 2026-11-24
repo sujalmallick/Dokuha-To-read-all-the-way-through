@@ -223,7 +223,7 @@ class ExtensionManager(
             if (catalogItem.sha256.isNotBlank()) {
                 val computedHash = Sha256.hashHex(script).lowercase()
                 if (!computedHash.equals(catalogItem.sha256.lowercase(), ignoreCase = true)) {
-                    println("[ExtensionManager] Checksum mismatch for ${catalogItem.id}: expected ${catalogItem.sha256}, got $computedHash")
+                    core.logging.AppLogger.w("ExtensionManager", "Checksum mismatch for ${catalogItem.id}: expected ${catalogItem.sha256}, got $computedHash")
                     return false
                 }
             }
@@ -250,7 +250,7 @@ class ExtensionManager(
 
             true
         } catch (e: Exception) {
-            println("[ExtensionManager] Failed to install extension ${catalogItem.id}: ${e.message}")
+            core.logging.AppLogger.e("ExtensionManager", "Failed to install extension ${catalogItem.id}: ${e.message}", e)
             false
         }
     }

@@ -54,7 +54,7 @@ class JsExtensionSource(
 
     override suspend fun getPopular(page: Int): MangasPage {
         val result = engine.callFunction("extension.getPopular", page)
-        println("[JsExtensionSource] getPopular result: $result")
+        core.logging.AppLogger.d("JsExtensionSource", "getPopular result: $result")
         return parseMangasPage(result)
     }
 
@@ -96,16 +96,15 @@ class JsExtensionSource(
     }
 
     override suspend fun getPageList(chapter: SourceChapter): List<SourcePage> {
-        println("[JsExtensionSource] getPageList called with chapter.url=${chapter.url}")
+        core.logging.AppLogger.d("JsExtensionSource", "getPageList called with chapter.url=${chapter.url}")
         return try {
             val result = engine.callFunction("extension.getPages", chapter.url)
-            println("[JsExtensionSource] extension.getPages returned raw result length: ${result.length}")
+            core.logging.AppLogger.d("JsExtensionSource", "extension.getPages returned raw result length: ${result.length}")
             val pages = parsePageList(result)
-            println("[JsExtensionSource] parsePageList parsed ${pages.size} pages")
+            core.logging.AppLogger.d("JsExtensionSource", "parsePageList parsed ${pages.size} pages")
             pages
         } catch (e: Exception) {
-            println("[JsExtensionSource] Error calling extension.getPages: ${e.message}")
-            e.printStackTrace()
+            core.logging.AppLogger.e("JsExtensionSource", "Error calling extension.getPages: ${e.message}", e)
             emptyList()
         }
     }
