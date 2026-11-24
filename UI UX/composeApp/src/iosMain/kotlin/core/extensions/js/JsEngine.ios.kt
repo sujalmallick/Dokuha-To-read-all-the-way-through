@@ -318,6 +318,22 @@ actual class JsEngine actual constructor() {
             is Boolean -> JSValueMakeBoolean(ctx, result)
             is Number -> JSValueMakeNumber(ctx, result.toDouble())
             is String -> stringToJsValue(ctx, result)
+            is Map<*, *> -> {
+                val jsonStr = try {
+                    Json.encodeToString(JsonElement.serializer(), anyToJsonElement(result))
+                } catch (_: Throwable) {
+                    "{}"
+                }
+                stringToJsValue(ctx, jsonStr)
+            }
+            is List<*> -> {
+                val jsonStr = try {
+                    Json.encodeToString(JsonElement.serializer(), anyToJsonElement(result))
+                } catch (_: Throwable) {
+                    "[]"
+                }
+                stringToJsValue(ctx, jsonStr)
+            }
             else -> stringToJsValue(ctx, result.toString())
         }
     }
@@ -388,6 +404,13 @@ actual class JsEngine actual constructor() {
                         null -> "null"
                         is Boolean, is Number -> result.toString()
                         is String -> "\"${result.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")}\""
+                        is Map<*, *>, is List<*> -> {
+                            try {
+                                Json.encodeToString(JsonElement.serializer(), anyToJsonElement(result))
+                            } catch (_: Throwable) {
+                                "null"
+                            }
+                        }
                         else -> "\"${result.toString().replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r")}\""
                     }
                     """
@@ -472,6 +495,18 @@ private fun parseArgsJson(jsonStr: String): List<Any?> {
         }
     } catch (_: Throwable) {
         listOf(jsonStr)
+    }
+}
+
+private fun anyToJsonElement(value: Any?): JsonElement {
+    return when (value) {
+        null -> JsonNull
+        is Boolean -> JsonPrimitive(value)
+        is Number -> JsonPrimitive(value)
+        is String -> JsonPrimitive(value)
+        is List<*> -> JsonArray(value.map { anyToJsonElement(it) })
+        is Map<*, *> -> JsonObject(value.entries.associate { (k, v) -> k.toString() to anyToJsonElement(v) })
+        else -> JsonPrimitive(value.toString())
     }
 }
 
