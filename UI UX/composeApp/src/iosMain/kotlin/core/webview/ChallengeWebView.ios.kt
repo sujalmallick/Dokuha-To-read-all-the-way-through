@@ -2,12 +2,14 @@ package core.webview
 
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.interop.UIKitView
+import core.extensions.js.CloudflareChallengeHeuristics
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.ObjCSignatureOverride
 import kotlinx.cinterop.readValue
@@ -43,45 +45,58 @@ actual fun ChallengeWebView(
     modifier: Modifier
 ) {
     var hasResolved by remember { mutableStateOf(false) }
+    val targetHost = remember(url) { CloudflareChallengeHeuristics.extractValidatedHttpHost(url) }
+
+    if (targetHost == null) {
+        LaunchedEffect(url) {
+            onError("Invalid or disallowed challenge URL")
+        }
+        return
+    }
 
     val cookieStore = remember {
         WKWebsiteDataStore.defaultDataStore().httpCookieStore
     }
 
-    val delegate = remember {
+    val delegate = remember(url, targetHost) {
         object : NSObject(), WKNavigationDelegateProtocol {
 
             private fun checkClearance(webView: WKWebView, isPageFinished: Boolean) {
                 if (hasResolved) return
+                val currentUrl = webView.URL?.absoluteString ?: url
+                val currentHost = CloudflareChallengeHeuristics.extractValidatedHttpHost(currentUrl) ?: targetHost
 
                 cookieStore.getAllCookies { cookies ->
+                    if (hasResolved) return@getAllCookies
                     val cookieList = cookies?.filterIsInstance<NSHTTPCookie>() ?: emptyList()
-                    val cookieMap = cookieList.associate { it.name to it.value }
+                    val cookieMap = cookieList
+                        .filter {
+                            CloudflareChallengeHeuristics.cookieMatchesTargetHost(it.domain, targetHost) ||
+                                CloudflareChallengeHeuristics.cookieMatchesTargetHost(it.domain, currentHost)
+                        }
+                        .associate { it.name to it.value }
 
                     if (cookieMap.isNotEmpty()) {
                         onCookiesChanged?.invoke(cookieMap)
                     }
 
-                    val hasCfClearance = cookieMap.containsKey("cf_clearance")
                     val currentTitle = webView.title ?: ""
-                    val currentUrl = webView.URL?.absoluteString ?: url
 
-                    val isChallengeTitle = currentTitle.contains("Just a moment", ignoreCase = true) ||
-                        currentTitle.contains("Cloudflare", ignoreCase = true) ||
-                        currentTitle.contains("Attention Required", ignoreCase = true) ||
-                        currentTitle.contains("Security Check", ignoreCase = true)
-                    val isChallengeUrl = currentUrl.contains("challenge-platform", ignoreCase = true) ||
-                        currentUrl.contains("/cdn-cgi/", ignoreCase = true)
-
-                    val isNormalFinishedPage = isPageFinished &&
-                        currentTitle.isNotBlank() &&
-                        !isChallengeTitle &&
-                        !isChallengeUrl
-
-                    if (hasCfClearance || (isNormalFinishedPage && cookieMap.isNotEmpty())) {
+                    if (CloudflareChallengeHeuristics.isChallengeResolved(
+                            title = currentTitle,
+                            currentUrl = currentUrl,
+                            cookies = cookieMap,
+                            isPageFinished = isPageFinished
+                        )
+                    ) {
                         hasResolved = true
-                        val resolvedUa = webView.customUserAgent ?: userAgent
-                        onChallengeResolved(cookieMap, resolvedUa)
+                        webView.evaluateJavaScript("navigator.userAgent") { uaResult, _ ->
+                            val resolvedUa = CloudflareChallengeHeuristics.resolveIosUserAgent(
+                                requestedUserAgent = userAgent,
+                                webViewUserAgent = uaResult?.toString() ?: webView.customUserAgent
+                            )
+                            onChallengeResolved(cookieMap, resolvedUa)
+                        }
                     }
                 }
             }
@@ -111,6 +126,7 @@ actual fun ChallengeWebView(
                 didFailNavigation: WKNavigation?,
                 withError: NSError
             ) {
+                if (withError.code == -999L) return
                 onError(withError.localizedDescription ?: "Navigation failed")
             }
 
@@ -121,6 +137,7 @@ actual fun ChallengeWebView(
                 didFailProvisionalNavigation: WKNavigation?,
                 withError: NSError
             ) {
+                if (withError.code == -999L) return
                 onError(withError.localizedDescription ?: "Provisional navigation failed")
             }
         }
@@ -136,7 +153,7 @@ actual fun ChallengeWebView(
             }
 
             WKWebView(frame = CGRectZero.readValue(), configuration = config).apply {
-                if (userAgent.isNotBlank() && !userAgent.startsWith("Dokuha/")) {
+                if (CloudflareChallengeHeuristics.isCompatibleIosUserAgent(userAgent)) {
                     customUserAgent = userAgent
                 }
                 navigationDelegate = delegate
