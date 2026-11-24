@@ -3,6 +3,8 @@ package core.platform
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.ObjCSignatureOverride
 import platform.AVFAudio.AVAudioSession
 import platform.AVFAudio.AVAudioSessionCategoryPlayback
 import platform.AVFAudio.AVSpeechBoundary
@@ -11,6 +13,7 @@ import platform.AVFAudio.AVSpeechSynthesizerDelegateProtocol
 import platform.AVFAudio.AVSpeechUtterance
 import platform.darwin.NSObject
 
+@OptIn(ExperimentalForeignApi::class)
 actual class PlatformTts {
     private val synthesizer = AVSpeechSynthesizer()
     private var currentParagraphs: List<String> = emptyList()
@@ -20,10 +23,14 @@ actual class PlatformTts {
     private var isPaused = false
 
     private val delegate = object : NSObject(), AVSpeechSynthesizerDelegateProtocol {
+        @ObjCSignatureOverride
+        @Suppress("CONFLICTING_OVERLOADS")
         override fun speechSynthesizer(synthesizer: AVSpeechSynthesizer, didStartSpeechUtterance: AVSpeechUtterance) {
             activeListener?.onParagraphStart(currentIndex)
         }
 
+        @ObjCSignatureOverride
+        @Suppress("CONFLICTING_OVERLOADS")
         override fun speechSynthesizer(synthesizer: AVSpeechSynthesizer, didFinishSpeechUtterance: AVSpeechUtterance) {
             val next = currentIndex + 1
             if (next < currentParagraphs.size && !isPaused) {
@@ -34,6 +41,8 @@ actual class PlatformTts {
             }
         }
 
+        @ObjCSignatureOverride
+        @Suppress("CONFLICTING_OVERLOADS")
         override fun speechSynthesizer(synthesizer: AVSpeechSynthesizer, didCancelSpeechUtterance: AVSpeechUtterance) {
             // Cancelled
         }
