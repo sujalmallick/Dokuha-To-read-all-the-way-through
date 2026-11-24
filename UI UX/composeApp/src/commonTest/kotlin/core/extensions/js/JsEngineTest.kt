@@ -138,4 +138,24 @@ class JsEngineTest {
         assertTrue(result.startsWith("caught: Intentional host async failure"))
         engine.close()
     }
+
+    @Test
+    fun testAsyncHostCallbackDoesNotDeadlockWithDelay() = runBlocking {
+        val engine = JsEngine()
+        engine.setGlobalAsyncFunction("simulatedNetworkFetch") { args ->
+            kotlinx.coroutines.delay(50)
+            val path = args.getOrNull(0)?.toString() ?: ""
+            "{\"status\":200,\"data\":\"content_for_$path\"}"
+        }
+        val result = engine.evaluate(
+            """
+            (async () => {
+                const response = await simulatedNetworkFetch('/manga/123');
+                return JSON.parse(response).data;
+            })()
+            """.trimIndent()
+        )
+        assertEquals("content_for_/manga/123", result)
+        engine.close()
+    }
 }
