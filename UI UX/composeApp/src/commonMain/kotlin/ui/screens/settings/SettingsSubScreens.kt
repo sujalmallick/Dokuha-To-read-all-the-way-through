@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -21,6 +22,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Storage
+import ui.theme.BadgeRed
+import ui.theme.GlassBorder
+import ui.theme.TextMuted
+import ui.theme.TextPrimary
+import ui.theme.TextSecondary
+import ui.theme.TextTertiary
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -52,6 +64,8 @@ import core.platform.PlatformInfo
 import data.settings.AppLogoStyle
 import data.settings.SplashMotionStyle
 import ui.screens.splash.SplashScreen
+import ui.screens.splash.SplashScreenContent
+import androidx.compose.runtime.key
 import ui.theme.CapsuleShape
 import data.settings.ExtensionRepo
 import data.settings.DefaultReadingMode
@@ -74,8 +88,6 @@ import data.mock.PanelRepository
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import ui.theme.BottomSheetShape
-import ui.theme.ElectricBlue
-import ui.theme.ElectricBlueLight
 import ui.theme.GlassBorder
 import ui.theme.PanelAccentColors
 import ui.theme.PanelBackground
@@ -269,7 +281,7 @@ class AppLogoSettingsScreen : Screen {
             onSelectStyle = { repo.setAppLogoStyle(it) },
             onSelectMotion = { repo.setSplashMotionStyle(it) },
             onPreviewSplash = {
-                navigator.push(SplashScreen(motionStyle = currentMotion, logoStyle = currentStyle))
+                navigator.push(SplashScreen(motionStyle = currentMotion, logoStyle = currentStyle, isPreview = true))
             }
         )
     }
@@ -286,6 +298,7 @@ fun AppLogoSettingsScreenContent(
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberLazyListState()
+    var replayKey by remember { mutableStateOf(0) }
 
     Box(
         modifier = modifier
@@ -295,14 +308,82 @@ fun AppLogoSettingsScreenContent(
         LazyColumn(
             state = scrollState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 74.dp, bottom = 48.dp, start = 20.dp, end = 20.dp),
+            contentPadding = PaddingValues(top = 74.dp, bottom = 48.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // SECTION 1: LOGO EDITIONS
+            // SECTION 1: LIVE MOTION PREVIEW HERO CARD
+            item {
+                SectionHeader(text = "Live Motion Preview")
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .height(200.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0xFF080808))
+                        .border(1.dp, GlassBorder, RoundedCornerShape(20.dp))
+                ) {
+                    key(replayKey, selectedStyle, selectedMotion) {
+                        SplashScreenContent(
+                            onFinished = {},
+                            autoFinish = false,
+                            logoStyle = selectedStyle,
+                            motionStyle = selectedMotion,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
+                    // Floating replay pill in top-right
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(CapsuleShape)
+                                .background(Color.Black.copy(alpha = 0.65f))
+                                .border(0.5.dp, GlassBorder, CapsuleShape)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = selectedMotion.displayName,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White.copy(alpha = 0.9f)
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.65f))
+                                .border(0.5.dp, GlassBorder, CircleShape)
+                                .clickable { replayKey++ },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = "Replay Motion",
+                                tint = Color.White,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
+            // SECTION 2: LOGO EDITIONS
             item {
                 SectionHeader(text = "Logo Edition")
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     AppLogoStyle.entries.forEach { style ->
@@ -318,84 +399,87 @@ fun AppLogoSettingsScreenContent(
                 Spacer(modifier = Modifier.height(28.dp))
             }
 
-            // SECTION 2: SPLASH SCREEN MOTION (6 CONCEPTS)
+            // SECTION 3: SPLASH SCREEN MOTION (6 CONCEPTS)
             item {
                 SectionHeader(text = "Splash Screen Motion (6 Concepts)")
-                SettingsGroup {
-                    SplashMotionStyle.entries.forEachIndexed { index, motion ->
-                        val isSelected = motion == selectedMotion
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onSelectMotion(motion) }
-                                .padding(horizontal = 16.dp, vertical = 14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = motion.displayName,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else TextPrimary
-                                    )
-                                    if (motion.isMobileOnly) {
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(CapsuleShape)
-                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
-                                                .border(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.40f), CapsuleShape)
-                                                .padding(horizontal = 7.dp, vertical = 2.dp)
-                                        ) {
-                                            Text(
-                                                text = "Android & iOS Only",
-                                                fontSize = 10.sp,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                    SettingsGroup {
+                        SplashMotionStyle.entries.forEachIndexed { index, motion ->
+                            val isSelected = motion == selectedMotion
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onSelectMotion(motion) }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = motion.displayName,
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else TextPrimary
+                                        )
+                                        if (motion.isMobileOnly) {
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(CapsuleShape)
+                                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.18f))
+                                                    .border(0.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.40f), CapsuleShape)
+                                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Android & iOS Only",
+                                                    fontSize = 10.sp,
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
                                         }
                                     }
-                                }
-                                Spacer(modifier = Modifier.height(3.dp))
-                                Text(
-                                    text = motion.subtitle,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextMuted
-                                )
-                            }
-                            if (isSelected) {
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .size(22.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.primary),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = "Selected",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(14.dp)
+                                    Spacer(modifier = Modifier.height(3.dp))
+                                    Text(
+                                        text = motion.subtitle,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextMuted
                                     )
                                 }
+                                if (isSelected) {
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .size(22.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.primary),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Check,
+                                            contentDescription = "Selected",
+                                            tint = Color.White,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                }
                             }
-                        }
-                        if (index < SplashMotionStyle.entries.size - 1) {
-                            SettingsSeparator()
+                            if (index < SplashMotionStyle.entries.size - 1) {
+                                SettingsSeparator()
+                            }
                         }
                     }
                 }
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
-            // SECTION 3: PREVIEW SPLASH BUTTON
+            // SECTION 4: PREVIEW FULLSCREEN SPLASH BUTTON
             item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
                         .clip(RoundedCornerShape(16.dp))
                         .background(MaterialTheme.colorScheme.primary)
                         .clickable(onClick = onPreviewSplash)
@@ -403,7 +487,7 @@ fun AppLogoSettingsScreenContent(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Preview Splash Screen",
+                        text = "Preview Fullscreen Splash",
                         color = Color.White,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold
@@ -415,7 +499,7 @@ fun AppLogoSettingsScreenContent(
                     style = MaterialTheme.typography.bodySmall,
                     color = TextMuted,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    modifier = Modifier.padding(horizontal = 20.dp)
                 )
             }
         }
@@ -435,7 +519,8 @@ private fun MinimalLogoCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val borderColor = if (isSelected) ElectricBlue else GlassBorder
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val borderColor = if (isSelected) primaryColor else GlassBorder
     val borderWidth = if (isSelected) 2.dp else 1.dp
     val bgColor = if (isSelected) PanelSurface else Color(0xFF0F0F12)
 
@@ -475,14 +560,14 @@ private fun MinimalLogoCard(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
-                        .background(ElectricBlue.copy(alpha = 0.16f))
+                        .background(primaryColor.copy(alpha = 0.16f))
                         .padding(horizontal = 10.dp, vertical = 3.dp)
                 ) {
                     Text(
                         text = "ACTIVE",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = ElectricBlueLight,
+                        color = primaryColor,
                         letterSpacing = 0.5.sp
                     )
                 }
@@ -655,6 +740,7 @@ fun GlobalReaderSettingsScreenContent(
                                         NovelReaderTheme.SEPIA -> Color(0xFF261D17)
                                         NovelReaderTheme.OLED -> Color(0xFF000000)
                                     }
+                                    val primaryColor = MaterialTheme.colorScheme.primary
                                     Box(
                                         modifier = Modifier
                                             .size(28.dp)
@@ -662,7 +748,7 @@ fun GlobalReaderSettingsScreenContent(
                                             .background(bg)
                                             .border(
                                                 width = if (isSelected) 2.5.dp else 1.dp,
-                                                color = if (isSelected) ElectricBlue else GlassBorder,
+                                                color = if (isSelected) primaryColor else GlassBorder,
                                                 shape = CircleShape
                                             )
                                             .clickable { onSelectNovelTheme(theme) }
@@ -837,13 +923,14 @@ class LibrarySettingsScreen : Screen {
                                     .padding(vertical = 12.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
+                                val primaryColor = MaterialTheme.colorScheme.primary
                                 Text(
                                     text = interval.label,
                                     fontSize = 15.sp,
-                                    color = if (interval == updateInterval) ElectricBlue else TextPrimary
+                                    color = if (interval == updateInterval) primaryColor else TextPrimary
                                 )
                                 if (interval == updateInterval) {
-                                    Text("✓", color = ElectricBlue, fontWeight = FontWeight.Bold)
+                                    Text("✓", color = primaryColor, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -996,7 +1083,7 @@ class SourcesSettingsScreen : Screen {
                                                         Text(
                                                             text = "Official",
                                                             fontSize = 11.sp,
-                                                            color = ElectricBlue,
+                                                            color = MaterialTheme.colorScheme.primary,
                                                             fontWeight = FontWeight.SemiBold
                                                         )
                                                     }
@@ -1115,6 +1202,7 @@ class SourcesSettingsScreen : Screen {
 
                         Spacer(modifier = Modifier.height(16.dp))
 
+                        val primaryColor = MaterialTheme.colorScheme.primary
                         OutlinedTextField(
                             value = newRepoName,
                             onValueChange = { newRepoName = it },
@@ -1124,7 +1212,7 @@ class SourcesSettingsScreen : Screen {
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = TextPrimary,
                                 unfocusedTextColor = TextPrimary,
-                                focusedBorderColor = ElectricBlue,
+                                focusedBorderColor = primaryColor,
                                 unfocusedBorderColor = GlassBorder
                             ),
                             modifier = Modifier.fillMaxWidth()
@@ -1144,7 +1232,7 @@ class SourcesSettingsScreen : Screen {
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = TextPrimary,
                                 unfocusedTextColor = TextPrimary,
-                                focusedBorderColor = ElectricBlue,
+                                focusedBorderColor = primaryColor,
                                 unfocusedBorderColor = GlassBorder
                             ),
                             modifier = Modifier.fillMaxWidth()
@@ -1210,11 +1298,12 @@ class SourcesSettingsScreen : Screen {
                                     .padding(horizontal = 12.dp, vertical = 8.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
+                            val primaryColor = MaterialTheme.colorScheme.primary
                             Text(
                                 text = "Add",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = if (canAdd) ElectricBlue else TextSecondary.copy(alpha = 0.4f),
+                                color = if (canAdd) primaryColor else TextSecondary.copy(alpha = 0.4f),
                                 modifier = Modifier
                                     .clickable(enabled = canAdd) {
                                         val targetName = newRepoName.trim().ifEmpty { "Community Extensions" }
@@ -1356,13 +1445,14 @@ class BackupSettingsScreen : Screen {
 }
 
 // ==========================================
-// 7. STORAGE SETTINGS SCREEN
+// 7. STORAGE SETTINGS SCREEN (MINIMAL & MODERN)
 // ==========================================
 class StorageSettingsScreen : Screen {
     @Composable
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repo: SettingsRepository = koinInject()
+        val primaryColor = MaterialTheme.colorScheme.primary
 
         val cacheSize by repo.cacheSize.collectAsState()
 
@@ -1376,26 +1466,163 @@ class StorageSettingsScreen : Screen {
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 64.dp, bottom = 48.dp)
+                contentPadding = PaddingValues(top = 74.dp, bottom = 48.dp)
             ) {
+                // Storage Overview Hero Card
                 item {
-                    SectionHeader(text = "Cache & Footprint")
+                    SectionHeader(text = "App Footprint")
+                    Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(PanelSurface)
+                                .border(1.dp, GlassBorder, RoundedCornerShape(20.dp))
+                                .padding(20.dp)
+                        ) {
+                            Column {
+                                Text(
+                                    text = "TOTAL ESTIMATED FOOTPRINT",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.8.sp,
+                                    color = TextSecondary
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(
+                                    verticalAlignment = Alignment.Bottom,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = cacheSize,
+                                        fontSize = 32.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = "in local storage",
+                                        fontSize = 13.sp,
+                                        color = TextSecondary,
+                                        modifier = Modifier.padding(bottom = 5.dp)
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(18.dp))
+
+                                // Multi-segment Storage Bar
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(8.dp)
+                                        .clip(CapsuleShape)
+                                        .background(Color.White.copy(alpha = 0.08f))
+                                ) {
+                                    val isCacheEmpty = cacheSize == "0 MB" || cacheSize.isBlank()
+                                    if (!isCacheEmpty) {
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(0.70f)
+                                                .fillMaxHeight()
+                                                .background(primaryColor)
+                                        )
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(0.20f)
+                                            .fillMaxHeight()
+                                            .background(Color(0xFF10B981))
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(0.10f)
+                                            .fillMaxHeight()
+                                            .background(Color(0xFF60A5FA))
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(14.dp))
+
+                                // Legend Row
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    StorageLegendItem(color = primaryColor, label = "Cache", value = cacheSize)
+                                    StorageLegendItem(color = Color(0xFF10B981), label = "Extensions", value = "~4.8 MB")
+                                    StorageLegendItem(color = Color(0xFF60A5FA), label = "Database", value = "~1.2 MB")
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+
+                // Itemized Detailed Storage Rows
+                item {
+                    SectionHeader(text = "Storage Breakdown")
                     Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                         SettingsGroup {
-                            SettingsRow.Value(
-                                title = "Cache size",
-                                value = cacheSize
+                            // Row 1: Image Cache
+                            StorageActionRow(
+                                title = "Temporary Image Cache",
+                                subtitle = "Cached covers, chapter slices, and web reader pages",
+                                sizeLabel = cacheSize,
+                                actionLabel = "Clear",
+                                onAction = { isClearCacheDialogVisible = true }
                             )
                             SettingsSeparator()
-                            SettingsRow.Destructive(
-                                text = "Clear cache",
-                                onClick = { isClearCacheDialogVisible = true }
+
+                            // Row 2: Reading History
+                            StorageActionRow(
+                                title = "Reading History & Progress",
+                                subtitle = "Chronological reading events and completion timestamps",
+                                sizeLabel = "~1.2 MB",
+                                actionLabel = "Clear",
+                                onAction = { isClearHistoryDialogVisible = true }
                             )
                             SettingsSeparator()
-                            SettingsRow.Destructive(
-                                text = "Clear reading history",
-                                onClick = { isClearHistoryDialogVisible = true }
+
+                            // Row 3: Extensions
+                            StorageActionRow(
+                                title = "Installed Extensions",
+                                subtitle = "Compiled JavaScript sources and local repository caches",
+                                sizeLabel = "~4.8 MB",
+                                actionLabel = null,
+                                onAction = null
                             )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(20.dp))
+                }
+
+                // Advisory Note
+                item {
+                    Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color.White.copy(alpha = 0.03f))
+                                .border(0.5.dp, GlassBorder, RoundedCornerShape(14.dp))
+                                .padding(horizontal = 14.dp, vertical = 12.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.Top) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = TextTertiary,
+                                    modifier = Modifier.size(16.dp).padding(top = 1.dp)
+                                )
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Offline downloads and library bookmarks are protected in secure persistent storage and will not be lost when clearing cache.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 11.sp,
+                                    color = TextMuted,
+                                    lineHeight = 16.sp
+                                )
+                            }
                         }
                     }
                 }
@@ -1427,6 +1654,98 @@ class StorageSettingsScreen : Screen {
                     onConfirm = { repo.clearReadingHistory() },
                     onDismiss = { isClearHistoryDialogVisible = false }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StorageLegendItem(
+    color: Color,
+    label: String,
+    value: String
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(7.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = "$label: ",
+            fontSize = 11.sp,
+            color = TextSecondary
+        )
+        Text(
+            text = value,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = TextPrimary
+        )
+    }
+}
+
+@Composable
+private fun StorageActionRow(
+    title: String,
+    subtitle: String,
+    sizeLabel: String,
+    actionLabel: String?,
+    onAction: (() -> Unit)?
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                fontSize = 11.sp,
+                color = TextSecondary,
+                lineHeight = 15.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = sizeLabel,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary
+            )
+
+            if (actionLabel != null && onAction != null) {
+                Box(
+                    modifier = Modifier
+                        .clip(CapsuleShape)
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .clickable(onClick = onAction)
+                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        text = actionLabel,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BadgeRed
+                    )
+                }
             }
         }
     }

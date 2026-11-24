@@ -366,6 +366,18 @@ class SqlDelightPanelRepository(
             }.flowOn(Dispatchers.Default)
     }
 
+    override fun getAdaptation(manga: SourceManga): Flow<SourceManga?> {
+        val cleanTitle = manga.title
+            .replace(Regex("""(?i)\s*(\(Novel\)|\(Manhwa\)|\(Manga\)|\(Webtoon\)|\[Novel\]|\[Comic\])"""), "")
+            .trim()
+        val targetIsNovel = !manga.isNovel
+        val matches = runCatching {
+            database.mangaQueries.searchMangaByTitle(cleanTitle).executeAsList()
+        }.getOrDefault(emptyList())
+        val counterpart = matches.firstOrNull { it.is_novel == (if (targetIsNovel) 1L else 0L) && it.url != manga.url }?.toSourceManga()
+        return flowOf(counterpart)
+    }
+
     override fun getTrending(): Flow<List<SourceManga>> {
         val sources = _dynamicSources.value.values.toList()
         if (sources.isNotEmpty()) {

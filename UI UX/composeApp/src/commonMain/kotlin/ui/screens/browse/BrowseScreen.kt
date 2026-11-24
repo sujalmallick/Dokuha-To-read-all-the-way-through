@@ -36,6 +36,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -79,7 +80,6 @@ import ui.screens.maintab.MainTabScreen
 import ui.screens.more.MoreScreen
 import ui.screens.updates.UpdatesScreen
 import ui.theme.CapsuleShape
-import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
 import ui.theme.PanelBackground
 import ui.theme.PanelTheme
@@ -135,7 +135,8 @@ fun BrowseScreenContent(
     onOpenManga: (SourceManga) -> Unit,
     onTabSelected: (PanelTab) -> Unit,
     showBottomBar: Boolean = true,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onModalSheetVisibilityChanged: (Boolean) -> Unit = {}
 ) {
     val glassState = rememberPanelGlassState()
     val repo = repository ?: remember { FakePanelRepository() }
@@ -143,6 +144,10 @@ fun BrowseScreenContent(
     var searchQuery by remember { mutableStateOf("") }
     var filters by remember { mutableStateOf(BrowseFilters()) }
     var isFilterSheetOpen by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isFilterSheetOpen) {
+        onModalSheetVisibilityChanged(isFilterSheetOpen)
+    }
 
     val hasActiveFilters = filters.genres.isNotEmpty() ||
         filters.status != null ||
@@ -492,7 +497,7 @@ fun BrowseScreenContent(
                                 Text(
                                     text = "Tap to browse and install extensions",
                                     fontSize = 13.sp,
-                                    color = ElectricBlue
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }

@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -48,7 +49,6 @@ import data.profile.TrackerAccount
 import data.profile.UserProfile
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import ui.theme.BottomSheetShape
-import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
 import ui.theme.GlassBorderStrong
 import ui.theme.PanelBackground
@@ -201,7 +201,7 @@ fun StatItem(
 fun ActivityBarChart(
     weeklyActivity: List<DayReadingActivity>,
     modifier: Modifier = Modifier,
-    accentColor: Color = ElectricBlue
+    accentColor: Color = MaterialTheme.colorScheme.primary
 ) {
     var selectedIndex by remember { mutableIntStateOf(weeklyActivity.size - 2) } // default Saturday selected
 
@@ -331,7 +331,7 @@ fun TrackerRow(
             text = if (tracker.isConnected) "Disconnect" else "Connect",
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold,
-            color = ElectricBlue,
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
                 .clickable(onClick = onToggle)
                 .padding(horizontal = 8.dp, vertical = 4.dp)
@@ -393,6 +393,7 @@ fun EditProfileSheet(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Name field
+            val primaryColor = MaterialTheme.colorScheme.primary
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
@@ -401,9 +402,9 @@ fun EditProfileSheet(
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = TextPrimary,
                     unfocusedTextColor = TextPrimary,
-                    focusedBorderColor = ElectricBlue,
+                    focusedBorderColor = primaryColor,
                     unfocusedBorderColor = GlassBorder,
-                    focusedLabelColor = ElectricBlue,
+                    focusedLabelColor = primaryColor,
                     unfocusedLabelColor = TextSecondary
                 ),
                 modifier = Modifier.fillMaxWidth()
@@ -461,7 +462,7 @@ fun EditProfileSheet(
                     text = "Save",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = ElectricBlue,
+                    color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
                         .clickable {
                             onSave(name, selectedColor)

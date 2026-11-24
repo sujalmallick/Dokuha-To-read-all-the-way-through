@@ -49,7 +49,6 @@ import ui.glass.glassPress
 import ui.glass.glassSurface
 import ui.motion.rememberTabIndicatorSpring
 import ui.theme.CapsuleShape
-import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
 import ui.theme.PanelSurfaceGlassHigh
 import ui.theme.PanelTheme

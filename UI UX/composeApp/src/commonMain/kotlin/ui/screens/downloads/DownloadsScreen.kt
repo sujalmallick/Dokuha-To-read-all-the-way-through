@@ -75,7 +75,6 @@ import ui.screens.library.LibraryScreen
 import ui.screens.maintab.MainTabScreen
 import ui.screens.updates.UpdatesScreen
 import ui.theme.CoverGradients
-import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
 import ui.theme.GlassBorderStrong
 import ui.theme.PanelBackground
@@ -270,7 +269,7 @@ fun DownloadsScreenContent(
                                 text = if (anyActive) "Pause All" else "Resume All",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = if (anyActive) TextSecondary else ElectricBlue
+                                color = if (anyActive) TextSecondary else MaterialTheme.colorScheme.primary
                             )
                         }
                     }
@@ -491,17 +490,18 @@ fun CompletedChapterCard(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    val primaryColor = MaterialTheme.colorScheme.primary
                     Icon(
                         imageVector = Icons.Default.Check,
                         contentDescription = null,
-                        tint = ElectricBlue,
+                        tint = primaryColor,
                         modifier = Modifier.size(13.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "$totalMb MB • Ready for Offline",
                         fontSize = 11.sp,
-                        color = ElectricBlue
+                        color = primaryColor
                     )
                 }
             }

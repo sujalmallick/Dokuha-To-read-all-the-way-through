@@ -130,7 +130,7 @@ class SettingsProfileRepositoriesTest {
         val repo = FakeProfileRepository()
 
         val initialProfile = repo.profile.value
-        assertEquals("Ritwik", initialProfile.name)
+        assertEquals("Reader", initialProfile.name)
         assertEquals("R", initialProfile.initials)
 
         repo.updateProfile("Jane Doe", 0xFFA855F7)

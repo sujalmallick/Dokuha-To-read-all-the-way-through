@@ -76,7 +76,6 @@ import ui.glass.nonGlassPress
 import ui.theme.CapsuleShape
 import ui.theme.CoverGradients
 import ui.theme.CoverImageShape
-import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
 import ui.theme.GlassBorderStrong
 import ui.theme.PanelSurfaceGlass
@@ -495,7 +494,7 @@ fun ChapterRowItem(
             modifier = Modifier
                 .size(9.dp)
                 .clip(CircleShape)
-                .background(if (isRead) ElectricBlue else GlassBorderStrong)
+                .background(if (isRead) MaterialTheme.colorScheme.primary else GlassBorderStrong)
         )
         Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -517,6 +516,7 @@ fun ChapterRowItem(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val primaryColor = MaterialTheme.colorScheme.primary
             PanelCircleIconButton(
                 icon = when {
                     isCompleted -> Icons.Default.Check
@@ -527,13 +527,13 @@ fun ChapterRowItem(
                 size = 36.dp,
                 iconSize = 18.dp,
                 tint = when {
-                    isCompleted -> ElectricBlue
-                    isDownloading -> ElectricBlue
+                    isCompleted -> primaryColor
+                    isDownloading -> primaryColor
                     isQueued -> TextSecondary
                     else -> TextPrimary
                 },
-                backgroundColor = if (isCompleted) ElectricBlue.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.08f),
-                borderColor = if (isCompleted) ElectricBlue.copy(alpha = 0.40f) else Color.White.copy(alpha = 0.18f),
+                backgroundColor = if (isCompleted) primaryColor.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.08f),
+                borderColor = if (isCompleted) primaryColor.copy(alpha = 0.40f) else Color.White.copy(alpha = 0.18f),
                 onClick = onDownloadClick
             )
             PanelCircleIconButton(
@@ -550,7 +550,7 @@ fun ChapterRowItem(
 fun PanelProgressBar(
     progress: Float, // 0f..1f
     modifier: Modifier = Modifier,
-    fillColor: Color = ElectricBlue,
+    fillColor: Color = MaterialTheme.colorScheme.primary,
     trackColor: Color = PanelSurfaceSubtle,
     height: Dp = 4.dp
 ) {
@@ -586,8 +586,8 @@ fun PanelSlider(
         valueRange = valueRange,
         steps = steps,
         colors = SliderDefaults.colors(
-            thumbColor = ElectricBlue,
-            activeTrackColor = ElectricBlue,
+            thumbColor = MaterialTheme.colorScheme.primary,
+            activeTrackColor = MaterialTheme.colorScheme.primary,
             inactiveTrackColor = Color.White.copy(alpha = 0.15f)
         ),
         modifier = modifier
@@ -605,7 +605,7 @@ fun PanelSwitch(
         onCheckedChange = onCheckedChange,
         colors = SwitchDefaults.colors(
             checkedThumbColor = Color.White,
-            checkedTrackColor = ElectricBlue,
+            checkedTrackColor = MaterialTheme.colorScheme.primary,
             uncheckedThumbColor = TextSecondary,
             uncheckedTrackColor = PanelSurfaceSubtle,
             uncheckedBorderColor = GlassBorder
@@ -625,7 +625,7 @@ fun ReaderModeTile(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(if (isSelected) ElectricBlue else PanelSurfaceGlassHigh)
+            .background(if (isSelected) MaterialTheme.colorScheme.primary else PanelSurfaceGlassHigh)
             .border(
                 width = 1.dp,
                 color = if (isSelected) Color.White.copy(alpha = 0.3f) else GlassBorder,
@@ -958,18 +958,19 @@ fun ExtensionItemCard(
                     )
                     if (!lang.isNullOrBlank() && lang != "ALL") {
                         Spacer(modifier = Modifier.width(6.dp))
+                        val primaryColor = MaterialTheme.colorScheme.primary
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(ElectricBlue.copy(alpha = 0.15f))
-                                .border(0.5.dp, ElectricBlue.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
+                                .background(primaryColor.copy(alpha = 0.15f))
+                                .border(0.5.dp, primaryColor.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
                                 .padding(horizontal = 5.dp, vertical = 1.dp)
                         ) {
                             Text(
                                 text = lang.uppercase(),
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = ElectricBlue
+                                color = primaryColor
                             )
                         }
                     }
@@ -1592,6 +1593,7 @@ fun StorageDonutChart(
     othersMb: Float,
     modifier: Modifier = Modifier
 ) {
+    val primaryColor = MaterialTheme.colorScheme.primary
     Box(
         modifier = modifier.size(76.dp),
         contentAlignment = Alignment.Center
@@ -1620,9 +1622,9 @@ fun StorageDonutChart(
             val novelsSweep = ((novelsMb / totalMb) * 360f * 6.5f).coerceAtMost(40f)
 
             var startAngle = -90f
-            // Manga arc (Electric Blue)
+            // Manga arc (Primary Accent)
             drawArc(
-                color = ElectricBlue,
+                color = primaryColor,
                 startAngle = startAngle,
                 sweepAngle = mangaSweep,
                 useCenter = false,

@@ -25,13 +25,13 @@ class PersistentProfileRepository(
     companion object {
         private const val KEY_PROFILE_NAME = "profile_display_name"
         private const val KEY_AVATAR_COLOR = "profile_avatar_color_hex"
-        private const val DEFAULT_NAME = "Ritwik"
+        private const val DEFAULT_NAME = "Reader"
         private const val DEFAULT_AVATAR_COLOR = 0xFF38BDF8
         private const val DEFAULT_MEMBER_SINCE = "Member since November 2026"
     }
 
     private val rawStoredName = storage.getString(KEY_PROFILE_NAME, "")
-    private val initialName = if (rawStoredName.isBlank() || rawStoredName == "Sujal") {
+    private val initialName = if (rawStoredName.isBlank() || rawStoredName == "Sujal" || rawStoredName == "Ritwik") {
         storage.putString(KEY_PROFILE_NAME, DEFAULT_NAME)
         DEFAULT_NAME
     } else {

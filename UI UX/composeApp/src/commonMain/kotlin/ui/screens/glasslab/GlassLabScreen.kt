@@ -30,6 +30,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -58,7 +59,6 @@ import ui.glass.glassSource
 import ui.glass.glassSurface
 import ui.glass.rememberPanelGlassState
 import ui.theme.CapsuleShape
-import ui.theme.ElectricBlue
 import ui.theme.GlassBorder
 import ui.theme.PanelBackground
 import ui.theme.TextPrimary
@@ -155,7 +155,7 @@ class GlassLabScreen : Screen {
                             Text(
                                 text = "Apple iOS 26 Lens Refraction Tuner",
                                 fontSize = 12.sp,
-                                color = ElectricBlue
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
                     }
@@ -192,7 +192,7 @@ class GlassLabScreen : Screen {
                             Icon(
                                 imageVector = Icons.Default.PlayArrow,
                                 contentDescription = "Play",
-                                tint = ElectricBlue,
+                                tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(32.dp)
                             )
                         }
@@ -218,7 +218,7 @@ class GlassLabScreen : Screen {
                                     Icon(
                                         imageVector = Icons.Default.Star,
                                         contentDescription = null,
-                                        tint = ElectricBlue,
+                                        tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
@@ -284,7 +284,7 @@ class GlassLabScreen : Screen {
                             text = "LENS CONTROLS",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = ElectricBlue,
+                            color = MaterialTheme.colorScheme.primary,
                             letterSpacing = 1.sp
                         )
 
@@ -377,7 +377,7 @@ class GlassLabScreen : Screen {
                                     if (!isDarkTint && tintAlpha > 0.15f) tintAlpha = 0.06f
                                 },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isDarkTint) Color.DarkGray else ElectricBlue
+                                    containerColor = if (isDarkTint) Color.DarkGray else MaterialTheme.colorScheme.primary
                                 ),
                                 shape = CapsuleShape
                             ) {
@@ -411,7 +411,7 @@ class GlassLabScreen : Screen {
                             },
                             modifier = Modifier.fillMaxWidth(),
                             shape = CapsuleShape,
-                            colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue)
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
                             Text(
                                 text = "Print Values to Log",
@@ -449,7 +449,7 @@ private fun SliderRow(
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 fontFamily = FontFamily.Monospace,
-                color = ElectricBlue
+                color = MaterialTheme.colorScheme.primary
             )
         }
         Slider(
@@ -457,8 +457,8 @@ private fun SliderRow(
             onValueChange = onValueChange,
             valueRange = range,
             colors = SliderDefaults.colors(
-                thumbColor = ElectricBlue,
-                activeTrackColor = ElectricBlue,
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
                 inactiveTrackColor = Color.White.copy(alpha = 0.2f)
             )
         )

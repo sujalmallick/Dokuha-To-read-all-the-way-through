@@ -23,7 +23,6 @@ import androidx.compose.ui.window.DialogProperties
 import core.extensions.js.AntiBotChallengeRequest
 import core.extensions.js.AntiBotResolutionResult
 import core.webview.ChallengeWebView
-import ui.theme.ElectricBlue
 import ui.theme.TextPrimary
 import ui.theme.TextSecondary
 
@@ -71,17 +70,18 @@ fun AntiBotChallengeSheet(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        val primaryColor = MaterialTheme.colorScheme.primary
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(ElectricBlue.copy(alpha = 0.15f)),
+                                .background(primaryColor.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Lock,
                                 contentDescription = null,
-                                tint = ElectricBlue,
+                                tint = primaryColor,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -192,7 +192,7 @@ fun AntiBotChallengeSheet(
                                 )
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = ElectricBlue),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(

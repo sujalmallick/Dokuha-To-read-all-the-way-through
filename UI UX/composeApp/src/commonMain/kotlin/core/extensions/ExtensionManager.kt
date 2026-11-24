@@ -460,7 +460,9 @@ class ExtensionManager(
     private fun loadRepositories() {
         val reposJson = storage.getString(KEY_REPO_URLS, "[]")
         val repos = try {
-            json.decodeFromString<List<String>>(reposJson).toMutableList()
+            json.decodeFromString<List<String>>(reposJson)
+                .filterNot { it.contains("RitwikGupta-0501", ignoreCase = true) }
+                .toMutableList()
         } catch (_: Exception) {
             mutableListOf()
         }
@@ -470,7 +472,6 @@ class ExtensionManager(
     fun seedDefaultsIfEmpty() {
         if (_repoUrls.value.isEmpty()) {
             val defaultRepos = listOf(
-                "https://raw.githubusercontent.com/RitwikGupta-0501/dokuha-extensions/main",
                 "https://raw.githubusercontent.com/keiyoushi/extensions/repo"
             )
             val current = _repoUrls.value.toMutableList()
