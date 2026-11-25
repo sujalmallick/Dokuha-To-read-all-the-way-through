@@ -39,6 +39,8 @@ class PersistentSettingsRepository(
         private const val KEY_DUAL_PAGE_OFFSET = "setting_dual_page_offset"
         private const val KEY_READER_COLOR_FILTER = "setting_reader_color_filter"
         private const val KEY_READER_PRELOAD_PAGES = "setting_reader_preload_pages"
+        private const val KEY_READER_TAP_ZONES_ENABLED = "setting_reader_tap_zones_enabled"
+        private const val KEY_READER_CUTOUT_PADDING = "setting_reader_cutout_padding"
 
         private const val KEY_NOVEL_FONT = "setting_novel_font"
         private const val KEY_NOVEL_FONT_SIZE = "setting_novel_font_size"
@@ -204,6 +206,16 @@ class PersistentSettingsRepository(
     )
     override val readerPreloadPages: StateFlow<Int> = _readerPreloadPages.asStateFlow()
 
+    private val _readerTapZonesEnabled = MutableStateFlow(
+        storage.getBoolean(KEY_READER_TAP_ZONES_ENABLED, true)
+    )
+    override val readerTapZonesEnabled: StateFlow<Boolean> = _readerTapZonesEnabled.asStateFlow()
+
+    private val _readerCutoutPadding = MutableStateFlow(
+        storage.getBoolean(KEY_READER_CUTOUT_PADDING, false)
+    )
+    override val readerCutoutPadding: StateFlow<Boolean> = _readerCutoutPadding.asStateFlow()
+
     override fun setDefaultReadingMode(mode: DefaultReadingMode) {
         _defaultReadingMode.value = mode
         storage.putString(KEY_DEFAULT_READING_MODE, mode.name)
@@ -250,6 +262,16 @@ class PersistentSettingsRepository(
         val clamped = count.coerceIn(0, 20)
         _readerPreloadPages.value = clamped
         storage.putInt(KEY_READER_PRELOAD_PAGES, clamped)
+    }
+
+    override fun setReaderTapZonesEnabled(enabled: Boolean) {
+        _readerTapZonesEnabled.value = enabled
+        storage.putBoolean(KEY_READER_TAP_ZONES_ENABLED, enabled)
+    }
+
+    override fun setReaderCutoutPadding(enabled: Boolean) {
+        _readerCutoutPadding.value = enabled
+        storage.putBoolean(KEY_READER_CUTOUT_PADDING, enabled)
     }
 
     // Novel Reader

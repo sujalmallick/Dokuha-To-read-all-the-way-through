@@ -110,6 +110,8 @@ fun ReaderSettingsSheetCard(
     val volumeKeyNavigation by repo.volumeKeyNavigation.collectAsState()
     val readerColorFilter by repo.readerColorFilter.collectAsState()
     val readerPreloadPages by repo.readerPreloadPages.collectAsState()
+    val tapZonesEnabled by repo.readerTapZonesEnabled.collectAsState()
+    val cutoutPadding by repo.readerCutoutPadding.collectAsState()
 
     val sheetShape = RoundedCornerShape(28.dp)
     val readingModes = listOf(
@@ -439,6 +441,60 @@ fun ReaderSettingsSheetCard(
                 PanelSwitch(
                     checked = volumeKeyNavigation,
                     onCheckedChange = { repo.setVolumeKeyNavigation(it) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Tap Zones Toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text(
+                        text = "Tap zones",
+                        color = TextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "Tap edges to turn pages (turn off for swipe-only)",
+                        color = TextSecondary,
+                        fontSize = 11.sp
+                    )
+                }
+                PanelSwitch(
+                    checked = tapZonesEnabled,
+                    onCheckedChange = { repo.setReaderTapZonesEnabled(it) }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Notch / Cutout Padding Toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                    Text(
+                        text = "Cutout safe-area padding",
+                        color = TextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "Keep pages clear of camera notches & home bar",
+                        color = TextSecondary,
+                        fontSize = 11.sp
+                    )
+                }
+                PanelSwitch(
+                    checked = cutoutPadding,
+                    onCheckedChange = { repo.setReaderCutoutPadding(it) }
                 )
             }
 

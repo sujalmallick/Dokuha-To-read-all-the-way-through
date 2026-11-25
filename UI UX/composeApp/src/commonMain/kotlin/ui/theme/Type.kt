@@ -11,70 +11,60 @@ val PanelTypography = Typography(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Bold,
         fontSize = 38.sp,
-        lineHeight = 44.sp,
-        color = TextPrimary
+        lineHeight = 44.sp
     ),
     headlineLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Bold,
         fontSize = 28.sp,
-        lineHeight = 34.sp,
-        color = TextPrimary
+        lineHeight = 34.sp
     ),
     headlineMedium = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Bold,
         fontSize = 22.sp,
-        lineHeight = 28.sp,
-        color = TextPrimary
+        lineHeight = 28.sp
     ),
     titleLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.SemiBold,
         fontSize = 18.sp,
-        lineHeight = 24.sp,
-        color = TextPrimary
+        lineHeight = 24.sp
     ),
     titleMedium = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.SemiBold,
         fontSize = 15.sp,
-        lineHeight = 20.sp,
-        color = TextPrimary
+        lineHeight = 20.sp
     ),
     bodyLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Normal,
         fontSize = 15.sp,
-        lineHeight = 22.sp,
-        color = TextSecondary
+        lineHeight = 22.sp
     ),
     bodyMedium = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Normal,
         fontSize = 13.sp,
-        lineHeight = 18.sp,
-        color = TextSecondary
+        lineHeight = 18.sp
     ),
     labelLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.SemiBold,
         fontSize = 13.sp,
-        lineHeight = 16.sp,
-        color = TextPrimary
+        lineHeight = 16.sp
     ),
     labelMedium = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
-        lineHeight = 14.sp,
-        color = TextSecondary
+        lineHeight = 14.sp
     ),
     labelSmall = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Medium,
         fontSize = 10.sp,
-        lineHeight = 12.sp,
-        color = TextTertiary
+        lineHeight = 12.sp
     )
 )

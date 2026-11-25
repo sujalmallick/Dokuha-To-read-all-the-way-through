@@ -1,13 +1,26 @@
 package core.extensions.js
 
+import core.platform.PlatformInfo
+
 /**
  * Shared security validation and Cloudflare clearance heuristics used across
  * headless and interactive anti-bot WebView solvers.
  */
 object CloudflareChallengeHeuristics {
 
+    const val FALLBACK_ANDROID_USER_AGENT =
+        "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
+
     const val FALLBACK_IOS_USER_AGENT =
         "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+
+    fun defaultReaderUserAgent(): String {
+        return if (PlatformInfo.platformName == "iOS") {
+            FALLBACK_IOS_USER_AGENT
+        } else {
+            FALLBACK_ANDROID_USER_AGENT
+        }
+    }
 
     val CLOUDFLARE_INTERACTIVE_LISTENER_JS: String = """
         window.addEventListener("message", function(e) {

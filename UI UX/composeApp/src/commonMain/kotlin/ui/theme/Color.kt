@@ -5,18 +5,46 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.graphics.Color
 
-// Core Theme Colors
+// Core Theme Static Colors (used by ColorSchemes)
 val PanelBackgroundStatic = Color(0xFF080B11)
+val PanelSurfaceStatic = Color(0xFF101623)
+val PanelSurfaceGlassStatic = Color(0x99101623)
+val PanelSurfaceGlassHighStatic = Color(0xB3182235)
+val PanelSurfaceSubtleStatic = Color(0xFF161E2E)
 
+val TextPrimaryStatic = Color(0xFFFFFFFF)
+val TextSecondaryStatic = Color(0xFF94A3B8)
+val TextTertiaryStatic = Color(0xFF64748B)
+val TextMutedStatic = Color(0xFF475569)
+
+val GlassBorderStatic = Color(0x1FFFFFFF)
+val GlassBorderStrongStatic = Color(0x33FFFFFF)
+
+// Reactive Theme-Aware Color Accessors (adapts to Dark, OLED, and System Light Mode)
 val PanelBackground: Color
     @Composable
     @ReadOnlyComposable
     get() = MaterialTheme.colorScheme.background
 
-val PanelSurface = Color(0xFF101623)
-val PanelSurfaceGlass = Color(0x99101623)
-val PanelSurfaceGlassHigh = Color(0xB3182235)
-val PanelSurfaceSubtle = Color(0xFF161E2E)
+val PanelSurface: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = MaterialTheme.colorScheme.surface
+
+val PanelSurfaceGlass: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)
+
+val PanelSurfaceGlassHigh: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f)
+
+val PanelSurfaceSubtle: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = MaterialTheme.colorScheme.surfaceVariant
 
 // Primary Accents
 val ElectricBlue = Color(0xFF007AFF)
@@ -29,15 +57,38 @@ val StatusOngoingGreen = Color(0xFF22C55E)
 val StarGold = Color(0xFFFBBF24)
 val BadgeRed = Color(0xFFEF4444)
 
-// Neutral Text & Icons
-val TextPrimary = Color(0xFFFFFFFF)
-val TextSecondary = Color(0xFF94A3B8)
-val TextTertiary = Color(0xFF64748B)
-val TextMuted = Color(0xFF475569)
+// Neutral Text & Icons (theme-reactive for WCAG AA contrast in Light & Dark)
+val TextPrimary: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = MaterialTheme.colorScheme.onBackground
+
+val TextSecondary: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = MaterialTheme.colorScheme.onSurfaceVariant
+
+val TextTertiary: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f)
+
+val TextMuted: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
 
 // Borders & Dividers
-val GlassBorder = Color(0x1FFFFFFF)
-val GlassBorderStrong = Color(0x33FFFFFF)
+val GlassBorder: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = MaterialTheme.colorScheme.outline
+
+val GlassBorderStrong: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = MaterialTheme.colorScheme.outlineVariant
+
 val GlassBorderActive = Color(0x66007AFF)
 
 // Reading Themes

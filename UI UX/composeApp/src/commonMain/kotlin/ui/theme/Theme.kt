@@ -30,36 +30,36 @@ val LocalReduceMotion = staticCompositionLocalOf { false }
 
 private val DarkColorScheme = darkColorScheme(
     primary = ElectricBlue,
-    onPrimary = TextPrimary,
+    onPrimary = TextPrimaryStatic,
     primaryContainer = ElectricBlueDark,
-    onPrimaryContainer = TextPrimary,
+    onPrimaryContainer = TextPrimaryStatic,
     secondary = ElectricBlueLight,
-    onSecondary = TextPrimary,
+    onSecondary = TextPrimaryStatic,
     background = PanelBackgroundStatic,
-    onBackground = TextPrimary,
-    surface = PanelSurface,
-    onSurface = TextPrimary,
-    surfaceVariant = PanelSurfaceSubtle,
-    onSurfaceVariant = TextSecondary,
-    outline = GlassBorder,
-    outlineVariant = GlassBorderStrong
+    onBackground = TextPrimaryStatic,
+    surface = PanelSurfaceStatic,
+    onSurface = TextPrimaryStatic,
+    surfaceVariant = PanelSurfaceSubtleStatic,
+    onSurfaceVariant = TextSecondaryStatic,
+    outline = GlassBorderStatic,
+    outlineVariant = GlassBorderStrongStatic
 )
 
 private val OledColorScheme = darkColorScheme(
     primary = ElectricBlue,
-    onPrimary = TextPrimary,
+    onPrimary = TextPrimaryStatic,
     primaryContainer = Color(0xFF18181B),
-    onPrimaryContainer = TextPrimary,
+    onPrimaryContainer = TextPrimaryStatic,
     secondary = ElectricBlueLight,
-    onSecondary = TextPrimary,
+    onSecondary = TextPrimaryStatic,
     background = ReadingOledBg,
     onBackground = ReadingOledText,
     surface = ReadingOledBg,
     onSurface = ReadingOledText,
     surfaceVariant = Color(0xFF121212),
-    onSurfaceVariant = TextSecondary,
-    outline = GlassBorder,
-    outlineVariant = GlassBorderStrong
+    onSurfaceVariant = TextSecondaryStatic,
+    outline = GlassBorderStatic,
+    outlineVariant = GlassBorderStrongStatic
 )
 
 private val LightColorScheme = lightColorScheme(

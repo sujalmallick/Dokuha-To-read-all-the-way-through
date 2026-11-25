@@ -14,7 +14,7 @@ import ui.components.drawableResource
 import ui.glass.PanelGlassState
 import ui.glass.glassSource
 import ui.glass.internal.LiquidState
-import ui.screens.splash.SplashFormatEntries
+import ui.screens.splash.SplashFormats
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -95,13 +95,11 @@ class AppLogoAndSplashTest {
     }
 
     @Test
-    fun testSplashFormatEntries_rotatesMultipleFormats() {
-        val labels = SplashFormatEntries.map { it.label }
-        assertTrue(labels.size >= 4)
-        assertTrue(labels.contains("MANHWA"))
-        assertTrue(labels.contains("MANHUA"))
-        assertTrue(labels.contains("MANGA"))
-        assertTrue(labels.contains("COMIC"))
-        assertTrue(SplashFormatEntries.all { it.accentColor.alpha > 0f })
+    fun testSplashFormats_rotatesMultipleFormats() {
+        assertEquals(4, SplashFormats.size)
+        assertTrue(SplashFormats.contains("manhua"))
+        assertTrue(SplashFormats.contains("manhwa"))
+        assertTrue(SplashFormats.contains("manga"))
+        assertTrue(SplashFormats.contains("novel"))
     }
 }

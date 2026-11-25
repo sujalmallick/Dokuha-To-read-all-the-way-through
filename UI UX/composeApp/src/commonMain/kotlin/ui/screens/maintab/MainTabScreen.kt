@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +76,7 @@ class MainTabScreen(
         val settingsRepository: SettingsRepository = koinInject()
 
         val glassState = rememberPanelGlassState()
+        val tabStateHolder = rememberSaveableStateHolder()
         var isModalSheetOpen by remember { mutableStateOf(false) }
 
         LaunchedEffect(currentTab) {
@@ -86,7 +88,7 @@ class MainTabScreen(
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
         ) {
-            // Smooth seamless tab content switching with zero white flash
+            // Smooth seamless tab content switching with preserved per-tab scroll state
             Crossfade(
                 targetState = currentTab,
                 animationSpec = tween(140),
@@ -95,6 +97,7 @@ class MainTabScreen(
                     .fillMaxSize()
                     .glassSource(glassState)
             ) { tab ->
+                tabStateHolder.SaveableStateProvider(tab) {
                 when (tab) {
                     PanelTab.LIBRARY -> {
                         LibraryScreenContent(
@@ -211,6 +214,7 @@ class MainTabScreen(
                             showBottomBar = false
                         )
                     }
+                }
                 }
             }
 
