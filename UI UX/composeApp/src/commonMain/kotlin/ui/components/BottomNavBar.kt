@@ -93,8 +93,8 @@ fun PanelBottomNavBar(
         else -> {
             Modifier
                 .clip(dockShape)
-                .background(Color.White.copy(alpha = 0.08f))
-                .border(1.dp, GlassBorder, dockShape)
+                .background(Color(0xFF0E131D).copy(alpha = 0.84f))
+                .border(0.75.dp, GlassBorder, dockShape)
         }
     }
 

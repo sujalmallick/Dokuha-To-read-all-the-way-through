@@ -66,17 +66,19 @@ fun Modifier.glassSurface(
         fallback
     } else {
         try {
-            fallback.liquid(state.liquidState) {
-                this.frost = effectiveTuning.frost
-                this.refraction = effectiveTuning.refraction
-                this.curve = effectiveTuning.curve
-                this.edge = effectiveTuning.edge
-                this.dispersion = effectiveTuning.dispersion
-                this.saturation = effectiveTuning.saturation
-                this.contrast = effectiveTuning.contrast
-                this.tint = effectiveTuning.tint
-                this.shape = shape
-            }
+            this
+                .clip(shape)
+                .liquid(state.liquidState) {
+                    this.frost = effectiveTuning.frost
+                    this.refraction = effectiveTuning.refraction
+                    this.curve = effectiveTuning.curve
+                    this.edge = effectiveTuning.edge
+                    this.dispersion = effectiveTuning.dispersion
+                    this.saturation = effectiveTuning.saturation
+                    this.contrast = effectiveTuning.contrast
+                    this.tint = effectiveTuning.tint
+                    this.shape = shape
+                }
         } catch (_: Throwable) {
             fallback
         }

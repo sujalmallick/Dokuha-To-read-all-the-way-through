@@ -5,9 +5,15 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.RenderEffect
+import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
+import androidx.compose.ui.graphics.drawscope.Fill
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -25,6 +31,7 @@ import androidx.compose.ui.platform.InspectorInfo
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalGraphicsContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.util.fastFilter
 import kotlin.math.PI
@@ -168,6 +175,7 @@ internal abstract class AbstractLiquidNode(
       return
     }
 
+    var renderedGlass = false
     try {
       val layer = obtainGraphicsLayer()
       val recorded = recordLiquefiablesIntoLayer(layer, reusableScope)
@@ -177,12 +185,44 @@ internal abstract class AbstractLiquidNode(
           layer.renderEffect = cachedRenderEffect
           drawLayer(layer)
         }
+        renderedGlass = true
       }
     } catch (_: Throwable) {
       // Graceful fallback to prevent hardware renderer aborts
     }
 
+    if (!renderedGlass) {
+      drawFallbackGlass()
+    }
+
     drawContent()
+  }
+
+  private fun ContentDrawScope.drawFallbackGlass() = with(reusableScope) {
+    val shapeOutline = shape.createOutline(size, layoutDirection, this@drawFallbackGlass)
+    if (tint.isSpecified) {
+      drawOutline(
+        outline = shapeOutline,
+        color = tint,
+        style = Fill,
+      )
+    }
+    if (edge > 0f) {
+      val rimBrush = Brush.linearGradient(
+        colors = listOf(
+          Color.White.copy(alpha = 0.28f),
+          Color.White.copy(alpha = 0.08f),
+          Color.White.copy(alpha = 0.16f),
+        ),
+        start = Offset.Zero,
+        end = Offset(size.width, size.height),
+      )
+      drawOutline(
+        outline = shapeOutline,
+        brush = rimBrush,
+        style = Stroke(width = 0.75.dp.toPx()),
+      )
+    }
   }
 }
 
