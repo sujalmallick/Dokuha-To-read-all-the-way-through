@@ -71,6 +71,9 @@ kotlin {
             implementation(libs.sqldelight.runtime)
             implementation(libs.sqldelight.coroutines)
             implementation(libs.sqldelight.primitive.adapters)
+
+            // QuickJS (Multiplatform: Android, iOS, Desktop)
+            implementation(libs.quickjs)
         }
         
         androidMain.dependencies {
@@ -78,7 +81,6 @@ kotlin {
             implementation(libs.androidx.activity.compose)
             implementation(libs.androidx.core.splashscreen)
             implementation("io.insert-koin:koin-android:4.0.0")
-            implementation(libs.quickjs)
             implementation(libs.ktor.client.okhttp)
             implementation(libs.sqldelight.android.driver)
         }
