@@ -188,7 +188,10 @@ class LogViewerScreen : Screen {
                         contentPadding = PaddingValues(bottom = 32.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        items(filteredLogs) { entry ->
+                        items(
+                            items = filteredLogs,
+                            key = { entry -> "${entry.timestamp}_${entry.level}_${entry.tag}_${entry.message.hashCode()}" }
+                        ) { entry ->
                             val levelColor = when (entry.level) {
                                 LogLevel.ERROR -> Color(0xFFEF4444)
                                 LogLevel.WARN -> Color(0xFFF59E0B)

@@ -1,5 +1,6 @@
 package core.logging
 
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -46,13 +47,14 @@ actual object PlatformLogger {
         val uri: Uri = try {
             FileProvider.getUriForFile(ctx, "${ctx.packageName}.fileprovider", file)
         } catch (_: Throwable) {
-            Uri.fromFile(file)
+            return
         }
 
         val shareIntent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(Intent.EXTRA_SUBJECT, "Dokuha Diagnostic Logs")
+            clipData = ClipData.newRawUri("Dokuha Diagnostic Logs", uri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
