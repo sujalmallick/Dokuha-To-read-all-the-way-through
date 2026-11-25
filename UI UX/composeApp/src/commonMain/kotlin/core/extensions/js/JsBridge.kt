@@ -374,7 +374,7 @@ class JsBridge(
     fun log(level: String, message: String) {
         val entry = "[$level] $message"
         diagnosticLogs.add(entry)
-        println("[JsBridge] $entry")
+        core.logging.AppLogger.d("JsBridge", entry)
     }
 
     /**

@@ -1816,6 +1816,12 @@ class AboutSettingsScreen : Screen {
                                 value = "GitHub",
                                 onClick = { /* External browser stub */ }
                             )
+                            SettingsSeparator()
+                            SettingsRow.Navigation(
+                                title = "Diagnostics & Logs",
+                                value = "View / Export",
+                                onClick = { navigator.push(LogViewerScreen()) }
+                            )
                         }
                     }
                 }

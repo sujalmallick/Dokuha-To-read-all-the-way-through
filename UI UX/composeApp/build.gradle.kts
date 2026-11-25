@@ -74,6 +74,9 @@ kotlin {
 
             // QuickJS (Multiplatform: Android, iOS, Desktop)
             implementation(libs.quickjs)
+
+            // Okio (Multiplatform File I/O & Logging)
+            implementation(libs.okio)
         }
         
         androidMain.dependencies {
