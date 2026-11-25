@@ -306,27 +306,31 @@ fun NovelReaderScreenContent(
                             if (index == 0) {
                                 val firstChar = para.take(1)
                                 val restOfPara = para.drop(1)
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.Top
-                                ) {
-                                    Text(
-                                        text = firstChar,
-                                        fontSize = (fontSize * 2.8f).sp,
-                                        lineHeight = (fontSize * 2.8f).sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isCurrentSpeech) MaterialTheme.colorScheme.primary else themeColors.textColor,
-                                        fontFamily = fontFamily,
-                                        modifier = Modifier.padding(end = 8.dp, top = 2.dp)
+                                val styledFirstPara = androidx.compose.ui.text.buildAnnotatedString {
+                                    pushStyle(
+                                        androidx.compose.ui.text.SpanStyle(
+                                            fontSize = (fontSize * 1.65f).sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isCurrentSpeech) MaterialTheme.colorScheme.primary else themeColors.textColor
+                                        )
                                     )
-                                    Text(
-                                        text = restOfPara,
-                                        fontSize = fontSize.sp,
-                                        lineHeight = lineHeight,
-                                        color = themeColors.textColor.copy(alpha = if (isCurrentSpeech) 1.0f else 0.9f),
-                                        fontFamily = fontFamily
+                                    append(firstChar)
+                                    pop()
+                                    pushStyle(
+                                        androidx.compose.ui.text.SpanStyle(
+                                            fontSize = fontSize.sp,
+                                            color = themeColors.textColor.copy(alpha = if (isCurrentSpeech) 1.0f else 0.9f)
+                                        )
                                     )
+                                    append(restOfPara)
+                                    pop()
                                 }
+                                Text(
+                                    text = styledFirstPara,
+                                    lineHeight = lineHeight,
+                                    fontFamily = fontFamily,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
                             } else {
                                 Text(
                                     text = para,

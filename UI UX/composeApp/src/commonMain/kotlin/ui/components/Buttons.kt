@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -201,8 +202,7 @@ fun PanelCircleIconButton(
 
     Box(
         modifier = modifier
-            .size(size)
-            .then(surfaceModifier)
+            .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -210,12 +210,19 @@ fun PanelCircleIconButton(
             ),
         contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(iconSize)
-        )
+        Box(
+            modifier = Modifier
+                .size(size)
+                .then(surfaceModifier),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(iconSize)
+            )
+        }
     }
 }
 

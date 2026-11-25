@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import ui.glass.GlassVariant
 import ui.glass.PanelGlassState
+import ui.glass.glassDimming
 import ui.glass.glassPress
 import ui.glass.glassSurface
 import ui.motion.rememberTabIndicatorSpring
@@ -84,16 +85,18 @@ fun PanelBottomNavBar(
 
     val surfaceModifier = when {
         glassState != null -> {
-            Modifier.glassSurface(
-                state = glassState,
-                variant = GlassVariant.Regular,
-                shape = dockShape
-            )
+            Modifier
+                .glassDimming(alpha = 0.24f, shape = dockShape)
+                .glassSurface(
+                    state = glassState,
+                    variant = GlassVariant.Regular,
+                    shape = dockShape
+                )
         }
         else -> {
             Modifier
                 .clip(dockShape)
-                .background(Color(0xFF0E131D).copy(alpha = 0.84f))
+                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.90f))
                 .border(0.75.dp, GlassBorder, dockShape)
         }
     }

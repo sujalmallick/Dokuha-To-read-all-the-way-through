@@ -102,6 +102,8 @@ interface SettingsRepository {
     val dualPageOffset: StateFlow<Boolean>
     val readerColorFilter: StateFlow<ReaderColorFilter>
     val readerPreloadPages: StateFlow<Int>
+    val readerTapZonesEnabled: StateFlow<Boolean>
+    val readerCutoutPadding: StateFlow<Boolean>
 
     fun setDefaultReadingMode(mode: DefaultReadingMode)
     fun setSidePadding(padding: Float)
@@ -112,6 +114,8 @@ interface SettingsRepository {
     fun setDualPageOffset(enabled: Boolean)
     fun setReaderColorFilter(filter: ReaderColorFilter)
     fun setReaderPreloadPages(count: Int)
+    fun setReaderTapZonesEnabled(enabled: Boolean)
+    fun setReaderCutoutPadding(enabled: Boolean)
 
     // Novel Reader
     val novelFont: StateFlow<NovelFont>
@@ -253,6 +257,12 @@ class FakeSettingsRepository : SettingsRepository {
     private val _readerPreloadPages = MutableStateFlow(6)
     override val readerPreloadPages: StateFlow<Int> = _readerPreloadPages.asStateFlow()
 
+    private val _readerTapZonesEnabled = MutableStateFlow(true)
+    override val readerTapZonesEnabled: StateFlow<Boolean> = _readerTapZonesEnabled.asStateFlow()
+
+    private val _readerCutoutPadding = MutableStateFlow(false)
+    override val readerCutoutPadding: StateFlow<Boolean> = _readerCutoutPadding.asStateFlow()
+
     override fun setDefaultReadingMode(mode: DefaultReadingMode) {
         _defaultReadingMode.value = mode
     }
@@ -287,6 +297,14 @@ class FakeSettingsRepository : SettingsRepository {
 
     override fun setReaderPreloadPages(count: Int) {
         _readerPreloadPages.value = count.coerceIn(0, 20)
+    }
+
+    override fun setReaderTapZonesEnabled(enabled: Boolean) {
+        _readerTapZonesEnabled.value = enabled
+    }
+
+    override fun setReaderCutoutPadding(enabled: Boolean) {
+        _readerCutoutPadding.value = enabled
     }
 
     // Novel Reader

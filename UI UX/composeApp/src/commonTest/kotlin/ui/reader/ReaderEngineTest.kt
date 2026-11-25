@@ -65,6 +65,30 @@ class ReaderEngineTest {
     }
 
     @Test
+    fun testTapZonesEdgeExclusionAndSwipeOnlyMode() {
+        // Outer 6% edge exclusion prevents OS Back gesture collision
+        assertEquals(null, ReaderTapZones.resolveActionForFraction(0.02f, isRtl = false, tapZonesEnabled = true))
+        assertEquals(null, ReaderTapZones.resolveActionForFraction(0.98f, isRtl = false, tapZonesEnabled = true))
+        // Valid inner tap zones still resolve normally
+        assertEquals(TapAction.PREVIOUS, ReaderTapZones.resolveActionForFraction(0.15f, isRtl = false, tapZonesEnabled = true))
+        assertEquals(TapAction.NEXT, ReaderTapZones.resolveActionForFraction(0.85f, isRtl = false, tapZonesEnabled = true))
+        // Swipe-only mode: all taps toggle HUD instead of turning pages
+        assertEquals(TapAction.TOGGLE_CONTROLS, ReaderTapZones.resolveActionForFraction(0.15f, isRtl = false, tapZonesEnabled = false))
+        assertEquals(TapAction.TOGGLE_CONTROLS, ReaderTapZones.resolveActionForFraction(0.85f, isRtl = true, tapZonesEnabled = false))
+    }
+
+    @Test
+    fun testSettingsRepository_tapZonesAndCutoutPaddingDefaults() {
+        val repo = FakeSettingsRepository()
+        assertTrue(repo.readerTapZonesEnabled.value)
+        assertEquals(false, repo.readerCutoutPadding.value)
+        repo.setReaderTapZonesEnabled(false)
+        repo.setReaderCutoutPadding(true)
+        assertEquals(false, repo.readerTapZonesEnabled.value)
+        assertTrue(repo.readerCutoutPadding.value)
+    }
+
+    @Test
     fun testReadingModes_allModesAvailable() {
         val modes = DefaultReadingMode.entries
         assertEquals(4, modes.size)

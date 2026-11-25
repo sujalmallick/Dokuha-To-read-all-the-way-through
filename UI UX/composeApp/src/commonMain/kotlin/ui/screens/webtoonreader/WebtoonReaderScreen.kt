@@ -57,7 +57,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.withFrameNanos
+import core.extensions.js.CloudflareChallengeHeuristics
 import kotlinx.coroutines.isActive
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
@@ -142,9 +144,12 @@ data class WebtoonReaderScreen(
 
         var currentChapterUrl by remember(chapterUrl) { mutableStateOf(chapterUrl) }
         var currentChapterTitle by remember(chapterTitle) { mutableStateOf(chapterTitle) }
+        var pagesRefreshTrigger by remember { mutableIntStateOf(0) }
 
         val chapters by repository.getChapters(mangaUrl).collectAsState(initial = emptyList())
-        val pages by repository.getPages(currentChapterUrl).collectAsState(initial = emptyList())
+        val pages by remember(currentChapterUrl, pagesRefreshTrigger) {
+            repository.getPages(currentChapterUrl)
+        }.collectAsState(initial = emptyList())
         val isDownloaded = remember(currentChapterUrl) {
             downloadManager.isChapterDownloaded(mangaUrl, currentChapterUrl)
         }
@@ -263,6 +268,8 @@ fun WebtoonReaderScreenContent(
     val volumeKeyNavEnabled by repo.volumeKeyNavigation.collectAsState()
     val readerColorFilter by repo.readerColorFilter.collectAsState()
     val readerPreloadPages by repo.readerPreloadPages.collectAsState()
+    val tapZonesEnabled by repo.readerTapZonesEnabled.collectAsState()
+    val cutoutPadding by repo.readerCutoutPadding.collectAsState()
 
     // Volume key navigation: scroll one page up/down when enabled
     val volumeKeyState = LocalVolumeKeyState.current
@@ -347,6 +354,7 @@ fun WebtoonReaderScreenContent(
 
         val totalContentCount = if (isDualSpreadActive) spreads.size + 1 else displayPages.size + 1
         val pagerState = rememberPagerState(pageCount = { totalContentCount })
+        var isPageZoomed by remember(chapterUrl, pagerState.currentPage) { mutableStateOf(false) }
 
         // Reset scroll/pager position when switching chapters
         LaunchedEffect(chapterUrl) {
@@ -458,7 +466,8 @@ fun WebtoonReaderScreenContent(
 
         // Smart Background Preloader: Proactively buffers ahead next pages into cache
         val platformContext = LocalPlatformContext.current
-        LaunchedEffect(currentPageIndex, displayPages, readerPreloadPages) {
+        val defaultReaderUa = remember { CloudflareChallengeHeuristics.defaultReaderUserAgent() }
+        LaunchedEffect(currentPageIndex, displayPages, readerPreloadPages, defaultReaderUa) {
             if (displayPages.isEmpty() || readerPreloadPages <= 0) return@LaunchedEffect
             val imageLoader = coil3.SingletonImageLoader.get(platformContext)
             val start = currentPageIndex.coerceAtLeast(0)
@@ -472,7 +481,7 @@ fun WebtoonReaderScreenContent(
                         .apply {
                             val headers = p.headers
                             val networkHeaders = NetworkHeaders.Builder().apply {
-                                add("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
+                                add("User-Agent", defaultReaderUa)
                                 headers?.forEach { (k, v) -> add(k, v) }
                             }.build()
                             httpHeaders(networkHeaders)
@@ -518,16 +527,29 @@ fun WebtoonReaderScreenContent(
             }
         }
 
-        // LAYER 1: Artwork Reading Viewport (Multi-Mode Engine with Side Padding)
+        // LAYER 1: Artwork Reading Viewport (Multi-Mode Engine with Side Padding & optional Cutout Guard)
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .then(if (cutoutPadding) Modifier.statusBarsPadding().navigationBarsPadding() else Modifier)
                 .padding(horizontal = horizontalPadding)
                 .glassSource(glassState)
         ) {
             if (displayPages.isEmpty()) {
                 val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                 val isExternal = chapterUrl.startsWith("http://", ignoreCase = true) || chapterUrl.startsWith("https://", ignoreCase = true)
+                var retryAttempt by remember(chapterUrl) { mutableIntStateOf(0) }
+                var loadingTimedOut by remember(chapterUrl, retryAttempt) { mutableStateOf(false) }
+
+                LaunchedEffect(chapterUrl, retryAttempt, displayPages.isEmpty()) {
+                    if (!isExternal && displayPages.isEmpty()) {
+                        kotlinx.coroutines.delay(10_000L)
+                        if (displayPages.isEmpty()) {
+                            loadingTimedOut = true
+                        }
+                    }
+                }
+
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
@@ -557,6 +579,41 @@ fun WebtoonReaderScreenContent(
                                 icon = Icons.Default.PlayArrow,
                                 onClick = { uriHandler.openUri(chapterUrl) }
                             )
+                        }
+                    } else if (loadingTimedOut) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            Text(
+                                text = "Unable to load chapter pages",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "The source returned no pages or timed out. Check your connection or try another mirror.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextSecondary,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                            Spacer(modifier = Modifier.height(20.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                ui.components.PanelButton(
+                                    text = "Go Back",
+                                    variant = ui.components.ButtonVariant.OUTLINE,
+                                    onClick = onBack
+                                )
+                                ui.components.PanelButton(
+                                    text = "Retry",
+                                    onClick = {
+                                        loadingTimedOut = false
+                                        retryAttempt++
+                                    }
+                                )
+                            }
                         }
                     } else {
                         Column(
@@ -589,6 +646,7 @@ fun WebtoonReaderScreenContent(
                                 .nestedScroll(autoNextNestedScroll)
                                 .readerTapHandler(
                                     isRtl = false,
+                                    tapZonesEnabled = tapZonesEnabled,
                                     onPrevious = handlePrevious,
                                     onToggleControls = handleToggleControls,
                                     onNext = handleNext
@@ -648,10 +706,12 @@ fun WebtoonReaderScreenContent(
                     HorizontalPager(
                         state = pagerState,
                         reverseLayout = true,
+                        userScrollEnabled = !isPageZoomed,
                         modifier = Modifier
                             .fillMaxSize()
                             .readerTapHandler(
                                 isRtl = true,
+                                tapZonesEnabled = tapZonesEnabled,
                                 onPrevious = handlePrevious,
                                 onToggleControls = handleToggleControls,
                                 onNext = handleNext
@@ -688,6 +748,7 @@ fun WebtoonReaderScreenContent(
                                     cropBorders = cropBorders,
                                     page = displayPages.getOrNull(pageIndex),
                                     colorFilter = readerColorFilter,
+                                    onZoomStateChanged = { isPageZoomed = it },
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {
@@ -707,10 +768,12 @@ fun WebtoonReaderScreenContent(
                     HorizontalPager(
                         state = pagerState,
                         reverseLayout = false,
+                        userScrollEnabled = !isPageZoomed,
                         modifier = Modifier
                             .fillMaxSize()
                             .readerTapHandler(
                                 isRtl = false,
+                                tapZonesEnabled = tapZonesEnabled,
                                 onPrevious = handlePrevious,
                                 onToggleControls = handleToggleControls,
                                 onNext = handleNext
@@ -747,6 +810,7 @@ fun WebtoonReaderScreenContent(
                                     cropBorders = cropBorders,
                                     page = displayPages.getOrNull(pageIndex),
                                     colorFilter = readerColorFilter,
+                                    onZoomStateChanged = { isPageZoomed = it },
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {
@@ -765,10 +829,12 @@ fun WebtoonReaderScreenContent(
                 DefaultReadingMode.VERTICAL -> {
                     VerticalPager(
                         state = pagerState,
+                        userScrollEnabled = !isPageZoomed,
                         modifier = Modifier
                             .fillMaxSize()
                             .readerTapHandler(
                                 isRtl = false,
+                                tapZonesEnabled = tapZonesEnabled,
                                 onPrevious = handlePrevious,
                                 onToggleControls = handleToggleControls,
                                 onNext = handleNext

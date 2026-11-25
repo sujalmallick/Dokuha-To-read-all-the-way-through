@@ -215,11 +215,11 @@ fun TitleDetailsScreenContent(
     val completedDownloads by downloadManager.completedDownloads.collectAsState()
 
     val displayManga = manga ?: SourceManga(
-        url = "manga/the-last-horizon",
-        title = "The Last Horizon",
-        description = "In a world where the sky has split, a young man follows the last light to uncover the truth behind a forgotten era...",
-        genres = listOf("Action", "Fantasy", "Adventure"),
-        status = MangaStatus.ONGOING
+        url = "",
+        title = if (isLoadingDetails) "Loading..." else "Title Details",
+        description = "",
+        genres = emptyList(),
+        status = MangaStatus.UNKNOWN
     )
 
     Box(
@@ -349,7 +349,7 @@ fun TitleDetailsScreenContent(
                                     text = "Recap",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = Color.White
+                                    color = TextPrimary
                                 )
                             }
                         }

@@ -59,8 +59,11 @@ fun Modifier.glassSurface(
 
     val fallback = this
         .clip(shape)
-        .background(effectiveTuning.tint)
-        .border(0.5.dp, Color.White.copy(alpha = 0.20f), shape)
+        .background(
+            if (reduceGlass) androidx.compose.material3.MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+            else effectiveTuning.tint
+        )
+        .border(0.5.dp, androidx.compose.material3.MaterialTheme.colorScheme.outlineVariant, shape)
 
     return if (reduceGlass || state == null) {
         fallback

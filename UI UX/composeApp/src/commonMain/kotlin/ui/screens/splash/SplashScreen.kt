@@ -1,6 +1,7 @@
 package ui.screens.splash
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -92,17 +93,11 @@ private val SplashBackground = Color(0xFF080808)
 private val WordmarkColor = Color(0xFFEBE6E2)
 private val KanjiColor = Color(0x80FFFFFF)
 
-internal data class SplashFormatEntry(
-    val label: String,
-    val accentColor: Color
-)
-
-internal val SplashFormatEntries = listOf(
-    SplashFormatEntry("MANHWA", Color(0xFF38BDF8)),
-    SplashFormatEntry("MANHUA", Color(0xFFF59E0B)),
-    SplashFormatEntry("MANGA", Color(0xFFE2E8F0)),
-    SplashFormatEntry("COMIC", Color(0xFFF43F5E)),
-    SplashFormatEntry("WEBNOVEL", Color(0xFFA855F7))
+internal val SplashFormats = listOf(
+    "manhua",
+    "manhwa",
+    "manga",
+    "novel"
 )
 
 class SplashScreen(
@@ -258,15 +253,15 @@ fun SplashScreenContent(
         label = "logo_pulse"
     )
 
-    // Rotate MANHWA -> MANHUA -> MANGA -> COMIC -> WEBNOVEL seamlessly on the single screen
+    // Rotate manhua -> manhwa -> manga -> novel seamlessly along the bottom editorial line
     LaunchedEffect(activeMotion, autoFinish, reduceMotion) {
         formatIndex = 0
         if (reduceMotion) return@LaunchedEffect
-        delay(650)
-        val stepMs = if (autoFinish) 420L else 850L
+        delay(550)
+        val stepMs = if (autoFinish) 520L else 950L
         while (true) {
             delay(stepMs)
-            formatIndex = (formatIndex + 1) % SplashFormatEntries.size
+            formatIndex = (formatIndex + 1) % SplashFormats.size
         }
     }
 
@@ -847,73 +842,46 @@ fun SplashScreenContent(
                 letterSpacing = if (isCompact) 3.sp else 4.sp,
                 modifier = Modifier.alpha(kanjiAlpha.value * 0.85f)
             )
-
-            Spacer(modifier = Modifier.height(formatGap))
-
-            // Styled rotating format badge on the single screen: MANHWA -> MANHUA -> MANGA -> COMIC -> WEBNOVEL
-            val currentFormat = SplashFormatEntries[formatIndex % SplashFormatEntries.size]
-            Box(
-                modifier = Modifier
-                    .alpha(formatAlpha.value)
-                    .clip(RoundedCornerShape(50))
-                    .background(Color.White.copy(alpha = 0.05f))
-                    .border(
-                        width = 0.75.dp,
-                        color = currentFormat.accentColor.copy(alpha = 0.35f),
-                        shape = RoundedCornerShape(50)
-                    )
-                    .padding(
-                        horizontal = if (isCompact) 10.dp else 14.dp,
-                        vertical = if (isCompact) 3.dp else 5.dp
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                AnimatedContent(
-                    targetState = formatIndex,
-                    transitionSpec = {
-                        (slideInVertically(tween(240, easing = FastOutSlowInEasing)) { it / 2 } + fadeIn(tween(200))) togetherWith
-                            (slideOutVertically(tween(200, easing = FastOutSlowInEasing)) { -it / 2 } + fadeOut(tween(160)))
-                    },
-                    label = "SplashFormatRotation"
-                ) { idx ->
-                    val entry = SplashFormatEntries[idx % SplashFormatEntries.size]
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(if (isCompact) 4.dp else 5.dp)
-                                .clip(CircleShape)
-                                .background(entry.accentColor)
-                        )
-                        Spacer(modifier = Modifier.width(if (isCompact) 6.dp else 8.dp))
-                        Text(
-                            text = entry.label,
-                            fontSize = if (isCompact) 9.sp else 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = WordmarkColor.copy(alpha = 0.94f),
-                            letterSpacing = if (isCompact) 2.2.sp else 3.2.sp
-                        )
-                    }
-                }
-            }
         }
 
-        // Tap to skip hint (only when full-screen & auto-finishing)
-        if (autoFinish && !isCompact) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(bottom = 24.dp)
-                    .alpha(wordmarkAlpha.value * 0.45f)
-            ) {
+        // Clean editorial kinetic tagline anchored at the bottom (no pill, no border, no dot)
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .then(if (isCompact) Modifier else Modifier.navigationBarsPadding())
+                .padding(bottom = if (isCompact) 14.dp else 34.dp)
+                .alpha(formatAlpha.value),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "not a single weak ",
+                fontSize = if (isCompact) 10.sp else 13.sp,
+                fontWeight = FontWeight.Light,
+                color = WordmarkColor.copy(alpha = 0.56f),
+                letterSpacing = if (isCompact) 0.5.sp else 1.0.sp
+            )
+            AnimatedContent(
+                targetState = formatIndex,
+                transitionSpec = {
+                    (slideInVertically(tween(340, easing = FastOutSlowInEasing)) { height -> height } +
+                        fadeIn(tween(300)))
+                        .togetherWith(
+                            slideOutVertically(tween(300, easing = FastOutSlowInEasing)) { height -> -height } +
+                                fadeOut(tween(240))
+                        )
+                        .using(SizeTransform(clip = false))
+                },
+                contentAlignment = Alignment.CenterStart,
+                label = "SplashFormatRotation"
+            ) { idx ->
+                val formatWord = SplashFormats[idx % SplashFormats.size]
                 Text(
-                    text = "Tap anywhere to skip",
-                    fontSize = 10.sp,
-                    color = Color.White.copy(alpha = 0.5f),
-                    letterSpacing = 1.sp
+                    text = formatWord,
+                    fontSize = if (isCompact) 10.sp else 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = WordmarkColor.copy(alpha = 0.94f),
+                    letterSpacing = if (isCompact) 0.8.sp else 1.4.sp
                 )
             }
         }
