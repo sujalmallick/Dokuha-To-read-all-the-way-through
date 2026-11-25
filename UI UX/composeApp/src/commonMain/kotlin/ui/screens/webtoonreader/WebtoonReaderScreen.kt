@@ -1,6 +1,7 @@
 package ui.screens.webtoonreader
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -16,16 +17,19 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
@@ -75,9 +79,17 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -336,6 +348,52 @@ fun WebtoonReaderScreenContent(
         val totalContentCount = if (isDualSpreadActive) spreads.size + 1 else displayPages.size + 1
         val pagerState = rememberPagerState(pageCount = { totalContentCount })
 
+        // Reset scroll/pager position when switching chapters
+        LaunchedEffect(chapterUrl) {
+            listState.scrollToItem(0)
+            pagerState.scrollToPage(0)
+        }
+
+        // Guard so downward over-scroll at end of chapter only triggers next chapter once per chapter
+        var hasTriggeredAutoNext by remember(chapterUrl) { mutableStateOf(false) }
+        val autoNextNestedScroll = remember(chapterUrl, hasNextChapter, displayPages.size) {
+            object : NestedScrollConnection {
+                override fun onPostScroll(
+                    consumed: Offset,
+                    available: Offset,
+                    source: NestedScrollSource
+                ): Offset {
+                    if (shouldAutoAdvanceOnBottomScroll(
+                            hasNextChapter = hasNextChapter,
+                            alreadyTriggered = hasTriggeredAutoNext,
+                            canScrollForward = listState.canScrollForward,
+                            downwardScrollDeltaY = available.y,
+                            isEmptyPages = displayPages.isEmpty()
+                        )
+                    ) {
+                        hasTriggeredAutoNext = true
+                        onNextChapter()
+                    }
+                    return Offset.Zero
+                }
+
+                override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                    if (shouldAutoAdvanceOnBottomScroll(
+                            hasNextChapter = hasNextChapter,
+                            alreadyTriggered = hasTriggeredAutoNext,
+                            canScrollForward = listState.canScrollForward,
+                            downwardScrollDeltaY = available.y,
+                            isEmptyPages = displayPages.isEmpty()
+                        )
+                    ) {
+                        hasTriggeredAutoNext = true
+                        onNextChapter()
+                    }
+                    return Velocity.Zero
+                }
+            }
+        }
+
         // Derive scroll progression percentage 0f..1f
         val currentProgress by remember(readingMode, displayPages.size, isDualSpreadActive, spreads.size) {
             derivedStateOf {
@@ -522,54 +580,68 @@ fun WebtoonReaderScreenContent(
             } else {
                 when (readingMode) {
                 DefaultReadingMode.WEBTOON -> {
-                    LazyColumn(
-                        state = listState,
-                        verticalArrangement = Arrangement.spacedBy(0.dp),
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .readerTapHandler(
-                                isRtl = false,
-                                onPrevious = handlePrevious,
-                                onToggleControls = handleToggleControls,
-                                onNext = handleNext
-                            )
-                    ) {
-                        itemsIndexed(displayPages) { index, page ->
-                            val imageUrl = page.imageUrl ?: page.url
-                            val isRemote = !imageUrl.isBlank() &&
-                                (imageUrl.startsWith("http://", ignoreCase = true) || imageUrl.startsWith("https://", ignoreCase = true))
-                            WebtoonPanelSlice(
-                                sliceIndex = index,
-                                totalSlices = displayPages.size,
-                                cropBorders = cropBorders,
-                                page = page,
-                                colorFilter = readerColorFilter,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .then(
-                                        if (isRemote) Modifier.wrapContentHeight()
-                                        else Modifier.height(if (cropBorders) 540.dp else 520.dp)
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        LazyColumn(
+                            state = listState,
+                            verticalArrangement = Arrangement.spacedBy(0.dp),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .nestedScroll(autoNextNestedScroll)
+                                .readerTapHandler(
+                                    isRtl = false,
+                                    onPrevious = handlePrevious,
+                                    onToggleControls = handleToggleControls,
+                                    onNext = handleNext
+                                )
+                        ) {
+                            itemsIndexed(displayPages) { index, page ->
+                                val imageUrl = page.imageUrl ?: page.url
+                                val isRemote = !imageUrl.isBlank() &&
+                                    (imageUrl.startsWith("http://", ignoreCase = true) || imageUrl.startsWith("https://", ignoreCase = true))
+                                WebtoonPanelSlice(
+                                    sliceIndex = index,
+                                    totalSlices = displayPages.size,
+                                    cropBorders = cropBorders,
+                                    page = page,
+                                    colorFilter = readerColorFilter,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .then(
+                                            if (isRemote) Modifier.wrapContentHeight()
+                                            else Modifier.height(if (cropBorders) 540.dp else 520.dp)
+                                        )
+                                )
+                            }
+                            if (hasNextChapter) {
+                                item(key = "seamless_gap_${chapterTitle}") {
+                                    WebtoonChapterTransitionGap(
+                                        currentChapterTitle = chapterTitle,
+                                        nextChapterTitle = nextChapterTitle,
+                                        onContinueToNextChapter = onNextChapter,
+                                        glassState = glassState
                                     )
-                            )
-                        }
-                        if (hasNextChapter) {
-                            item(key = "seamless_gap_${chapterTitle}") {
-                                WebtoonChapterTransitionGap(
-                                    currentChapterTitle = chapterTitle,
-                                    nextChapterTitle = nextChapterTitle,
-                                    onContinueToNextChapter = onNextChapter,
-                                    glassState = glassState
-                                )
-                            }
-                        } else {
-                            item(key = "end_of_series_${chapterTitle}") {
-                                WebtoonEndOfSeriesCard(
-                                    chapterTitle = chapterTitle,
-                                    onBack = onBack,
-                                    glassState = glassState
-                                )
+                                }
+                            } else {
+                                item(key = "end_of_series_${chapterTitle}") {
+                                    WebtoonEndOfSeriesCard(
+                                        chapterTitle = chapterTitle,
+                                        onBack = onBack,
+                                        glassState = glassState
+                                    )
+                                }
                             }
                         }
+
+                        WebtoonVerticalScrollbar(
+                            listState = listState,
+                            isControlsVisible = areControlsVisible,
+                            modifier = Modifier
+                                .align(Alignment.CenterEnd)
+                                .fillMaxHeight()
+                                .statusBarsPadding()
+                                .navigationBarsPadding()
+                                .padding(end = 4.dp, top = 12.dp, bottom = 12.dp)
+                        )
                     }
                 }
                 DefaultReadingMode.RIGHT_TO_LEFT -> {
@@ -737,8 +809,8 @@ fun WebtoonReaderScreenContent(
             )
         }
 
-        // Floating Page Indicator Pill
-        if (!isAtEndOfChapter) {
+        // Floating Page Indicator Pill (hidden when bottom controls are visible to avoid duplicate badges)
+        if (!isAtEndOfChapter && !areControlsVisible) {
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -852,71 +924,6 @@ fun WebtoonReaderScreenContent(
                     },
                     glassState = glassState
                 )
-            }
-        }
-
-        // LAYER 2.5: Educational 3-Zone Tap Hints (Subtle visual guidance when controls are shown)
-        AnimatedVisibility(
-            visible = areControlsVisible,
-            enter = fadeIn(),
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.Center)
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Left Zone
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.Black.copy(alpha = 0.55f))
-                        .border(0.5.dp, GlassBorder, RoundedCornerShape(12.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = if (isRtl) "◀ Next (RTL)" else "◀ Prev",
-                        fontSize = 10.sp,
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                // Center Zone
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.Black.copy(alpha = 0.55f))
-                        .border(0.5.dp, GlassBorder, RoundedCornerShape(12.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = "◉ Menu",
-                        fontSize = 10.sp,
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-
-                // Right Zone
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.Black.copy(alpha = 0.55f))
-                        .border(0.5.dp, GlassBorder, RoundedCornerShape(12.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = if (isRtl) "Prev (RTL) ▶" else "Next ▶",
-                        fontSize = 10.sp,
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontWeight = FontWeight.Medium
-                    )
-                }
             }
         }
 
@@ -1777,6 +1784,111 @@ fun WebtoonPanelSlice(
         )
     }
 }
+}
+
+internal fun shouldAutoAdvanceOnBottomScroll(
+    hasNextChapter: Boolean,
+    alreadyTriggered: Boolean,
+    canScrollForward: Boolean,
+    downwardScrollDeltaY: Float,
+    isEmptyPages: Boolean
+): Boolean {
+    return hasNextChapter &&
+        !alreadyTriggered &&
+        !isEmptyPages &&
+        !canScrollForward &&
+        downwardScrollDeltaY < -4f
+}
+
+internal data class WebtoonScrollbarMetrics(
+    val thumbSizeFraction: Float,
+    val thumbOffsetFraction: Float
+)
+
+internal fun computeWebtoonScrollbarMetrics(
+    firstVisibleIndex: Int,
+    firstVisibleItemScrollOffset: Int,
+    firstVisibleItemHeight: Int,
+    visibleItemsCount: Int,
+    totalItemsCount: Int
+): WebtoonScrollbarMetrics {
+    if (totalItemsCount <= 0 || visibleItemsCount <= 0 || totalItemsCount <= visibleItemsCount) {
+        return WebtoonScrollbarMetrics(thumbSizeFraction = 1f, thumbOffsetFraction = 0f)
+    }
+    val itemFraction = if (firstVisibleItemHeight > 0) {
+        (firstVisibleItemScrollOffset.toFloat() / firstVisibleItemHeight.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val thumbSize = (visibleItemsCount.toFloat() / totalItemsCount.toFloat()).coerceIn(0.08f, 1f)
+    val scrollableItems = (totalItemsCount - visibleItemsCount).coerceAtLeast(1).toFloat()
+    val progress = ((firstVisibleIndex + itemFraction) / scrollableItems).coerceIn(0f, 1f)
+    val thumbOffset = progress * (1f - thumbSize)
+    return WebtoonScrollbarMetrics(
+        thumbSizeFraction = thumbSize,
+        thumbOffsetFraction = thumbOffset
+    )
+}
+
+@Composable
+private fun WebtoonVerticalScrollbar(
+    listState: LazyListState,
+    isControlsVisible: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val metrics by remember(listState) {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            val visibleItems = layoutInfo.visibleItemsInfo
+            computeWebtoonScrollbarMetrics(
+                firstVisibleIndex = listState.firstVisibleItemIndex,
+                firstVisibleItemScrollOffset = listState.firstVisibleItemScrollOffset,
+                firstVisibleItemHeight = visibleItems.firstOrNull()?.size ?: 0,
+                visibleItemsCount = visibleItems.size,
+                totalItemsCount = layoutInfo.totalItemsCount
+            )
+        }
+    }
+
+    if (metrics.thumbSizeFraction >= 0.99f) return
+
+    val isScrolling = listState.isScrollInProgress
+    val alpha by animateFloatAsState(
+        targetValue = if (isScrolling || isControlsVisible) 0.95f else 0.35f
+    )
+    val thumbColor = if (isScrolling) {
+        MaterialTheme.colorScheme.primary
+    } else {
+        Color.White.copy(alpha = 0.75f)
+    }
+    val density = LocalDensity.current
+
+    BoxWithConstraints(
+        modifier = modifier
+            .width(5.dp)
+            .graphicsLayer { this.alpha = alpha }
+            .clip(CapsuleShape)
+            .background(Color.White.copy(alpha = 0.12f))
+    ) {
+        val trackHeightPx = with(density) { maxHeight.toPx() }.coerceAtLeast(1f)
+        val thumbHeightPx = (trackHeightPx * metrics.thumbSizeFraction).coerceAtLeast(with(density) { 28.dp.toPx() })
+        val maxOffsetPx = (trackHeightPx - thumbHeightPx).coerceAtLeast(0f)
+        val normalizedProgress = if (1f - metrics.thumbSizeFraction > 0f) {
+            (metrics.thumbOffsetFraction / (1f - metrics.thumbSizeFraction)).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+        val thumbOffsetPx = (maxOffsetPx * normalizedProgress).roundToInt()
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset { IntOffset(0, thumbOffsetPx) }
+                .height(with(density) { thumbHeightPx.toDp() })
+                .clip(CapsuleShape)
+                .background(thumbColor)
+        )
+    }
 }
 
 @Preview
