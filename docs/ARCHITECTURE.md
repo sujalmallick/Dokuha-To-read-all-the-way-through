@@ -6,7 +6,7 @@ This document provides a technical deep-dive into the architectural patterns, se
 
 ## 1. System Overview
 
-Dokuha is architected as a decoupled, multiplatform application built on **Compose Multiplatform (CMP)** and **Kotlin Multiplatform (KMP)** targeting Android (API 26+) and iOS (iOS 15+).
+Dokuha is architected as a decoupled, mobile-only multiplatform application built on **Compose Multiplatform (CMP)** and **Kotlin Multiplatform (KMP)** targeting **Android** (API 24+ minSdk, API 35 compile/targetSdk) and **iOS** (iOS 15+ via `iosX64`, `iosArm64`, `iosSimulatorArm64`). There is no Desktop target.
 
 ```
 UI UX/composeApp/src/
@@ -40,9 +40,9 @@ UI UX/composeApp/src/
 │           ├── profile/        # ProfileScreen (Stats & tracker accounts)
 │           ├── more/           # MoreScreen (Hub navigation)
 │           └── settings/       # Appearance & Reader settings screens
-├── androidMain/kotlin/         # Android KeyStore implementation & platform specs
-├── iosMain/kotlin/             # Apple Keychain implementation & iOS lifecycle
-└── commonTest/kotlin/          # Automated test suites (58 passing tests)
+├── androidMain/kotlin/         # Android KeyStore, QuickJS/WebView, TextToSpeech & platform specs
+├── iosMain/kotlin/             # Apple Keychain, WKWebView, AVSpeechSynthesizer & iOS lifecycle
+└── commonTest/kotlin/          # Shared & Android unit/screenshot test suites (195 passing tests across 32 suites)
     ├── data/                   # Storage, Settings, Profile, Tracker, Validator tests
     ├── ui/browse/              # BrowseSearchEngineTest
     ├── ui/motion/              # PanelMotionTest
@@ -134,19 +134,21 @@ PanelTheme(
 
 ## 6. Automated Verification Matrix
 
-Every pull request is verified against 58 automated unit and screenshot tests across 8 test suites:
+Every pull request is verified via `./gradlew :composeApp:testDebugUnitTest` (currently **195 passing tests across 32 test suites**, covering extension runtime, anti-bot heuristics, SQLDelight persistence, storage/settings/tracker repositories, reader & webnovel TTS utilities, splash concepts, and 23 Roborazzi screenshot captures).
+
+Key suites include:
 
 | Suite | Scope | Tests | Pass Rate |
 |:---|:---|:---:|:---:|
-| **`BrowseSearchEngineTest`** | Partial matching, multi-genre filtering, status segregation, A-Z sorting, pagination | 9 | 100% |
+| **`BrowseSearchEngineTest`** | Partial matching, multi-genre filtering, status segregation, A-Z sorting, pagination | 10 | 100% |
 | **`ReaderEngineTest`** | 3-zone tap calculations, RTL layout inversion, mode bounds, progress scrubbers | 9 | 100% |
-| **`ExtensionRepoValidatorTest`** | HTTPS verification, URL sanitization, SHA-256 fingerprint checking | 7 | 100% |
-| **`PersistentStorageRepositoriesTest`** | Hardware secure storage & key-value persistence across simulated restarts | 5 | 100% |
-| **`SettingsProfileRepositoriesTest`** | Reactive StateFlow updates for theme, reading mode, and user profile | 7 | 100% |
-| **`TrackerRepositoryTest`** | AniList, MyAnimeList, Kitsu token storage and secure wipe on logout | 3 | 100% |
-| **`PanelMotionTest`** | Motion tokens, canonical spring curves, accessibility disabling | 4 | 100% |
-| **`ScreenshotsTest`** | Native Roborazzi visual regression tests across all 14 screens | 14 | 100% |
-| **Total** | | **58** | **100%** |
+| **`JsBridgeTest` & `JsEngineTest`** | QuickJS sandbox evaluation, host marshaling, cookies & anti-bot retry | 25 | 100% |
+| **`CloudflareChallengeHeuristicsTest` & `AntiBotChallengeManagerTest`** | SSRF URL guards, domain cookie matching, iOS UA compatibility, challenge coalescing | 11 | 100% |
+| **`ExtensionRepoValidatorTest` & `ExtensionRepositoryTest`** | HTTPS verification, URL sanitization, SHA-256 fingerprint & persistence | 19 | 100% |
+| **`PersistentStorageRepositoriesTest` & `SettingsProfileRepositoriesTest`** | Hardware secure storage, reactive preferences & profile persistence | 12 | 100% |
+| **`NovelTextSanitizerTest`, `AppLogoAndSplashTest`, `LiquidGlassLogoTest`** | TTS HTML/Markdown cleaning, splash motion concepts & rotating formats | 14 | 100% |
+| **`ScreenshotsTest`** | Native Roborazzi visual regression tests across 23 captures | 23 | 100% |
+| **All 32 Suites Total** | Complete Android & `commonTest` verification (`0 skipped`, `0 failed`) | **195** | **100%** |
 
 ---
 
@@ -154,8 +156,9 @@ Every pull request is verified against 58 automated unit and screenshot tests ac
 
 ### Requirements
 - JDK 17 or higher
-- Android SDK (API 34 compile target)
+- Android SDK (API 35 compile target, minSdk 24)
 - macOS with Xcode 15+ (required only for iOS builds)
+- JVM memory settings in `UI UX/gradle.properties`: `org.gradle.jvmargs=-Xmx2048M`, `kotlin.daemon.jvmargs=-Xmx1024M`
 
 ### Common Commands
 
