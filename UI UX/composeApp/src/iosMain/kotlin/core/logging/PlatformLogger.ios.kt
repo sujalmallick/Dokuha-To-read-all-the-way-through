@@ -1,5 +1,6 @@
 package core.logging
 
+import kotlinx.cinterop.ExperimentalForeignApi
 import okio.Path
 import okio.Path.Companion.toPath
 import platform.Foundation.NSDocumentDirectory
@@ -10,6 +11,7 @@ import platform.Foundation.NSUserDomainMask
 import platform.UIKit.UIActivityViewController
 import platform.UIKit.UIApplication
 
+@OptIn(ExperimentalForeignApi::class)
 actual object PlatformLogger {
     actual fun getLogDirectory(): Path {
         val paths = NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, true)
