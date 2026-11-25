@@ -534,7 +534,20 @@ class SqlDelightPanelRepository(
     }
 
     override fun getDownloads(): Flow<List<MockDownloadItem>> {
-        return downloadManager?.queue ?: flowOf(emptyList())
+        return (downloadManager?.queue ?: flowOf(emptyList())).map { list ->
+            list.map { job ->
+                MockDownloadItem(
+                    id = job.id,
+                    manga = job.manga,
+                    chapter = job.chapter,
+                    progress = job.progress,
+                    downloadedBytes = job.downloadedBytes,
+                    totalBytes = job.totalBytes,
+                    etaMinutes = if (job.etaSeconds > 0) (job.etaSeconds + 59) / 60 else 0,
+                    isPaused = job.isPaused
+                )
+            }
+        }
     }
 
     override fun getStorageInfo(): Flow<MockStorageInfo> {

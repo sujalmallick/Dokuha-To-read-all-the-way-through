@@ -4,9 +4,12 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
+import core.download.DownloadJob
+import core.download.DownloadManager
+import core.download.DownloadStatus
 import core.source.MangaStatus
+import core.source.SourceChapter
 import core.source.SourceManga
-import data.download.DefaultDownloadManager
 import data.extension.DefaultExtensionRepository
 import data.extension.ExtensionItem
 import data.extension.ExtensionSourceInfo
@@ -241,10 +244,52 @@ class ScreenshotsTest {
 
     @Test
     fun capture_10_downloads_screen() {
-        val downloadManager = DefaultDownloadManager(autoStartSimulation = false)
-        val storageInfo = downloadManager.storageInfo.value
-        val queue = downloadManager.queue.value
-        val completed = downloadManager.completedDownloads.value
+        val testManga = SourceManga("manga/the-last-horizon", "The Last Horizon")
+        val storageInfo = MockStorageInfo(
+            totalGb = 128f,
+            usedGb = 42.5f,
+            mangaMb = 14500f,
+            manhwaMb = 8200f,
+            novelsMb = 950f,
+            othersMb = 18850f
+        )
+        val queue = listOf(
+            DownloadJob(
+                id = "manga/the-last-horizon::ch-208",
+                manga = testManga,
+                chapter = SourceChapter(url = "ch-208", name = "Chapter 208", chapterNumber = 208f),
+                progress = 0.65f,
+                downloadedBytes = 15_600_000L,
+                totalBytes = 24_000_000L,
+                speedBytesPerSec = 2_800_000L,
+                etaSeconds = 3,
+                status = DownloadStatus.DOWNLOADING
+            ),
+            DownloadJob(
+                id = "manga/the-last-horizon::ch-209",
+                manga = testManga,
+                chapter = SourceChapter(url = "ch-209", name = "Chapter 209", chapterNumber = 209f),
+                progress = 0f,
+                downloadedBytes = 0L,
+                totalBytes = 24_000_000L,
+                speedBytesPerSec = 0L,
+                etaSeconds = 0,
+                status = DownloadStatus.QUEUED
+            )
+        )
+        val completed = listOf(
+            DownloadJob(
+                id = "manga/the-last-horizon::ch-207",
+                manga = testManga,
+                chapter = SourceChapter(url = "ch-207", name = "Chapter 207", chapterNumber = 207f),
+                progress = 1f,
+                downloadedBytes = 24_000_000L,
+                totalBytes = 24_000_000L,
+                speedBytesPerSec = 0L,
+                etaSeconds = 0,
+                status = DownloadStatus.COMPLETED
+            )
+        )
 
         composeTestRule.setContent {
             PanelTheme {
@@ -262,7 +307,8 @@ class ScreenshotsTest {
 
     @Test
     fun capture_17_batch_download_sheet() {
-        val downloadManager = DefaultDownloadManager(autoStartSimulation = false)
+        val storage = core.download.MemoryDownloadStorage()
+        val downloadManager = DownloadManager(downloadStorage = storage)
         val manga = runBlocking { repository.getMangaDetails("manga/the-last-horizon").first() }
             ?: SourceManga("manga/the-last-horizon", "The Last Horizon")
         val chapters = runBlocking { repository.getChapters("manga/the-last-horizon").first() }

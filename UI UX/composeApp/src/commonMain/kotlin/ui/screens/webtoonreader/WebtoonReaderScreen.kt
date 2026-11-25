@@ -98,7 +98,7 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import core.source.SourcePage
 import core.source.SourceManga
 import ui.volume.LocalVolumeKeyState
-import data.download.DownloadManager
+import core.download.DownloadManager
 import data.mock.PanelRepository
 import data.reader.DualPageEngine
 import data.reader.DualPageSpread
@@ -200,7 +200,6 @@ data class WebtoonReaderScreen(
                                 val isNextDownloaded = downloadManager.isChapterDownloaded(mangaUrl, nextChapter.url)
                                 val nextStatus = downloadManager.getChapterStatus(mangaUrl, nextChapter.url)
                                 if (!isNextDownloaded && nextStatus == null) {
-                                    // TODO(#19): Wire real core.download.DownloadManager instead of DefaultDownloadManager simulator
                                     val dummyManga = SourceManga(url = mangaUrl, title = currentChapterTitle)
                                     downloadManager.enqueue(dummyManga, listOf(nextChapter))
                                 }

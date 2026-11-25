@@ -53,10 +53,10 @@ import androidx.compose.ui.unit.sp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
+import core.download.DownloadJob
+import core.download.DownloadManager
+import core.download.DownloadStatus
 import core.source.SourceManga
-import data.download.DownloadJob
-import data.download.DownloadManager
-import data.download.DownloadStatus
 import data.mock.MockDownloadItem
 import data.mock.MockStorageInfo
 import data.mock.PanelRepository

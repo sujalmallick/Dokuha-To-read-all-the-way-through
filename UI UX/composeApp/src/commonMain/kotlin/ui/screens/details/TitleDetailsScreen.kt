@@ -72,9 +72,8 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import core.source.MangaStatus
 import core.source.SourceChapter
 import core.source.SourceManga
-import data.download.DefaultDownloadManager
-import data.download.DownloadManager
-import data.download.DownloadStatus
+import core.download.DownloadManager
+import core.download.DownloadStatus
 import data.mock.PanelRepository
 import kotlinx.coroutines.flow.onEach
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -203,7 +202,7 @@ fun TitleDetailsScreenContent(
     onDownloadChapter: (SourceChapter) -> Unit = {},
     onDownloadAll: () -> Unit = {},
     modifier: Modifier = Modifier,
-    downloadManager: DownloadManager = remember { DefaultDownloadManager(autoStartSimulation = false) }
+    downloadManager: DownloadManager = koinInject()
 ) {
     val glassState = rememberPanelGlassState()
     var isBookmarked by remember { mutableStateOf(false) }

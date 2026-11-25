@@ -5,8 +5,6 @@ import core.source.ContentSource
 import core.source.NovelSource
 import core.source.SourceChapter
 import core.source.SourceManga
-import core.source.StorageInfo
-import data.mock.MockDownloadItem
 import data.mock.MockStorageInfo
 import io.ktor.client.HttpClient
 import io.ktor.client.request.headers
@@ -17,7 +15,6 @@ import io.ktor.http.HttpMethod
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,18 +23,47 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+enum class DownloadStatus {
+    QUEUED,
+    DOWNLOADING,
+    PAUSED,
+    COMPLETED,
+    ERROR
+}
+
+data class DownloadJob(
+    val id: String,
+    val manga: SourceManga,
+    val chapter: SourceChapter,
+    val progress: Float = 0f,
+    val downloadedBytes: Long = 0L,
+    val totalBytes: Long = 24 * 1024 * 1024L,
+    val speedBytesPerSec: Long = 0L,
+    val etaSeconds: Int = 0,
+    val status: DownloadStatus = DownloadStatus.QUEUED,
+    val error: String? = null
+) {
+    val isPaused: Boolean get() = status == DownloadStatus.PAUSED
+    val isCompleted: Boolean get() = status == DownloadStatus.COMPLETED
+    val isDownloading: Boolean get() = status == DownloadStatus.DOWNLOADING
+}
+
 class DownloadManager(
     private val downloadStorage: DownloadStorage,
     private val httpClient: HttpClient? = null,
-    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
+    private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default),
+    private var sourceProvider: ((SourceManga, SourceChapter) -> ContentSource?)? = null
 ) {
-    private val _queue = MutableStateFlow<List<MockDownloadItem>>(emptyList())
-    val queue: StateFlow<List<MockDownloadItem>> = _queue.asStateFlow()
+    private val _queue = MutableStateFlow<List<DownloadJob>>(emptyList())
+    val queue: StateFlow<List<DownloadJob>> = _queue.asStateFlow()
+
+    private val _completedDownloads = MutableStateFlow<List<DownloadJob>>(emptyList())
+    val completedDownloads: StateFlow<List<DownloadJob>> = _completedDownloads.asStateFlow()
 
     private val _storageInfo = MutableStateFlow(computeStorageInfo())
     val storageInfo: StateFlow<MockStorageInfo> = _storageInfo.asStateFlow()
 
-    private val tasks = mutableMapOf<String, ContentSource?>()
+    private val taskSources = mutableMapOf<String, ContentSource?>()
     private val mutex = Mutex()
     private var workerJob: Job? = null
 
@@ -45,51 +71,162 @@ class DownloadManager(
         refreshStorageInfo()
     }
 
-    fun enqueueDownload(manga: SourceManga, chapter: SourceChapter, source: ContentSource? = null) {
+    fun setSourceProvider(provider: (SourceManga, SourceChapter) -> ContentSource?) {
+        this.sourceProvider = provider
+    }
+
+    fun enqueue(manga: SourceManga, chapters: List<SourceChapter>, source: ContentSource? = null) {
         coroutineScope.launch {
             mutex.withLock {
-                if (_queue.value.any { it.id == chapter.url }) return@withLock
-                if (downloadStorage.isChapterDownloaded(chapter.url)) return@withLock
+                for (chapter in chapters) {
+                    val jobId = makeJobId(manga.url, chapter.url)
+                    if (_queue.value.any { it.id == jobId || it.chapter.url == chapter.url }) continue
+                    if (downloadStorage.isChapterDownloaded(chapter.url)) continue
 
-                val newItem = MockDownloadItem(
-                    id = chapter.url,
-                    manga = manga,
-                    chapter = chapter,
-                    progress = 0f,
-                    downloadedBytes = 0L,
-                    totalBytes = 2_000_000L,
-                    etaMinutes = 1,
-                    isPaused = false
-                )
-                tasks[chapter.url] = source
-                _queue.update { it + newItem }
+                    val resolvedSource = source ?: sourceProvider?.invoke(manga, chapter)
+                    taskSources[jobId] = resolvedSource
+
+                    val newJob = DownloadJob(
+                        id = jobId,
+                        manga = manga,
+                        chapter = chapter,
+                        progress = 0f,
+                        downloadedBytes = 0L,
+                        totalBytes = 2_000_000L,
+                        speedBytesPerSec = 0L,
+                        etaSeconds = 0,
+                        status = DownloadStatus.QUEUED
+                    )
+                    _queue.update { it + newJob }
+                }
                 ensureWorkerRunning()
             }
         }
     }
 
-    fun togglePause(chapterUrl: String) {
+    fun enqueueDownload(manga: SourceManga, chapter: SourceChapter, source: ContentSource? = null) {
+        enqueue(manga, listOf(chapter), source)
+    }
+
+    fun pause(id: String) {
         _queue.update { list ->
             list.map { item ->
-                if (item.id == chapterUrl) {
-                    item.copy(isPaused = !item.isPaused)
+                if (item.id == id || item.chapter.url == id || item.id == makeJobId(item.manga.url, id)) {
+                    item.copy(status = DownloadStatus.PAUSED, speedBytesPerSec = 0L)
                 } else item
             }
         }
         ensureWorkerRunning()
     }
 
+    fun resume(id: String) {
+        _queue.update { list ->
+            list.map { item ->
+                if (item.id == id || item.chapter.url == id || item.id == makeJobId(item.manga.url, id)) {
+                    item.copy(status = DownloadStatus.QUEUED)
+                } else item
+            }
+        }
+        ensureWorkerRunning()
+    }
+
+    fun togglePause(chapterUrl: String) {
+        val existing = _queue.value.firstOrNull { it.chapter.url == chapterUrl || it.id == chapterUrl }
+        if (existing?.status == DownloadStatus.PAUSED) {
+            resume(existing.id)
+        } else if (existing != null) {
+            pause(existing.id)
+        }
+    }
+
+    fun pauseAll() {
+        _queue.update { list ->
+            list.map {
+                if (it.status == DownloadStatus.DOWNLOADING || it.status == DownloadStatus.QUEUED) {
+                    it.copy(status = DownloadStatus.PAUSED, speedBytesPerSec = 0L)
+                } else it
+            }
+        }
+    }
+
+    fun resumeAll() {
+        _queue.update { list ->
+            list.map {
+                if (it.status == DownloadStatus.PAUSED) {
+                    it.copy(status = DownloadStatus.QUEUED)
+                } else it
+            }
+        }
+        ensureWorkerRunning()
+    }
+
+    fun cancel(id: String) {
+        _queue.update { list ->
+            list.filterNot { it.id == id || it.chapter.url == id || it.id == makeJobId(it.manga.url, id) }
+        }
+        taskSources.remove(id)
+    }
+
     fun cancelDownload(chapterUrl: String) {
-        _queue.update { list -> list.filterNot { it.id == chapterUrl } }
-        tasks.remove(chapterUrl)
+        cancel(chapterUrl)
+    }
+
+    fun retry(id: String) {
+        _queue.update { list ->
+            list.map { item ->
+                if (item.id == id || item.chapter.url == id) {
+                    item.copy(status = DownloadStatus.QUEUED, error = null, progress = 0f, downloadedBytes = 0L)
+                } else item
+            }
+        }
+        ensureWorkerRunning()
+    }
+
+    fun clearCompleted() {
+        _completedDownloads.value = emptyList()
+    }
+
+    fun isChapterDownloaded(mangaUrl: String, chapterUrl: String): Boolean {
+        return downloadStorage.isChapterDownloaded(chapterUrl)
     }
 
     fun isChapterDownloaded(chapterUrl: String): Boolean {
         return downloadStorage.isChapterDownloaded(chapterUrl)
     }
 
+    fun getChapterStatus(mangaUrl: String, chapterUrl: String): DownloadStatus? {
+        val jobId = makeJobId(mangaUrl, chapterUrl)
+        val inQueue = _queue.value.firstOrNull { it.id == jobId || it.chapter.url == chapterUrl }
+        if (inQueue != null) return inQueue.status
+
+        val inCompleted = _completedDownloads.value.firstOrNull { it.id == jobId || it.chapter.url == chapterUrl }
+        if (inCompleted != null) return DownloadStatus.COMPLETED
+
+        if (downloadStorage.isChapterDownloaded(chapterUrl)) return DownloadStatus.COMPLETED
+
+        return null
+    }
+
+    fun deleteDownloadedChapter(mangaUrl: String, chapterUrl: String) {
+        downloadStorage.deleteChapter(chapterUrl)
+        val jobId = makeJobId(mangaUrl, chapterUrl)
+        _completedDownloads.update { list ->
+            list.filterNot { it.id == jobId || it.chapter.url == chapterUrl }
+        }
+        _queue.update { list ->
+            list.filterNot { it.id == jobId || it.chapter.url == chapterUrl }
+        }
+        refreshStorageInfo()
+    }
+
     fun deleteDownloadedChapter(chapterUrl: String) {
         downloadStorage.deleteChapter(chapterUrl)
+        _completedDownloads.update { list ->
+            list.filterNot { it.chapter.url == chapterUrl }
+        }
+        _queue.update { list ->
+            list.filterNot { it.chapter.url == chapterUrl }
+        }
         refreshStorageInfo()
     }
 
@@ -97,37 +234,51 @@ class DownloadManager(
         if (workerJob?.isActive == true) return
         workerJob = coroutineScope.launch {
             while (true) {
-                val nextItem = _queue.value.firstOrNull { !it.isPaused } ?: break
-                processItem(nextItem)
+                val nextJob = _queue.value.firstOrNull { it.status == DownloadStatus.QUEUED } ?: break
+                processJob(nextJob)
             }
         }
     }
 
-    private suspend fun processItem(item: MockDownloadItem) {
-        val source = tasks[item.id]
-        val chapterUrl = item.id
+    private suspend fun processJob(job: DownloadJob) {
+        val jobId = job.id
+        val chapterUrl = job.chapter.url
+        val source = taskSources[jobId] ?: sourceProvider?.invoke(job.manga, job.chapter)
+
+        if (source == null) {
+            // Cannot process without a valid source, leave in current state (or pause)
+            return
+        }
+
+        // Mark as DOWNLOADING
+        _queue.update { list ->
+            list.map { if (it.id == jobId) it.copy(status = DownloadStatus.DOWNLOADING) else it }
+        }
 
         try {
-            if (item.manga.isNovel || source is NovelSource) {
+            if (job.manga.isNovel || source is NovelSource) {
                 // Process novel download
-                val content = (source as? NovelSource)?.getChapterContent(item.chapter)
-                val text = content?.plainText ?: content?.htmlBody ?: "Downloaded novel content for ${item.chapter.name}"
-                val title = content?.title ?: item.chapter.name
+                val content = (source as? NovelSource)?.getChapterContent(job.chapter)
+                val text = content?.plainText ?: content?.htmlBody ?: "Downloaded novel content for ${job.chapter.name}"
+                val title = content?.title ?: job.chapter.name
 
                 downloadStorage.saveNovelContent(chapterUrl, title, text)
-                updateItemProgress(chapterUrl, 1f, 100_000L, 100_000L)
+                updateJobProgress(jobId, 1f, 100_000L, 100_000L, 0L, 0)
             } else {
                 // Process comic download
-                val pages = (source as? ComicSource)?.getPageList(item.chapter) ?: emptyList()
+                val pages = (source as? ComicSource)?.getPageList(job.chapter) ?: emptyList()
                 val totalPages = pages.size.coerceAtLeast(1)
                 val estimatedTotalBytes = totalPages * 350_000L
 
-                updateItemProgress(chapterUrl, 0.05f, 0L, estimatedTotalBytes)
+                updateJobProgress(jobId, 0.05f, 0L, estimatedTotalBytes, 0L, totalPages * 2)
+
+                var startTime = core.platform.currentTimeMillis()
+                var downloadedBytesTotal = 0L
 
                 for ((idx, page) in pages.withIndex()) {
                     // Check if paused or cancelled
-                    val current = _queue.value.firstOrNull { it.id == chapterUrl }
-                    if (current == null || current.isPaused) {
+                    val current = _queue.value.firstOrNull { it.id == jobId }
+                    if (current == null || current.status == DownloadStatus.PAUSED) {
                         return
                     }
 
@@ -135,20 +286,43 @@ class DownloadManager(
                     val bytes = downloadPageBytes(pageUrl, page.headers)
                     downloadStorage.savePageImage(chapterUrl, page.index, bytes)
 
+                    downloadedBytesTotal += bytes.size.toLong()
                     val progress = ((idx + 1).toFloat() / totalPages).coerceIn(0f, 1f)
-                    val downloadedBytes = ((idx + 1) * 350_000L).coerceAtMost(estimatedTotalBytes)
-                    updateItemProgress(chapterUrl, progress, downloadedBytes, estimatedTotalBytes)
+                    val effectiveDownloaded = ((idx + 1) * 350_000L).coerceAtMost(estimatedTotalBytes)
+
+                    val now = core.platform.currentTimeMillis()
+                    val elapsedSeconds = ((now - startTime) / 1000L).coerceAtLeast(1L)
+                    val speed = downloadedBytesTotal / elapsedSeconds
+                    val remainingPages = totalPages - (idx + 1)
+                    val eta = if (speed > 0) (remainingPages * 350_000L / speed).toInt().coerceAtLeast(0) else remainingPages * 2
+
+                    updateJobProgress(jobId, progress, effectiveDownloaded, estimatedTotalBytes, speed, eta)
                 }
             }
-        } catch (_: Exception) {
-            // Failed gracefully, leave in queue or mark paused
-        } finally {
-            // If download reached 100%, remove from active queue
-            val finished = _queue.value.firstOrNull { it.id == chapterUrl }
-            if (finished != null && (finished.progress >= 0.99f || downloadStorage.isChapterDownloaded(chapterUrl))) {
-                _queue.update { list -> list.filterNot { it.id == chapterUrl } }
-                tasks.remove(chapterUrl)
+
+            // Mark completed
+            val finishedJob = _queue.value.firstOrNull { it.id == jobId }
+            if (finishedJob != null) {
+                val completedJob = finishedJob.copy(
+                    status = DownloadStatus.COMPLETED,
+                    progress = 1f,
+                    downloadedBytes = finishedJob.totalBytes,
+                    speedBytesPerSec = 0L,
+                    etaSeconds = 0
+                )
+                _queue.update { list -> list.filterNot { it.id == jobId } }
+                _completedDownloads.update { list ->
+                    if (list.none { it.id == jobId }) listOf(completedJob) + list else list
+                }
+                taskSources.remove(jobId)
                 refreshStorageInfo()
+            }
+        } catch (e: Exception) {
+            _queue.update { list ->
+                list.map {
+                    if (it.id == jobId) it.copy(status = DownloadStatus.ERROR, error = e.message ?: "Download failed", speedBytesPerSec = 0L)
+                    else it
+                }
             }
         }
     }
@@ -171,7 +345,6 @@ class DownloadManager(
     }
 
     private fun generatePlaceholderImageBytes(): ByteArray {
-        // Minimal valid 1x1 JPEG byte stream for fallback
         return byteArrayOf(
             0xFF.toByte(), 0xD8.toByte(), 0xFF.toByte(), 0xE0.toByte(), 0x00, 0x10,
             0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01, 0x00, 0x48,
@@ -192,15 +365,23 @@ class DownloadManager(
         )
     }
 
-    private fun updateItemProgress(chapterUrl: String, progress: Float, downloaded: Long, total: Long) {
+    private fun updateJobProgress(
+        jobId: String,
+        progress: Float,
+        downloaded: Long,
+        total: Long,
+        speed: Long,
+        etaSeconds: Int
+    ) {
         _queue.update { list ->
             list.map { item ->
-                if (item.id == chapterUrl) {
+                if (item.id == jobId) {
                     item.copy(
                         progress = progress,
                         downloadedBytes = downloaded,
                         totalBytes = total,
-                        etaMinutes = if (progress >= 1f) 0 else 1
+                        speedBytesPerSec = speed,
+                        etaSeconds = etaSeconds
                     )
                 } else item
             }
@@ -221,5 +402,9 @@ class DownloadManager(
             novelsMb = breakdown.novelsMb,
             othersMb = breakdown.othersMb
         )
+    }
+
+    private fun makeJobId(mangaUrl: String, chapterUrl: String): String {
+        return "$mangaUrl::$chapterUrl"
     }
 }

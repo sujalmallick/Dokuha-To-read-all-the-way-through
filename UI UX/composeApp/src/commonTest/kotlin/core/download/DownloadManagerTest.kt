@@ -159,14 +159,38 @@ class DownloadManagerTest {
         }
 
         assertEquals(1, queue.size)
-        assertFalse(queue[0].isPaused)
+        assertEquals(DownloadStatus.QUEUED, queue[0].status)
 
         manager.togglePause(chapter.url)
         val pausedQueue = manager.queue.first()
         assertTrue(pausedQueue[0].isPaused)
+        assertEquals(DownloadStatus.PAUSED, pausedQueue[0].status)
 
         manager.cancelDownload(chapter.url)
         val cancelledQueue = manager.queue.first()
         assertTrue(cancelledQueue.isEmpty())
+    }
+
+    @Test
+    fun testBatchEnqueueAndStatusTransitions() = runBlocking {
+        val storage = MemoryDownloadStorage()
+        val manager = DownloadManager(downloadStorage = storage)
+        val manga = SourceManga(url = "manga/batch", title = "Batch Manga")
+        val ch1 = SourceChapter(url = "ch1", name = "Chapter 1", chapterNumber = 1f)
+        val ch2 = SourceChapter(url = "ch2", name = "Chapter 2", chapterNumber = 2f)
+
+        manager.enqueue(manga, listOf(ch1, ch2), FakeComicSource())
+
+        var retries = 0
+        while (!manager.isChapterDownloaded(ch1.url) && retries < 25) {
+            kotlinx.coroutines.delay(100)
+            retries++
+        }
+
+        assertTrue(manager.isChapterDownloaded(manga.url, ch1.url))
+        assertEquals(DownloadStatus.COMPLETED, manager.getChapterStatus(manga.url, ch1.url))
+
+        manager.deleteDownloadedChapter(manga.url, ch1.url)
+        assertFalse(manager.isChapterDownloaded(manga.url, ch1.url))
     }
 }
