@@ -9,6 +9,8 @@ import ui.screens.novelreader.toFontFamily
 import ui.screens.webtoonreader.ReaderTapZone
 import ui.screens.webtoonreader.ReaderTapZones
 import ui.screens.webtoonreader.TapAction
+import ui.screens.webtoonreader.computeWebtoonScrollbarMetrics
+import ui.screens.webtoonreader.shouldAutoAdvanceOnBottomScroll
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -167,6 +169,114 @@ class ReaderEngineTest {
         assertEquals(0.2f, paginatedProgress(1, 6))
         assertEquals(0.6f, paginatedProgress(3, 6))
         assertEquals(1.0f, paginatedProgress(5, 6))
+    }
+
+    @Test
+    fun testShouldAutoAdvanceOnBottomScroll_guardsAndTriggers() {
+        // Triggers only at bottom (!canScrollForward), with downward scroll (y < -4), next chapter available, not yet triggered
+        assertTrue(
+            shouldAutoAdvanceOnBottomScroll(
+                hasNextChapter = true,
+                alreadyTriggered = false,
+                canScrollForward = false,
+                downwardScrollDeltaY = -12f,
+                isEmptyPages = false
+            )
+        )
+
+        // Does not trigger if still able to scroll forward
+        assertFalse(
+            shouldAutoAdvanceOnBottomScroll(
+                hasNextChapter = true,
+                alreadyTriggered = false,
+                canScrollForward = true,
+                downwardScrollDeltaY = -20f,
+                isEmptyPages = false
+            )
+        )
+
+        // Does not trigger on upward scroll or tiny jitter
+        assertFalse(
+            shouldAutoAdvanceOnBottomScroll(
+                hasNextChapter = true,
+                alreadyTriggered = false,
+                canScrollForward = false,
+                downwardScrollDeltaY = 10f,
+                isEmptyPages = false
+            )
+        )
+        assertFalse(
+            shouldAutoAdvanceOnBottomScroll(
+                hasNextChapter = true,
+                alreadyTriggered = false,
+                canScrollForward = false,
+                downwardScrollDeltaY = -2f,
+                isEmptyPages = false
+            )
+        )
+
+        // Does not trigger twice or when no next chapter or empty pages
+        assertFalse(
+            shouldAutoAdvanceOnBottomScroll(
+                hasNextChapter = true,
+                alreadyTriggered = true,
+                canScrollForward = false,
+                downwardScrollDeltaY = -20f,
+                isEmptyPages = false
+            )
+        )
+        assertFalse(
+            shouldAutoAdvanceOnBottomScroll(
+                hasNextChapter = false,
+                alreadyTriggered = false,
+                canScrollForward = false,
+                downwardScrollDeltaY = -20f,
+                isEmptyPages = false
+            )
+        )
+        assertFalse(
+            shouldAutoAdvanceOnBottomScroll(
+                hasNextChapter = true,
+                alreadyTriggered = false,
+                canScrollForward = false,
+                downwardScrollDeltaY = -20f,
+                isEmptyPages = true
+            )
+        )
+    }
+
+    @Test
+    fun testComputeWebtoonScrollbarMetrics_tracksPositionAndBounds() {
+        val top = computeWebtoonScrollbarMetrics(
+            firstVisibleIndex = 0,
+            firstVisibleItemScrollOffset = 0,
+            firstVisibleItemHeight = 500,
+            visibleItemsCount = 2,
+            totalItemsCount = 10
+        )
+        assertEquals(0.2f, top.thumbSizeFraction)
+        assertEquals(0.0f, top.thumbOffsetFraction)
+
+        val bottom = computeWebtoonScrollbarMetrics(
+            firstVisibleIndex = 8,
+            firstVisibleItemScrollOffset = 0,
+            firstVisibleItemHeight = 500,
+            visibleItemsCount = 2,
+            totalItemsCount = 10
+        )
+        assertEquals(0.2f, bottom.thumbSizeFraction)
+        assertEquals(0.8f, bottom.thumbOffsetFraction)
+
+        // When all items fit on screen, thumb fills track
+        val fitsAll = computeWebtoonScrollbarMetrics(
+            firstVisibleIndex = 0,
+            firstVisibleItemScrollOffset = 0,
+            firstVisibleItemHeight = 500,
+            visibleItemsCount = 4,
+            totalItemsCount = 4
+        )
+        assertEquals(1.0f, fitsAll.thumbSizeFraction)
+        assertEquals(0.0f, fitsAll.thumbOffsetFraction)
     }
 
     private fun assertNotNull(value: Any?) {
