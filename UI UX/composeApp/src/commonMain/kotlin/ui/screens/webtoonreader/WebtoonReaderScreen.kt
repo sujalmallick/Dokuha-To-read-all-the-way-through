@@ -131,7 +131,8 @@ import ui.theme.TextSecondary
 data class WebtoonReaderScreen(
     val mangaUrl: String = "manga/the-last-horizon",
     val chapterUrl: String = "ch-210",
-    val chapterTitle: String = "Episode 42"
+    val chapterTitle: String = "Episode 42",
+    val sourceId: String? = null
 ) : Screen {
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -146,9 +147,9 @@ data class WebtoonReaderScreen(
         var currentChapterTitle by remember(chapterTitle) { mutableStateOf(chapterTitle) }
         var pagesRefreshTrigger by remember { mutableIntStateOf(0) }
 
-        val chapters by repository.getChapters(mangaUrl).collectAsState(initial = emptyList())
-        val pages by remember(currentChapterUrl, pagesRefreshTrigger) {
-            repository.getPages(currentChapterUrl)
+        val chapters by repository.getChapters(mangaUrl, sourceId).collectAsState(initial = emptyList())
+        val pages by remember(currentChapterUrl, sourceId, pagesRefreshTrigger) {
+            repository.getPages(currentChapterUrl, sourceId)
         }.collectAsState(initial = emptyList())
         val isDownloaded = remember(currentChapterUrl) {
             downloadManager.isChapterDownloaded(mangaUrl, currentChapterUrl)
@@ -200,8 +201,15 @@ data class WebtoonReaderScreen(
                                 val isNextDownloaded = downloadManager.isChapterDownloaded(mangaUrl, nextChapter.url)
                                 val nextStatus = downloadManager.getChapterStatus(mangaUrl, nextChapter.url)
                                 if (!isNextDownloaded && nextStatus == null) {
-                                    val dummyManga = SourceManga(url = mangaUrl, title = currentChapterTitle)
-                                    downloadManager.enqueue(dummyManga, listOf(nextChapter))
+                                    val resolvedSid = sourceId?.toLongOrNull()
+                                        ?: repository.resolveSource(sourceId, mangaUrl, nextChapter.url)?.id
+                                        ?: 0L
+                                    val targetManga = SourceManga(
+                                        url = mangaUrl,
+                                        title = currentChapterTitle,
+                                        sourceId = resolvedSid
+                                    )
+                                    downloadManager.enqueue(targetManga, listOf(nextChapter))
                                 }
                             }
                         }
@@ -653,8 +661,12 @@ fun WebtoonReaderScreenContent(
                         ) {
                             itemsIndexed(displayPages) { index, page ->
                                 val imageUrl = page.imageUrl ?: page.url
-                                val isRemote = !imageUrl.isBlank() &&
-                                    (imageUrl.startsWith("http://", ignoreCase = true) || imageUrl.startsWith("https://", ignoreCase = true))
+                                val hasValidImage = !imageUrl.isBlank() && (
+                                    imageUrl.startsWith("http://", ignoreCase = true) ||
+                                    imageUrl.startsWith("https://", ignoreCase = true) ||
+                                    imageUrl.startsWith("file:", ignoreCase = true) ||
+                                    imageUrl.startsWith("/")
+                                )
                                 WebtoonPanelSlice(
                                     sliceIndex = index,
                                     totalSlices = displayPages.size,
@@ -664,7 +676,7 @@ fun WebtoonReaderScreenContent(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .then(
-                                            if (isRemote) Modifier.wrapContentHeight()
+                                            if (hasValidImage) Modifier.wrapContentHeight()
                                             else Modifier.height(if (cropBorders) 540.dp else 520.dp)
                                         )
                                 )
@@ -1715,12 +1727,16 @@ fun WebtoonPanelSlice(
     modifier: Modifier = Modifier
 ) {
     val imageUrl = page?.imageUrl ?: page?.url
-    val isRemoteImage = !imageUrl.isNullOrBlank() &&
-        (imageUrl.startsWith("http://", ignoreCase = true) || imageUrl.startsWith("https://", ignoreCase = true))
+    val hasValidImage = !imageUrl.isNullOrBlank() && (
+        imageUrl.startsWith("http://", ignoreCase = true) ||
+        imageUrl.startsWith("https://", ignoreCase = true) ||
+        imageUrl.startsWith("file:", ignoreCase = true) ||
+        imageUrl.startsWith("/")
+    )
 
     val appliedFilter = remember(colorFilter) { ReaderColorFilters.toColorFilter(colorFilter) }
 
-    if (isRemoteImage) {
+    if (hasValidImage) {
         val platformContext = LocalPlatformContext.current
         val imageRequest = remember(imageUrl, page?.headers) {
             ImageRequest.Builder(platformContext)

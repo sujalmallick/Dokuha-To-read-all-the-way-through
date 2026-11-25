@@ -44,11 +44,8 @@ val appModule = module {
     single<PanelRepository> {
         val repo = SqlDelightPanelRepository(database = get(), downloadManager = getOrNull(), downloadStorage = getOrNull())
         getOrNull<DownloadManager>()?.setSourceProvider { manga, chapter ->
-            repo.getRegisteredSources().firstOrNull { src ->
-                chapter.url.startsWith(src.baseUrl) ||
-                manga.url.startsWith(src.baseUrl) ||
-                (chapter.url.length == 36 && chapter.url.contains("-"))
-            }
+            val sid = manga.sourceId.takeIf { it != 0L }?.toString()
+            repo.resolveSource(sid, manga.url, chapter.url)
         }
         repo
     }

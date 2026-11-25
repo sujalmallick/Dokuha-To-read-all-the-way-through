@@ -78,8 +78,12 @@ fun MangaPageCanvas(
     val pageNumber = pageIndex + 1
 
     val imageUrl = page?.imageUrl ?: page?.url
-    val isRemoteImage = !imageUrl.isNullOrBlank() &&
-        (imageUrl.startsWith("http://", ignoreCase = true) || imageUrl.startsWith("https://", ignoreCase = true))
+    val hasValidImage = !imageUrl.isNullOrBlank() && (
+        imageUrl.startsWith("http://", ignoreCase = true) ||
+        imageUrl.startsWith("https://", ignoreCase = true) ||
+        imageUrl.startsWith("file:", ignoreCase = true) ||
+        imageUrl.startsWith("/")
+    )
 
     val canvasBg = remember(colorFilter) { ReaderColorFilters.getCanvasBackgroundColor(colorFilter) }
     val appliedFilter = remember(colorFilter) { ReaderColorFilters.toColorFilter(colorFilter) }
@@ -87,7 +91,7 @@ fun MangaPageCanvas(
     var retryKey by remember { mutableIntStateOf(0) }
     var loadError by remember(retryKey, imageUrl) { mutableStateOf<String?>(null) }
 
-    if (isRemoteImage) {
+    if (hasValidImage) {
         val platformContext = LocalPlatformContext.current
         val defaultUa = remember { CloudflareChallengeHeuristics.defaultReaderUserAgent() }
         val imageRequest = remember(imageUrl, page?.headers, retryKey, defaultUa) {

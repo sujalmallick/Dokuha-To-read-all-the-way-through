@@ -133,7 +133,8 @@ data class NovelReaderScreen(
     val chapterUrl: String = "manga/the-wind-rises/ch-12",
     val chapterNumber: String = "Chapter 12",
     val chapterTitle: String = "The Wind Rises",
-    val mangaUrl: String? = null
+    val mangaUrl: String? = null,
+    val sourceId: String? = null
 ) : Screen {
 
     @Composable
@@ -149,8 +150,8 @@ data class NovelReaderScreen(
         val targetMangaUrl = remember(mangaUrl, currentChapterUrl) {
             mangaUrl ?: if (currentChapterUrl.contains("/")) currentChapterUrl.substringBeforeLast("/") else ""
         }
-        val chapters by repository.getChapters(targetMangaUrl).collectAsState(initial = emptyList())
-        val novelContent by repository.getNovelContent(currentChapterUrl).collectAsState(initial = null)
+        val chapters by repository.getChapters(targetMangaUrl, sourceId).collectAsState(initial = emptyList())
+        val novelContent by repository.getNovelContent(currentChapterUrl, sourceId).collectAsState(initial = null)
 
         val currentChapterIndex = chapters.indexOfFirst { it.url == currentChapterUrl || it.name == currentChapterTitle }
         val hasPrevious = if (chapters.isNotEmpty() && currentChapterIndex >= 0) {

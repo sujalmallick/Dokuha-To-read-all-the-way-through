@@ -115,10 +115,11 @@ class MainTabScreen(
                                 )
                             },
                             onResumeChapter = { manga, chapter ->
+                                val sid = if (manga.sourceId != 0L) manga.sourceId.toString() else null
                                 if (manga.isNovel) {
-                                    navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name))
+                                    navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name, manga.url, sid))
                                 } else {
-                                    navigator.push(WebtoonReaderScreen(manga.url, chapter.url, chapter.name))
+                                    navigator.push(WebtoonReaderScreen(manga.url, chapter.url, chapter.name, sid))
                                 }
                             },
                             onTabSelected = { currentTab = it },
@@ -143,10 +144,11 @@ class MainTabScreen(
                                 )
                             },
                             onResumeChapter = { manga, chapter ->
+                                val sid = if (manga.sourceId != 0L) manga.sourceId.toString() else null
                                 if (manga.isNovel) {
-                                    navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name))
+                                    navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name, manga.url, sid))
                                 } else {
-                                    navigator.push(WebtoonReaderScreen(manga.url, chapter.url, chapter.name))
+                                    navigator.push(WebtoonReaderScreen(manga.url, chapter.url, chapter.name, sid))
                                 }
                             },
                             onDeleteHistoryItem = { historyId ->

@@ -8,6 +8,7 @@ import core.source.NovelSource
 import core.source.SourceChapter
 import core.source.SourceManga
 import core.source.SourcePage
+import data.mock.FakePanelRepository
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
@@ -192,5 +193,168 @@ class DownloadManagerTest {
 
         manager.deleteDownloadedChapter(manga.url, ch1.url)
         assertFalse(manager.isChapterDownloaded(manga.url, ch1.url))
+    }
+
+    private class ConfigurableComicSource(
+        override val id: Long,
+        override val name: String,
+        override val baseUrl: String,
+        private val pagesProvider: (SourceChapter) -> List<SourcePage>
+    ) : ComicSource {
+        var requestedChapters = mutableListOf<String>()
+        override val lang: String = "en"
+        override val isNsfw: Boolean = false
+        override suspend fun getPopular(page: Int): MangasPage = MangasPage(emptyList(), false)
+        override suspend fun getLatestUpdates(page: Int): MangasPage = MangasPage(emptyList(), false)
+        override suspend fun search(query: String, page: Int, filters: List<SourceFilter>): MangasPage = MangasPage(emptyList(), false)
+        override suspend fun getMangaDetails(manga: SourceManga): SourceManga = manga
+        override suspend fun getChapterList(manga: SourceManga): List<SourceChapter> = emptyList()
+        override suspend fun getPageList(chapter: SourceChapter): List<SourcePage> {
+            requestedChapters.add(chapter.url)
+            return pagesProvider(chapter)
+        }
+    }
+
+    @Test
+    fun testRelativeChapterUrlResolvesViaExplicitSourceId() = runBlocking {
+        val storage = MemoryDownloadStorage()
+        val repo = FakePanelRepository()
+        val sourceA = ConfigurableComicSource(1001L, "Source A", "https://source-a.test") {
+            listOf(SourcePage(index = 1, url = "https://source-a.test/1.jpg"))
+        }
+        val sourceB = ConfigurableComicSource(2002L, "Source B", "https://source-b.test") {
+            listOf(
+                SourcePage(index = 1, url = "https://source-b.test/1.jpg"),
+                SourcePage(index = 2, url = "https://source-b.test/2.jpg")
+            )
+        }
+        repo.registerSource(sourceA)
+        repo.registerSource(sourceB)
+
+        val manager = DownloadManager(downloadStorage = storage)
+        manager.setSourceProvider { manga, chapter ->
+            val sid = manga.sourceId.takeIf { it != 0L }?.toString()
+            repo.resolveSource(sid, manga.url, chapter.url)
+        }
+
+        // Relative URLs that do NOT start with baseUrl, anchored by explicit sourceId = 2002L
+        val manga = SourceManga(url = "/comics/orv-123", title = "ORV", sourceId = 2002L)
+        val chapter = SourceChapter(url = "/comics/orv-123/chapter/317", name = "Ch. 317", chapterNumber = 317f)
+
+        manager.enqueue(manga, listOf(chapter))
+
+        var retries = 0
+        while (!manager.isChapterDownloaded(chapter.url) && retries < 25) {
+            kotlinx.coroutines.delay(100)
+            retries++
+        }
+
+        assertTrue(manager.isChapterDownloaded(chapter.url))
+        assertEquals(0, sourceA.requestedChapters.size, "Source A must not be contacted")
+        assertEquals(listOf(chapter.url), sourceB.requestedChapters, "Source B must handle the download")
+        assertEquals(2, storage.getDownloadedPages(chapter.url)?.size)
+    }
+
+    @Test
+    fun testMultiSourceStreamingIsolation() = runBlocking {
+        val repo = FakePanelRepository()
+        val sourceA = ConfigurableComicSource(1001L, "Source A", "https://source-a.test") {
+            listOf(SourcePage(index = 1, url = "https://source-a.test/p1.jpg"))
+        }
+        val sourceB = ConfigurableComicSource(2002L, "Source B", "https://source-b.test") {
+            listOf(SourcePage(index = 1, url = "https://source-b.test/p1.jpg"))
+        }
+        repo.registerSource(sourceA)
+        repo.registerSource(sourceB)
+
+        val pages = repo.getPages("/comics/shared-slug/chapter/1", sourceId = "2002").first()
+        assertEquals(1, pages.size)
+        assertEquals("https://source-b.test/p1.jpg", pages[0].url)
+        assertEquals(0, sourceA.requestedChapters.size)
+    }
+
+    @Test
+    fun testUnresolvableSourceWithProviderMarksError() = runBlocking {
+        val storage = MemoryDownloadStorage()
+        val manager = DownloadManager(downloadStorage = storage)
+        manager.setSourceProvider { _, _ -> null }
+
+        val manga = SourceManga(url = "/comics/missing", title = "Missing", sourceId = 9999L)
+        val chapter = SourceChapter(url = "/comics/missing/ch-1", name = "Ch. 1", chapterNumber = 1f)
+
+        manager.enqueue(manga, listOf(chapter))
+
+        var queue = manager.queue.first()
+        var retries = 0
+        while ((queue.isEmpty() || queue[0].status == DownloadStatus.QUEUED) && retries < 20) {
+            kotlinx.coroutines.delay(50)
+            queue = manager.queue.first()
+            retries++
+        }
+
+        assertEquals(1, queue.size)
+        assertEquals(DownloadStatus.ERROR, queue[0].status)
+        assertEquals(9999L, queue[0].sourceId)
+    }
+
+    @Test
+    fun testEmptyPageListMarksErrorInsteadOfCompleted() = runBlocking {
+        val storage = MemoryDownloadStorage()
+        val manager = DownloadManager(downloadStorage = storage)
+        val emptySource = ConfigurableComicSource(3003L, "Empty", "https://empty.test") { emptyList() }
+        val manga = SourceManga(url = "/comics/empty", title = "Empty", sourceId = 3003L)
+        val chapter = SourceChapter(url = "/comics/empty/ch-1", name = "Ch. 1", chapterNumber = 1f)
+
+        manager.enqueue(manga, listOf(chapter), emptySource)
+
+        var queue = manager.queue.first()
+        var retries = 0
+        while ((queue.isEmpty() || queue[0].status != DownloadStatus.ERROR) && retries < 20) {
+            kotlinx.coroutines.delay(50)
+            queue = manager.queue.first()
+            retries++
+        }
+
+        assertFalse(manager.isChapterDownloaded(chapter.url))
+        assertEquals(DownloadStatus.ERROR, queue[0].status)
+    }
+
+    @Test
+    fun testDualInterfaceComicSourceUsesComicPipeline() = runBlocking {
+        val storage = MemoryDownloadStorage()
+        val manager = DownloadManager(downloadStorage = storage)
+        val dualSource = object : ComicSource, NovelSource {
+            override val id: Long = 4004L
+            override val name: String = "Dual Adapter"
+            override val baseUrl: String = "https://dual.test"
+            override val lang: String = "en"
+            override val isNsfw: Boolean = false
+            override suspend fun getPopular(page: Int): MangasPage = MangasPage(emptyList(), false)
+            override suspend fun getLatestUpdates(page: Int): MangasPage = MangasPage(emptyList(), false)
+            override suspend fun search(query: String, page: Int, filters: List<SourceFilter>): MangasPage = MangasPage(emptyList(), false)
+            override suspend fun getMangaDetails(manga: SourceManga): SourceManga = manga
+            override suspend fun getChapterList(manga: SourceManga): List<SourceChapter> = emptyList()
+            override suspend fun getPageList(chapter: SourceChapter): List<SourcePage> = listOf(
+                SourcePage(index = 0, url = "https://dual.test/0.jpg"),
+                SourcePage(index = 1, url = "https://dual.test/1.jpg")
+            )
+            override suspend fun getChapterContent(chapter: SourceChapter): NovelContent {
+                throw IllegalStateException("Comic download must not call getChapterContent")
+            }
+        }
+
+        val manga = SourceManga(url = "/comics/dual", title = "Dual Comic", isNovel = false, sourceId = 4004L)
+        val chapter = SourceChapter(url = "/comics/dual/ch-1", name = "Ch. 1", chapterNumber = 1f)
+
+        manager.enqueue(manga, listOf(chapter), dualSource)
+
+        var retries = 0
+        while (!manager.isChapterDownloaded(chapter.url) && retries < 25) {
+            kotlinx.coroutines.delay(100)
+            retries++
+        }
+
+        assertTrue(manager.isChapterDownloaded(chapter.url))
+        assertEquals(2, storage.getDownloadedPages(chapter.url)?.size)
     }
 }

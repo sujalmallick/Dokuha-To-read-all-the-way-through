@@ -41,7 +41,8 @@ data class DownloadJob(
     val speedBytesPerSec: Long = 0L,
     val etaSeconds: Int = 0,
     val status: DownloadStatus = DownloadStatus.QUEUED,
-    val error: String? = null
+    val error: String? = null,
+    val sourceId: Long = manga.sourceId
 ) {
     val isPaused: Boolean get() = status == DownloadStatus.PAUSED
     val isCompleted: Boolean get() = status == DownloadStatus.COMPLETED
@@ -95,7 +96,8 @@ class DownloadManager(
                         totalBytes = 2_000_000L,
                         speedBytesPerSec = 0L,
                         etaSeconds = 0,
-                        status = DownloadStatus.QUEUED
+                        status = DownloadStatus.QUEUED,
+                        sourceId = manga.sourceId
                     )
                     _queue.update { it + newJob }
                 }
@@ -235,19 +237,36 @@ class DownloadManager(
         workerJob = coroutineScope.launch {
             while (true) {
                 val nextJob = _queue.value.firstOrNull { it.status == DownloadStatus.QUEUED } ?: break
-                processJob(nextJob)
+                val shouldContinue = processJob(nextJob)
+                if (!shouldContinue) break
             }
         }
     }
 
-    private suspend fun processJob(job: DownloadJob) {
+    private suspend fun processJob(job: DownloadJob): Boolean {
         val jobId = job.id
         val chapterUrl = job.chapter.url
         val source = taskSources[jobId] ?: sourceProvider?.invoke(job.manga, job.chapter)
 
         if (source == null) {
-            // Cannot process without a valid source, leave in current state (or pause)
-            return
+            if (sourceProvider == null) {
+                // Leave queued in unwired unit-test environments without spinning
+                return false
+            }
+            val msg = "Source extension not found (sourceId=${job.sourceId}, chapter=${job.chapter.url})"
+            core.logging.AppLogger.e("DownloadManager", msg)
+            _queue.update { list ->
+                list.map {
+                    if (it.id == jobId) {
+                        it.copy(
+                            status = DownloadStatus.ERROR,
+                            error = "Source extension not found (sourceId=${job.sourceId})",
+                            speedBytesPerSec = 0L
+                        )
+                    } else it
+                }
+            }
+            return true
         }
 
         // Mark as DOWNLOADING
@@ -256,7 +275,7 @@ class DownloadManager(
         }
 
         try {
-            if (job.manga.isNovel || source is NovelSource) {
+            if (job.manga.isNovel || (source is NovelSource && source !is ComicSource)) {
                 // Process novel download
                 val content = (source as? NovelSource)?.getChapterContent(job.chapter)
                 val text = content?.plainText ?: content?.htmlBody ?: "Downloaded novel content for ${job.chapter.name}"
@@ -267,7 +286,10 @@ class DownloadManager(
             } else {
                 // Process comic download
                 val pages = (source as? ComicSource)?.getPageList(job.chapter) ?: emptyList()
-                val totalPages = pages.size.coerceAtLeast(1)
+                if (pages.isEmpty()) {
+                    throw IllegalStateException("No pages found for ${job.chapter.name}")
+                }
+                val totalPages = pages.size
                 val estimatedTotalBytes = totalPages * 350_000L
 
                 updateJobProgress(jobId, 0.05f, 0L, estimatedTotalBytes, 0L, totalPages * 2)
@@ -279,7 +301,7 @@ class DownloadManager(
                     // Check if paused or cancelled
                     val current = _queue.value.firstOrNull { it.id == jobId }
                     if (current == null || current.status == DownloadStatus.PAUSED) {
-                        return
+                        return true
                     }
 
                     val pageUrl = page.imageUrl ?: page.url
@@ -318,6 +340,7 @@ class DownloadManager(
                 refreshStorageInfo()
             }
         } catch (e: Exception) {
+            core.logging.AppLogger.e("DownloadManager", "Download failed for ${job.chapter.url}: ${e.message}", e)
             _queue.update { list ->
                 list.map {
                     if (it.id == jobId) it.copy(status = DownloadStatus.ERROR, error = e.message ?: "Download failed", speedBytesPerSec = 0L)
@@ -325,6 +348,7 @@ class DownloadManager(
                 }
             }
         }
+        return true
     }
 
     private suspend fun downloadPageBytes(url: String, headersMap: Map<String, String>): ByteArray {
