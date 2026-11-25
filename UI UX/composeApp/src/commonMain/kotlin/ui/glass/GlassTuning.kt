@@ -32,16 +32,17 @@ data class GlassTuning(
     companion object {
         /**
          * Standard functional glass for floating bars, bottom sheets, search fields.
+         * Uses a balanced dark-frosted tint + 8dp blur so floating controls stay legible over scrolling text.
          */
         val Regular = GlassTuning(
-            frost = 1.dp,
+            frost = 8.dp,
             refraction = 0.6f,
             curve = 0.6f,
-            edge = 0.15f,
+            edge = 0.16f,
             dispersion = 0.15f,
             saturation = 1.15f,
-            contrast = 1.0f,
-            tint = Color.White.copy(alpha = 0.06f)
+            contrast = 1.02f,
+            tint = Color(0xFF0E131D).copy(alpha = 0.74f)
         )
 
         /**

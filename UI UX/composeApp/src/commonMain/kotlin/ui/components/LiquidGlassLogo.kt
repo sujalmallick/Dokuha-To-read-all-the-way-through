@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -94,6 +95,7 @@ fun LiquidGlassLogo(
     ending: LiquidGlassEnding = LiquidGlassEnding.LOGO,
     logoColor: LiquidGlassLogoColor = LiquidGlassLogoColor.ORIGINAL,
     height: Dp = 480.dp,
+    backgroundColor: Color = Color.Black,
     onAnimationEnd: (() -> Unit)? = null
 ) {
     val reduceMotion = LocalReduceMotion.current
@@ -111,6 +113,10 @@ fun LiquidGlassLogo(
                     easing = LinearEasing
                 )
             )
+            onAnimationEnd?.invoke()
+        } else {
+            progress.snapTo(1f)
+            delay(350)
             onAnimationEnd?.invoke()
         }
     }
@@ -158,11 +164,11 @@ fun LiquidGlassLogo(
     BoxWithConstraints(
         modifier = modifier
             .height(height)
-            .background(Color.Black),
+            .background(backgroundColor),
         contentAlignment = Alignment.Center
     ) {
         val maxAvailable = if (maxWidth < maxHeight) maxWidth else maxHeight
-        val plateSize = (maxAvailable * 0.70f).coerceAtMost(260.dp)
+        val plateSize = (maxAvailable * 0.82f).coerceAtMost(260.dp)
 
         Box(
             modifier = Modifier.size(plateSize),

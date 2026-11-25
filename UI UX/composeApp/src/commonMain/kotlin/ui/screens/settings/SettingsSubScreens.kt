@@ -318,7 +318,7 @@ fun AppLogoSettingsScreenContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp)
-                        .height(200.dp)
+                        .height(220.dp)
                         .clip(RoundedCornerShape(20.dp))
                         .background(Color(0xFF080808))
                         .border(1.dp, GlassBorder, RoundedCornerShape(20.dp))

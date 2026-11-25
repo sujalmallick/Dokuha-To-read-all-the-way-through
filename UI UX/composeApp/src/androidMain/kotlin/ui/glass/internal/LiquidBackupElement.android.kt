@@ -73,6 +73,8 @@ internal class LiquidBackupNode(
       )
     }
 
+    drawBackupGlassSheen(shapePath)
+
     if (reusableScope.edge > 0f) {
       drawBackupEdgeEffect(shapePath)
     }
@@ -113,28 +115,54 @@ private fun Outline.asPath(): Path = when (this) {
 }
 
 private fun ContentDrawScope.drawBackupEdgeEffect(shapePath: Path) = clipPath(shapePath) {
-  val strokeWidth = 4.dp.toPx()
-  val radius = size.minDimension.coerceAtLeast(1f)
   if (size.minDimension <= 0f) return@clipPath
+  val strokeWidth = 1.dp.toPx()
 
+  val specularBrush = Brush.linearGradient(
+    colors = listOf(
+      Color(0xB8FFFFFF), // top-left specular highlight
+      Color(0x2EFFFFFF),
+      Color(0x18FFFFFF),
+      Color(0x4DFFFFFF), // bottom-right ambient bounce
+    ),
+    start = Offset.Zero,
+    end = Offset(size.width, size.height),
+  )
   drawPath(
     path = shapePath,
-    brush = Brush.radialGradient(
-      colors = listOf(Color(0x4DFFFFFF), Color.Transparent),
-      center = Offset.Zero,
-      radius = radius,
-    ),
+    brush = specularBrush,
     style = Stroke(width = strokeWidth),
   )
 
+  val innerStrokeWidth = 0.5.dp.toPx()
   drawPath(
     path = shapePath,
-    brush = Brush.radialGradient(
-      colors = listOf(Color(0x4DFFFFFF), Color.Transparent),
-      center = Offset(size.width, size.height),
-      radius = radius,
+    brush = Brush.verticalGradient(
+      colors = listOf(
+        Color(0x24FFFFFF),
+        Color.Transparent,
+      ),
+      startY = 0f,
+      endY = size.height * 0.5f,
     ),
-    style = Stroke(width = strokeWidth),
+    style = Stroke(width = innerStrokeWidth),
+  )
+}
+
+private fun ContentDrawScope.drawBackupGlassSheen(shapePath: Path) = clipPath(shapePath) {
+  if (size.minDimension <= 0f) return@clipPath
+  val sheenHeight = size.height * 0.42f
+  drawRect(
+    brush = Brush.verticalGradient(
+      colors = listOf(
+        Color(0x1CFFFFFF),
+        Color(0x06FFFFFF),
+        Color.Transparent,
+      ),
+      startY = 0f,
+      endY = sheenHeight,
+    ),
+    size = androidx.compose.ui.geometry.Size(size.width, sheenHeight),
   )
 }
 

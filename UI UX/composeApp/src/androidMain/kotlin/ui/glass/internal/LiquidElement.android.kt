@@ -16,6 +16,8 @@ import androidx.compose.ui.layout.positionOnScreen
 
 private val isRuntimeShaderSupported: Boolean by lazy {
   if (Build.VERSION.SDK_INT < 33) return@lazy false
+  // Robolectric's software Canvas ignores AGSL RenderEffect shaders; use Canvas backup for deterministic rendering.
+  if (Build.FINGERPRINT.equals("robolectric", ignoreCase = true)) return@lazy false
   try {
     RuntimeShader(LiquidShader)
     true

@@ -6,6 +6,7 @@ import core.storage.InMemoryKeyValueStorage
 import data.settings.AppLogoStyle
 import data.settings.FakeSettingsRepository
 import data.settings.PersistentSettingsRepository
+import data.settings.SplashMotionStyle
 import panelreader.composeapp.generated.resources.Res
 import panelreader.composeapp.generated.resources.logo_classic
 import panelreader.composeapp.generated.resources.logo_glassmorphic
@@ -13,9 +14,11 @@ import ui.components.drawableResource
 import ui.glass.PanelGlassState
 import ui.glass.glassSource
 import ui.glass.internal.LiquidState
+import ui.screens.splash.SplashFormatEntries
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 class AppLogoAndSplashTest {
 
@@ -77,5 +80,28 @@ class AppLogoAndSplashTest {
         if (!PlatformInfo.isAndroid) {
             assertEquals(originalModifier, sourceModifier)
         }
+    }
+
+    @Test
+    fun testSplashMotionStyle_allSixConceptsRegistered() {
+        val entries = SplashMotionStyle.entries
+        assertEquals(6, entries.size)
+        assertTrue(entries.contains(SplashMotionStyle.AMBIENT_RIBBON))
+        assertTrue(entries.contains(SplashMotionStyle.MANGA_RAZOR_SLICE))
+        assertTrue(entries.contains(SplashMotionStyle.INK_DROP))
+        assertTrue(entries.contains(SplashMotionStyle.DIMENSIONAL_GLASS))
+        assertTrue(entries.contains(SplashMotionStyle.LUNAR_SILVER_GLOW))
+        assertTrue(entries.contains(SplashMotionStyle.LIQUID_GLASS))
+    }
+
+    @Test
+    fun testSplashFormatEntries_rotatesMultipleFormats() {
+        val labels = SplashFormatEntries.map { it.label }
+        assertTrue(labels.size >= 4)
+        assertTrue(labels.contains("MANHWA"))
+        assertTrue(labels.contains("MANHUA"))
+        assertTrue(labels.contains("MANGA"))
+        assertTrue(labels.contains("COMIC"))
+        assertTrue(SplashFormatEntries.all { it.accentColor.alpha > 0f })
     }
 }

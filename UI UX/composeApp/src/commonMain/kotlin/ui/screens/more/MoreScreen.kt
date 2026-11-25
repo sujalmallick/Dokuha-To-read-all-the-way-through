@@ -60,6 +60,8 @@ import ui.components.SectionHeader
 import ui.components.SettingsGroup
 import ui.components.SettingsRow
 import ui.components.SettingsSeparator
+import ui.glass.glassSource
+import ui.glass.rememberPanelGlassState
 import ui.screens.browse.BrowseScreen
 import ui.screens.glasslab.GlassLabScreen
 import ui.screens.library.LibraryScreen
@@ -145,6 +147,7 @@ fun MoreScreenContent(
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberLazyListState()
+    val glassState = rememberPanelGlassState()
 
     Box(
         modifier = modifier
@@ -153,8 +156,10 @@ fun MoreScreenContent(
     ) {
         LazyColumn(
             state = scrollState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .glassSource(glassState),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 124.dp)
         ) {
             // Screen Header Title
             item {
@@ -331,6 +336,7 @@ fun MoreScreenContent(
             PanelBottomNavBar(
                 selectedTab = PanelTab.MORE,
                 onTabSelected = onTabSelected,
+                glassState = glassState,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .navigationBarsPadding()

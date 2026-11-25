@@ -36,6 +36,7 @@ import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import ui.components.PanelBottomNavBar
 import ui.components.PanelTab
+import ui.glass.glassSource
 import ui.glass.rememberPanelGlassState
 import ui.screens.browse.BrowseScreenContent
 import ui.screens.browse.SourceDetailScreen
@@ -90,7 +91,9 @@ class MainTabScreen(
                 targetState = currentTab,
                 animationSpec = tween(140),
                 label = "MainTabCrossfade",
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .glassSource(glassState)
             ) { tab ->
                 when (tab) {
                     PanelTab.LIBRARY -> {
