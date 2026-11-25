@@ -35,12 +35,20 @@ jobs:
 
       - name: Build Kotlin Multiplatform iOS Framework
         run: |
-          ./gradlew clean
+          ./gradlew --stop
+          ./gradlew clean \
+            -Dorg.gradle.jvmargs="-Xmx6144M -XX:+UseG1GC -Dfile.encoding=UTF-8" \
+            -Dkotlin.daemon.jvmargs="-Xmx4096M -XX:+UseG1GC"
           if [ "${{ inputs.configuration }}" = "Debug" ]; then
-            ./gradlew :composeApp:linkDebugFrameworkIosArm64
+            ./gradlew :composeApp:linkDebugFrameworkIosArm64 \
+              -Dorg.gradle.jvmargs="-Xmx6144M -XX:+UseG1GC -Dfile.encoding=UTF-8" \
+              -Dkotlin.daemon.jvmargs="-Xmx4096M -XX:+UseG1GC"
           else
-            ./gradlew :composeApp:linkReleaseFrameworkIosArm64
+            ./gradlew :composeApp:linkReleaseFrameworkIosArm64 \
+              -Dorg.gradle.jvmargs="-Xmx6144M -XX:+UseG1GC -Dfile.encoding=UTF-8" \
+              -Dkotlin.daemon.jvmargs="-Xmx4096M -XX:+UseG1GC"
           fi
+          ./gradlew --stop
         working-directory: UI UX
 
       - name: Build and Archive iOS App via Xcode
