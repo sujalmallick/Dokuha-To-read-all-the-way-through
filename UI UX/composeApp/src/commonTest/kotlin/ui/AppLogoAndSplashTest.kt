@@ -76,7 +76,7 @@ class AppLogoAndSplashTest {
         val state = PanelGlassState(LiquidState())
         val originalModifier = Modifier
         val sourceModifier = originalModifier.glassSource(state)
-        // On non-Android (desktop test runner and iOS), glassSource returns original Modifier directly without layer recording
+        // On non-Android targets (iOS / JVM unit tests), glassSource returns original Modifier directly without layer recording
         if (!PlatformInfo.isAndroid) {
             assertEquals(originalModifier, sourceModifier)
         }

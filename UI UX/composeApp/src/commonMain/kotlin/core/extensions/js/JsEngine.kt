@@ -22,7 +22,7 @@ import kotlinx.serialization.json.longOrNull
 /**
  * Sandboxed JavaScript engine execution context for evaluating extension scripts.
  *
- * Implemented via QuickJS across all platforms (Android, iOS, Desktop) via quickjs-kt.
+ * Implemented via QuickJS across mobile targets (Android, iOS) via quickjs-kt.
  */
 class JsEngine {
     private var quickJs: QuickJs? = QuickJs.create(Dispatchers.Default)

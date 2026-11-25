@@ -15,12 +15,6 @@ kotlin {
         }
     }
     
-    jvm("desktop") {
-        compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-        }
-    }
-    
     listOf(
         iosX64(),
         iosArm64(),
@@ -72,7 +66,7 @@ kotlin {
             implementation(libs.sqldelight.coroutines)
             implementation(libs.sqldelight.primitive.adapters)
 
-            // QuickJS (Multiplatform: Android, iOS, Desktop)
+            // QuickJS (Multiplatform: Android, iOS)
             implementation(libs.quickjs)
 
             // Okio (Multiplatform File I/O & Logging)
@@ -86,15 +80,6 @@ kotlin {
             implementation("io.insert-koin:koin-android:4.0.0")
             implementation(libs.ktor.client.okhttp)
             implementation(libs.sqldelight.android.driver)
-        }
-
-        val desktopMain by getting {
-            dependencies {
-                implementation(compose.desktop.currentOs)
-                implementation(libs.quickjs.jvm)
-                implementation(libs.ktor.client.okhttp)
-                implementation(libs.sqldelight.sqlite.driver)
-            }
         }
 
         iosMain.dependencies {
@@ -189,17 +174,6 @@ tasks.matching { it.name == "compileDebugUnitTestKotlinAndroid" }.configureEach 
 
 tasks.matching { it.name.contains("AarMetadata") }.configureEach {
     enabled = false
-}
-
-compose.desktop {
-    application {
-        mainClass = "MainKt"
-        nativeDistributions {
-            targetFormats(org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb)
-            packageName = "Dokuha"
-            packageVersion = "1.0.0"
-        }
-    }
 }
 
 sqldelight {
