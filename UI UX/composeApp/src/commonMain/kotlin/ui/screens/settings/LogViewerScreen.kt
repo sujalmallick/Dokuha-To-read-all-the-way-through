@@ -47,6 +47,7 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import core.logging.AppLogger
 import core.logging.LogLevel
+import ui.components.GlassCollapsingTopBar
 import ui.theme.BadgeRed
 import ui.theme.PanelBackground
 import ui.theme.TextMuted

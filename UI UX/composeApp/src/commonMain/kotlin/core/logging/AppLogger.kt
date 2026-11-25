@@ -13,6 +13,7 @@ import kotlinx.coroutines.sync.withLock
 import okio.FileSystem
 import okio.Path
 import okio.buffer
+import okio.use
 
 /**
  * Multiplatform persistent logger.
