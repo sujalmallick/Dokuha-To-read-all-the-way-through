@@ -21,6 +21,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -38,7 +41,8 @@ class ExtensionManager(
     private val antiBotResolver: AntiBotResolver? = null,
     private val enginePool: JsEnginePool = JsEnginePool(),
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default),
-    private val autoSeedDefaults: Boolean = false
+    private val autoSeedDefaults: Boolean = false,
+    private val deferInit: Boolean = false
 ) {
     private val json = Json {
         ignoreUnknownKeys = true
@@ -67,15 +71,44 @@ class ExtensionManager(
     val repoUrls: StateFlow<List<String>> = _repoUrls.asStateFlow()
 
     private val activeSources = mutableMapOf<String, ContentSource>()
+    private val initMutex = Mutex()
+    private var isInitialized = false
 
     init {
+        if (!deferInit) {
+            initializeSync()
+            startBackgroundObservers()
+        }
+    }
+
+    /**
+     * Ensures repositories, installed extensions, and catalog sync are initialized off the main thread.
+     * Safe to call multiple times; subsequent calls are no-ops once initialized.
+     */
+    suspend fun ensureInitialized() {
+        if (isInitialized) return
+        initMutex.withLock {
+            if (isInitialized) return
+            withContext(Dispatchers.Default) {
+                initializeSync()
+                startBackgroundObservers()
+            }
+        }
+    }
+
+    private fun initializeSync() {
+        if (isInitialized) return
         loadRepositories()
         restoreInstalledExtensions()
         if (autoSeedDefaults) {
             seedDefaultsIfEmpty()
         }
+        isInitialized = true
+    }
+
+    private fun startBackgroundObservers() {
         settingsRepository?.let { settings ->
-            coroutineScope.launch {
+            coroutineScope.launch(Dispatchers.Default) {
                 settings.extensionRepos.collect { repos ->
                     val urls = repos.map { it.url }
                     if (urls != _repoUrls.value) {
@@ -86,7 +119,7 @@ class ExtensionManager(
                 }
             }
         }
-        coroutineScope.launch {
+        coroutineScope.launch(Dispatchers.Default) {
             refreshCatalog()
         }
     }
@@ -115,7 +148,7 @@ class ExtensionManager(
     /**
      * Refreshes the extension catalog from all configured repository URLs across all ecosystems.
      */
-    suspend fun refreshCatalog() {
+    suspend fun refreshCatalog() = withContext(Dispatchers.Default) {
         val client = httpClient
         val items = mutableListOf<ExtensionCatalogItem>()
 

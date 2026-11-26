@@ -13,6 +13,8 @@ CREATE TABLE mangas_categories (
     FOREIGN KEY(category_id) REFERENCES categories(id) ON DELETE CASCADE
 );
 
+CREATE INDEX mangas_categories_category_id_idx ON mangas_categories(category_id);
+
 getCategories:
 SELECT *
 FROM categories

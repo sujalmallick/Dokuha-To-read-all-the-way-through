@@ -327,4 +327,25 @@ class ExtensionManagerTest {
         assertNull(manager.getInstalledSource("pb-test"))
         assertEquals(2, manager.getAllInstalledSources().size)
     }
+
+    @Test
+    fun testDeferredInitializationPopulatesOnEnsureInitialized() = runBlocking {
+        val storage = InMemoryKeyValueStorage()
+        val repo = FakePanelRepository()
+
+        val seeded = ExtensionManager(storage = storage, panelRepository = repo)
+        assertTrue(seeded.installExtensionFromBundle(sampleBundle))
+
+        // Deferred manager does not read/restore synchronously in init
+        val deferred = ExtensionManager(
+            storage = storage,
+            panelRepository = FakePanelRepository(),
+            deferInit = true
+        )
+        assertEquals(0, deferred.installedExtensions.value.size)
+
+        deferred.ensureInitialized()
+        assertEquals(1, deferred.installedExtensions.value.size)
+        assertEquals("persisted-manga", deferred.installedExtensions.value[0].id)
+    }
 }
