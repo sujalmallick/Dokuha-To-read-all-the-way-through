@@ -323,6 +323,7 @@ fun LibraryScreenContent(
                                 Box {
                                     PanelCircleIconButton(
                                         icon = Icons.Default.FilterList,
+                                        contentDescription = "Filter library",
                                         size = 40.dp,
                                         iconSize = 20.dp,
                                         glassState = glassState,
@@ -344,6 +345,7 @@ fun LibraryScreenContent(
                                 // Batch Selection Toggle Icon
                                 PanelCircleIconButton(
                                     icon = Icons.Default.Checklist,
+                                    contentDescription = "Select titles",
                                     size = 40.dp,
                                     iconSize = 20.dp,
                                     glassState = glassState,
@@ -355,6 +357,7 @@ fun LibraryScreenContent(
                                 // Search Icon
                                 PanelCircleIconButton(
                                     icon = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
+                                    contentDescription = if (isSearchActive) "Close search" else "Search library",
                                     size = 40.dp,
                                     iconSize = 20.dp,
                                     glassState = glassState,
