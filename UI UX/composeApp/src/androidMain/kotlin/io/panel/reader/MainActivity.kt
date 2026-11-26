@@ -49,9 +49,11 @@ class MainActivity : ComponentActivity() {
     // Shared mutable state so the reader composable can subscribe to volume key events
     internal val volumeUpEvents = mutableStateOf(0)
     internal val volumeDownEvents = mutableStateOf(0)
+    internal val isReaderActive = mutableStateOf(false)
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN &&
+            isReaderActive.value &&
             settingsRepository.volumeKeyNavigation.value
         ) {
             when (event.keyCode) {
@@ -147,7 +149,8 @@ class MainActivity : ComponentActivity() {
             } else {
                 val volumeKeyState = VolumeKeyState(
                     upPresses = volumeUpEvents,
-                    downPresses = volumeDownEvents
+                    downPresses = volumeDownEvents,
+                    isReaderActive = isReaderActive
                 )
                 CompositionLocalProvider(LocalVolumeKeyState provides volumeKeyState) {
                     PanelApp(

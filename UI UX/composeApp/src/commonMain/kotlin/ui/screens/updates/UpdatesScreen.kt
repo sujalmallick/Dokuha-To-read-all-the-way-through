@@ -286,6 +286,7 @@ fun UpdatesScreenContent(
                         if (selectedTab == "Updates") {
                             ui.components.PanelCircleIconButton(
                                 icon = Icons.Default.Refresh,
+                                contentDescription = "Refresh updates",
                                 size = 38.dp,
                                 iconSize = 19.dp,
                                 glassState = glassState,

@@ -66,7 +66,8 @@ class MainTabScreen(
 
     @Composable
     override fun Content() {
-        var currentTab by rememberSaveable { mutableStateOf(initialTab) }
+        var currentTabName by rememberSaveable { mutableStateOf(initialTab.name) }
+        val currentTab = PanelTab.entries.firstOrNull { it.name == currentTabName } ?: PanelTab.LIBRARY
         val navigator = LocalNavigator.currentOrThrow
         val coroutineScope = rememberCoroutineScope()
 
@@ -97,7 +98,7 @@ class MainTabScreen(
                     .fillMaxSize()
                     .glassSource(glassState)
             ) { tab ->
-                tabStateHolder.SaveableStateProvider(tab) {
+                tabStateHolder.SaveableStateProvider(tab.name) {
                 when (tab) {
                     PanelTab.LIBRARY -> {
                         LibraryScreenContent(
@@ -122,7 +123,7 @@ class MainTabScreen(
                                     navigator.push(WebtoonReaderScreen(manga.url, chapter.url, chapter.name, sid))
                                 }
                             },
-                            onTabSelected = { currentTab = it },
+                            onTabSelected = { currentTabName = it.name },
                             showBottomBar = false,
                             onModalSheetVisibilityChanged = { isModalSheetOpen = it }
                         )
@@ -161,7 +162,7 @@ class MainTabScreen(
                                     repository.clearAllHistory()
                                 }
                             },
-                            onTabSelected = { currentTab = it },
+                            onTabSelected = { currentTabName = it.name },
                             showBottomBar = false
                         )
                     }
@@ -184,7 +185,7 @@ class MainTabScreen(
                                     )
                                 )
                             },
-                            onTabSelected = { currentTab = it },
+                            onTabSelected = { currentTabName = it.name },
                             showBottomBar = false,
                             onModalSheetVisibilityChanged = { isModalSheetOpen = it }
                         )
@@ -212,7 +213,7 @@ class MainTabScreen(
                             onNavigateStorage = { navigator.push(StorageSettingsScreen()) },
                             onNavigateAbout = { navigator.push(AboutSettingsScreen()) },
                             onNavigateGlassLab = { navigator.push(GlassLabScreen()) },
-                            onTabSelected = { currentTab = it },
+                            onTabSelected = { currentTabName = it.name },
                             showBottomBar = false
                         )
                     }
@@ -229,7 +230,7 @@ class MainTabScreen(
             ) {
                 PanelBottomNavBar(
                     selectedTab = currentTab,
-                    onTabSelected = { currentTab = it },
+                    onTabSelected = { currentTabName = it.name },
                     glassState = glassState,
                     modifier = Modifier
                         .navigationBarsPadding()

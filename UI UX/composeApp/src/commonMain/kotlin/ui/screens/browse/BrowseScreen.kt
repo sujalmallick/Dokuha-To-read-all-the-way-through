@@ -156,12 +156,50 @@ fun BrowseScreenContent(
 
     val isSearching = searchQuery.isNotBlank() || hasActiveFilters
 
-    var selectedSourceFilter by remember(searchQuery) { mutableStateOf<Long?>(null) }
+    var debouncedQuery by remember { mutableStateOf("") }
+    var searchRetryTrigger by remember { mutableStateOf(0) }
+    LaunchedEffect(searchQuery) {
+        if (searchQuery.isBlank()) {
+            debouncedQuery = ""
+        } else {
+            kotlinx.coroutines.delay(350L)
+            debouncedQuery = searchQuery
+        }
+    }
 
-    val searchResults by repo.searchManga(
-        query = searchQuery,
-        filters = filters
-    ).collectAsState(initial = emptyList())
+    var selectedSourceFilter by remember(debouncedQuery) { mutableStateOf<Long?>(null) }
+    var isSearchLoading by remember(debouncedQuery, filters, searchRetryTrigger) {
+        mutableStateOf(debouncedQuery.isNotBlank() || hasActiveFilters)
+    }
+    var searchError by remember(debouncedQuery, filters, searchRetryTrigger) {
+        mutableStateOf<String?>(null)
+    }
+
+    val searchResults by remember(debouncedQuery, filters, searchRetryTrigger) {
+        kotlinx.coroutines.flow.flow {
+            if (debouncedQuery.isBlank() && !hasActiveFilters) {
+                isSearchLoading = false
+                emit(emptyList())
+            } else {
+                try {
+                    repo.searchManga(
+                        query = debouncedQuery,
+                        filters = filters
+                    ).collect { list ->
+                        isSearchLoading = false
+                        searchError = null
+                        emit(list)
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    isSearchLoading = false
+                    searchError = e.message ?: "Search failed"
+                    emit(emptyList())
+                }
+            }
+        }
+    }.collectAsState(initial = emptyList())
 
     val resultsBySource = remember(searchResults) {
         searchResults.groupBy { it.sourceId }
@@ -337,10 +375,62 @@ fun BrowseScreenContent(
                         )
 
                         Text(
-                            text = "${displayedSearchResults.size} titles",
+                            text = when {
+                                isSearchLoading -> "Searching..."
+                                searchError != null -> "Error"
+                                else -> "${displayedSearchResults.size} titles"
+                            },
                             fontSize = 13.sp,
                             color = TextSecondary
                         )
+                    }
+
+                    if (isSearchLoading && displayedSearchResults.isEmpty()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Searching sources...",
+                                color = TextSecondary,
+                                fontSize = 13.sp
+                            )
+                        }
+                    } else if (searchError != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 10.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFEF4444).copy(alpha = 0.14f))
+                                .border(1.dp, Color(0xFFEF4444).copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                                .clickable { searchRetryTrigger++ }
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = searchError ?: "Search failed",
+                                color = Color(0xFFFCA5A5),
+                                fontSize = 13.sp,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = "Retry",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
 
                     if (resultsBySource.size > 1) {

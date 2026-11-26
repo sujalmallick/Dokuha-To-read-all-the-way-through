@@ -142,16 +142,49 @@ data class NovelReaderScreen(
         val navigator = LocalNavigator.currentOrThrow
         val repository: PanelRepository = koinInject()
         val settingsRepository: SettingsRepository = koinInject()
+        val volumeKeyState = ui.volume.LocalVolumeKeyState.current
+
+        androidx.compose.runtime.DisposableEffect(volumeKeyState) {
+            volumeKeyState.isReaderActive.value = true
+            onDispose { volumeKeyState.isReaderActive.value = false }
+        }
 
         var currentChapterUrl by remember(chapterUrl) { mutableStateOf(chapterUrl) }
         var currentChapterNumber by remember(chapterNumber) { mutableStateOf(chapterNumber) }
         var currentChapterTitle by remember(chapterTitle) { mutableStateOf(chapterTitle) }
+        var refreshTrigger by remember { mutableStateOf(0) }
 
         val targetMangaUrl = remember(mangaUrl, currentChapterUrl) {
             mangaUrl ?: if (currentChapterUrl.contains("/")) currentChapterUrl.substringBeforeLast("/") else ""
         }
         val chapters by repository.getChapters(targetMangaUrl, sourceId).collectAsState(initial = emptyList())
-        val novelContent by repository.getNovelContent(currentChapterUrl, sourceId).collectAsState(initial = null)
+        var isLoading by remember(currentChapterUrl, refreshTrigger) { mutableStateOf(true) }
+        var loadingTimedOut by remember(currentChapterUrl, refreshTrigger) { mutableStateOf(false) }
+        val novelContent by remember(currentChapterUrl, sourceId, refreshTrigger) {
+            kotlinx.coroutines.flow.flow {
+                try {
+                    repository.getNovelContent(currentChapterUrl, sourceId).collect { content ->
+                        isLoading = false
+                        emit(content)
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    isLoading = false
+                    emit(null)
+                }
+            }
+        }.collectAsState(initial = null)
+
+        LaunchedEffect(currentChapterUrl, refreshTrigger, novelContent) {
+            if (novelContent == null && isLoading) {
+                kotlinx.coroutines.delay(10_000L)
+                if (novelContent == null) {
+                    isLoading = false
+                    loadingTimedOut = true
+                }
+            }
+        }
 
         val currentChapterIndex = chapters.indexOfFirst { it.url == currentChapterUrl || it.name == currentChapterTitle }
         val hasPrevious = if (chapters.isNotEmpty() && currentChapterIndex >= 0) {
@@ -188,7 +221,13 @@ data class NovelReaderScreen(
                 }
             },
             hasPreviousChapter = hasPrevious,
-            hasNextChapter = hasNext
+            hasNextChapter = hasNext,
+            isLoading = isLoading && !loadingTimedOut,
+            onRetry = {
+                loadingTimedOut = false
+                isLoading = true
+                refreshTrigger++
+            }
         )
     }
 }
@@ -204,6 +243,7 @@ fun NovelReaderScreenContent(
     onNextChapter: () -> Unit = {},
     hasPreviousChapter: Boolean = true,
     hasNextChapter: Boolean = true,
+    isLoading: Boolean = false,
     onRetry: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -343,6 +383,32 @@ fun NovelReaderScreenContent(
                             }
                         }
                         Spacer(modifier = Modifier.height(20.dp))
+                    }
+                }
+            } else if (isLoading) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 80.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                modifier = Modifier.size(28.dp),
+                                strokeWidth = 2.5.dp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Loading chapter...",
+                                fontSize = 14.sp,
+                                color = themeColors.textColor.copy(alpha = 0.7f),
+                                fontFamily = fontFamily
+                            )
+                        }
                     }
                 }
             } else {

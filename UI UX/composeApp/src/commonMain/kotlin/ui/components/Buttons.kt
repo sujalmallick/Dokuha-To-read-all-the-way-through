@@ -179,6 +179,7 @@ fun PanelCircleIconButton(
     icon: ImageVector,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    contentDescription: String? = null,
     glassState: PanelGlassState? = null,
     hasDimming: Boolean = true,
     size: Dp = 42.dp,
@@ -224,7 +225,7 @@ fun PanelCircleIconButton(
         ) {
             Icon(
                 imageVector = icon,
-                contentDescription = null,
+                contentDescription = contentDescription,
                 tint = tint,
                 modifier = Modifier.size(iconSize)
             )

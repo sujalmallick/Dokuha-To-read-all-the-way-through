@@ -142,6 +142,12 @@ data class WebtoonReaderScreen(
         val repository: PanelRepository = koinInject()
         val settingsRepository: SettingsRepository = koinInject()
         val downloadManager: DownloadManager = koinInject()
+        val volumeKeyState = ui.volume.LocalVolumeKeyState.current
+
+        androidx.compose.runtime.DisposableEffect(volumeKeyState) {
+            volumeKeyState.isReaderActive.value = true
+            onDispose { volumeKeyState.isReaderActive.value = false }
+        }
 
         var currentChapterUrl by remember(chapterUrl) { mutableStateOf(chapterUrl) }
         var currentChapterTitle by remember(chapterTitle) { mutableStateOf(chapterTitle) }
