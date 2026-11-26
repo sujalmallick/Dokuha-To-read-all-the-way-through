@@ -27,9 +27,13 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import core.logging.AppCoroutineExceptionHandler
+import core.logging.launchSafe
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -85,7 +89,8 @@ class UpdatesScreen : Screen {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repository: PanelRepository = koinInject()
-        val coroutineScope = rememberCoroutineScope()
+        val coroutineScope = rememberCoroutineScope { AppCoroutineExceptionHandler }
+        val snackbarHostState = remember { SnackbarHostState() }
 
         val updateGroups by repository.getUpdates().collectAsState(initial = emptyList())
         val historyGroups by repository.getHistory().collectAsState(initial = emptyList())
@@ -129,15 +134,30 @@ class UpdatesScreen : Screen {
                 }
             },
             onDeleteHistoryItem = { historyId ->
-                coroutineScope.launch {
+                coroutineScope.launchSafe(
+                    tag = "UpdatesScreen",
+                    onError = {
+                        coroutineScope.launchSafe("UpdatesScreen", onError = {}) {
+                            snackbarHostState.showSnackbar("Could not delete history entry. Please try again.")
+                        }
+                    }
+                ) {
                     repository.deleteHistoryItem(historyId)
                 }
             },
             onClearAllHistory = {
-                coroutineScope.launch {
+                coroutineScope.launchSafe(
+                    tag = "UpdatesScreen",
+                    onError = {
+                        coroutineScope.launchSafe("UpdatesScreen", onError = {}) {
+                            snackbarHostState.showSnackbar("Could not clear reading history. Please try again.")
+                        }
+                    }
+                ) {
                     repository.clearAllHistory()
                 }
             },
+            snackbarHostState = snackbarHostState,
             onTabSelected = { tab ->
                 when (tab) {
                     PanelTab.LIBRARY -> navigator.replaceAll(MainTabScreen(PanelTab.LIBRARY))
@@ -164,6 +184,7 @@ fun UpdatesScreenContent(
     onClearAllHistory: () -> Unit = {},
     onTabSelected: (PanelTab) -> Unit,
     showBottomBar: Boolean = true,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     modifier: Modifier = Modifier
 ) {
     val glassState = rememberPanelGlassState()
@@ -475,6 +496,14 @@ fun UpdatesScreenContent(
                     .padding(horizontal = 24.dp, vertical = 12.dp)
             )
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = if (showBottomBar) 88.dp else 16.dp)
+        )
     }
 }
 

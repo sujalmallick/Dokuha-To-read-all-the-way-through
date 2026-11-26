@@ -52,14 +52,21 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.withFrameNanos
 import core.extensions.js.CloudflareChallengeHeuristics
+import core.logging.AppCoroutineExceptionHandler
+import core.logging.AppLogger
+import core.logging.launchSafe
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.isActive
 import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
@@ -149,8 +156,8 @@ data class WebtoonReaderScreen(
             onDispose { volumeKeyState.isReaderActive.value = false }
         }
 
-        var currentChapterUrl by remember(chapterUrl) { mutableStateOf(chapterUrl) }
-        var currentChapterTitle by remember(chapterTitle) { mutableStateOf(chapterTitle) }
+        var currentChapterUrl by rememberSaveable(chapterUrl) { mutableStateOf(chapterUrl) }
+        var currentChapterTitle by rememberSaveable(chapterTitle) { mutableStateOf(chapterTitle) }
         var pagesRefreshTrigger by remember { mutableIntStateOf(0) }
 
         val mangaDetails by remember(mangaUrl, sourceId) {
@@ -176,74 +183,94 @@ data class WebtoonReaderScreen(
             chapters[currentChapterIndex - 1].name
         } else ""
 
-        val coroutineScope = rememberCoroutineScope()
+        val coroutineScope = rememberCoroutineScope { AppCoroutineExceptionHandler }
+        val snackbarHostState = remember { SnackbarHostState() }
 
         LaunchedEffect(currentChapterUrl) {
-            println("[WebtoonReaderScreen] LaunchedEffect for chapter: $currentChapterUrl, mangaUrl: $mangaUrl")
-            repository.recordHistory(currentChapterUrl)
-        }
-
-        LaunchedEffect(pages) {
-            println("[WebtoonReaderScreen] pages state updated, count: ${pages.size}")
+            try {
+                repository.recordHistory(currentChapterUrl)
+            } catch (ce: CancellationException) {
+                throw ce
+            } catch (t: Throwable) {
+                AppLogger.e("WebtoonReaderScreen", "recordHistory failed (${t::class.simpleName ?: "Error"})")
+                snackbarHostState.showSnackbar("Could not record reading history.")
+            }
         }
 
         var isSettingsOpen by remember { mutableStateOf(false) }
 
-        WebtoonReaderScreenContent(
-            chapterUrl = currentChapterUrl,
-            chapterTitle = currentChapterTitle,
-            pages = pages,
-            onBack = { navigator.pop() },
-            settingsRepository = settingsRepository,
-            onOpenSettings = { isSettingsOpen = true },
-            isOfflineCached = isDownloaded,
-            onProgressChange = { page, isCompleted ->
-                coroutineScope.launch {
-                    repository.updateChapterProgress(currentChapterUrl, page, isCompleted)
+        Box(modifier = Modifier.fillMaxSize()) {
+            WebtoonReaderScreenContent(
+                chapterUrl = currentChapterUrl,
+                chapterTitle = currentChapterTitle,
+                pages = pages,
+                onBack = { navigator.pop() },
+                settingsRepository = settingsRepository,
+                onOpenSettings = { isSettingsOpen = true },
+                isOfflineCached = isDownloaded,
+                onProgressChange = { page, isCompleted ->
+                    coroutineScope.launchSafe(
+                        tag = "WebtoonReaderScreen",
+                        onError = {
+                            coroutineScope.launchSafe("WebtoonReaderScreen", onError = {}) {
+                                snackbarHostState.showSnackbar("Could not save reading progress.")
+                            }
+                        }
+                    ) {
+                        repository.updateChapterProgress(currentChapterUrl, page, isCompleted)
 
-                    if (settingsRepository.autoDownloadNextChapter.value) {
-                        val totalPages = pages.size.coerceAtLeast(1)
-                        val progressFraction = page.toFloat() / totalPages
-                        if (progressFraction >= 0.8f || isCompleted) {
-                            if (chapters.isNotEmpty() && currentChapterIndex > 0) {
-                                val nextChapter = chapters[currentChapterIndex - 1]
-                                val isNextDownloaded = downloadManager.isChapterDownloaded(mangaUrl, nextChapter.url)
-                                val nextStatus = downloadManager.getChapterStatus(mangaUrl, nextChapter.url)
-                                if (!isNextDownloaded && nextStatus == null) {
-                                    val resolvedSid = sourceId?.toLongOrNull()
-                                        ?: mangaDetails?.sourceId?.takeIf { it != 0L }
-                                        ?: repository.resolveSource(sourceId, mangaUrl, nextChapter.url)?.id
-                                        ?: 0L
-                                    val baseManga = mangaDetails ?: SourceManga(
-                                        url = mangaUrl,
-                                        title = currentChapterTitle
-                                    )
-                                    val targetManga = baseManga.copy(sourceId = resolvedSid)
-                                    downloadManager.enqueue(targetManga, listOf(nextChapter))
+                        if (settingsRepository.autoDownloadNextChapter.value) {
+                            val totalPages = pages.size.coerceAtLeast(1)
+                            val progressFraction = page.toFloat() / totalPages
+                            if (progressFraction >= 0.8f || isCompleted) {
+                                if (chapters.isNotEmpty() && currentChapterIndex > 0) {
+                                    val nextChapter = chapters[currentChapterIndex - 1]
+                                    val isNextDownloaded = downloadManager.isChapterDownloaded(mangaUrl, nextChapter.url)
+                                    val nextStatus = downloadManager.getChapterStatus(mangaUrl, nextChapter.url)
+                                    if (!isNextDownloaded && nextStatus == null) {
+                                        val resolvedSid = sourceId?.toLongOrNull()
+                                            ?: mangaDetails?.sourceId?.takeIf { it != 0L }
+                                            ?: repository.resolveSource(sourceId, mangaUrl, nextChapter.url)?.id
+                                            ?: 0L
+                                        val baseManga = mangaDetails ?: SourceManga(
+                                            url = mangaUrl,
+                                            title = currentChapterTitle
+                                        )
+                                        val targetManga = baseManga.copy(sourceId = resolvedSid)
+                                        downloadManager.enqueue(targetManga, listOf(nextChapter))
+                                    }
                                 }
                             }
                         }
                     }
-                }
-            },
-            onPreviousChapter = {
-                if (chapters.isNotEmpty() && currentChapterIndex in 0 until chapters.lastIndex) {
-                    val prevChapter = chapters[currentChapterIndex + 1]
-                    currentChapterUrl = prevChapter.url
-                    currentChapterTitle = prevChapter.name
-                }
-            },
-            onNextChapter = {
-                if (chapters.isNotEmpty() && currentChapterIndex > 0) {
-                    val nextChapter = chapters[currentChapterIndex - 1]
-                    currentChapterUrl = nextChapter.url
-                    currentChapterTitle = nextChapter.name
-                }
-            },
-            hasPreviousChapter = hasPrevious,
-            hasNextChapter = hasNext,
-            nextChapterTitle = nextTitle
-        )
+                },
+                onPreviousChapter = {
+                    if (chapters.isNotEmpty() && currentChapterIndex in 0 until chapters.lastIndex) {
+                        val prevChapter = chapters[currentChapterIndex + 1]
+                        currentChapterUrl = prevChapter.url
+                        currentChapterTitle = prevChapter.name
+                    }
+                },
+                onNextChapter = {
+                    if (chapters.isNotEmpty() && currentChapterIndex > 0) {
+                        val nextChapter = chapters[currentChapterIndex - 1]
+                        currentChapterUrl = nextChapter.url
+                        currentChapterTitle = nextChapter.name
+                    }
+                },
+                hasPreviousChapter = hasPrevious,
+                hasNextChapter = hasNext,
+                nextChapterTitle = nextTitle
+            )
+
+            SnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 16.dp)
+            )
+        }
 
         if (isSettingsOpen) {
             ReaderSettingsBottomSheet(
@@ -373,10 +400,47 @@ fun WebtoonReaderScreenContent(
         val pagerState = rememberPagerState(pageCount = { totalContentCount })
         var isPageZoomed by remember(chapterUrl, pagerState.currentPage) { mutableStateOf(false) }
 
-        // Reset scroll/pager position when switching chapters
-        LaunchedEffect(chapterUrl) {
-            listState.scrollToItem(0)
-            pagerState.scrollToPage(0)
+        // Persist and restore scroll/pager position across process death; only reset to 0 when chapter changes
+        var previousChapterUrl by rememberSaveable { mutableStateOf(chapterUrl) }
+        var savedPageIndex by rememberSaveable(chapterUrl) { mutableIntStateOf(0) }
+        var savedScrollOffset by rememberSaveable(chapterUrl) { mutableIntStateOf(0) }
+        var hasRestoredSavedPosition by remember(chapterUrl) { mutableStateOf(false) }
+
+        LaunchedEffect(chapterUrl, displayPages.size) {
+            if (shouldResetReaderScroll(previousChapterUrl, chapterUrl)) {
+                previousChapterUrl = chapterUrl
+                savedPageIndex = 0
+                savedScrollOffset = 0
+                hasRestoredSavedPosition = true
+                listState.scrollToItem(0)
+                pagerState.scrollToPage(0)
+            } else if (!hasRestoredSavedPosition && displayPages.isNotEmpty()) {
+                val targetIndex = savedPageIndex.coerceIn(0, displayPages.lastIndex)
+                if (targetIndex > 0 || savedScrollOffset > 0) {
+                    listState.scrollToItem(targetIndex, savedScrollOffset.coerceAtLeast(0))
+                    pagerState.scrollToPage(targetIndex)
+                }
+                hasRestoredSavedPosition = true
+            }
+        }
+
+        LaunchedEffect(
+            hasRestoredSavedPosition,
+            displayPages.size,
+            readingMode,
+            listState.firstVisibleItemIndex,
+            listState.firstVisibleItemScrollOffset,
+            pagerState.currentPage
+        ) {
+            if (hasRestoredSavedPosition && displayPages.isNotEmpty()) {
+                if (readingMode == DefaultReadingMode.WEBTOON) {
+                    savedPageIndex = listState.firstVisibleItemIndex.coerceIn(0, displayPages.lastIndex)
+                    savedScrollOffset = listState.firstVisibleItemScrollOffset.coerceAtLeast(0)
+                } else {
+                    savedPageIndex = pagerState.currentPage.coerceIn(0, displayPages.lastIndex)
+                    savedScrollOffset = 0
+                }
+            }
         }
 
         // Guard so downward over-scroll at end of chapter only triggers next chapter once per chapter
@@ -1876,6 +1940,11 @@ fun WebtoonPanelSlice(
     }
 }
 }
+
+internal fun shouldResetReaderScroll(
+    previousChapterUrl: String,
+    currentChapterUrl: String
+): Boolean = previousChapterUrl != currentChapterUrl
 
 internal fun shouldAutoAdvanceOnBottomScroll(
     hasNextChapter: Boolean,

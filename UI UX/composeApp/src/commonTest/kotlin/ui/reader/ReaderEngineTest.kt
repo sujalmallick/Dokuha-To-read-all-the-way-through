@@ -11,6 +11,7 @@ import ui.screens.webtoonreader.ReaderTapZones
 import ui.screens.webtoonreader.TapAction
 import ui.screens.webtoonreader.computeWebtoonScrollbarMetrics
 import ui.screens.webtoonreader.shouldAutoAdvanceOnBottomScroll
+import ui.screens.webtoonreader.shouldResetReaderScroll
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -301,6 +302,14 @@ class ReaderEngineTest {
         )
         assertEquals(1.0f, fitsAll.thumbSizeFraction)
         assertEquals(0.0f, fitsAll.thumbOffsetFraction)
+    }
+
+    @Test
+    fun testShouldResetReaderScroll_onlyResetsOnChapterChange() {
+        // Same chapter restored after process death -> preserve scroll position
+        assertFalse(shouldResetReaderScroll(previousChapterUrl = "ch-210", currentChapterUrl = "ch-210"))
+        // Navigated to another chapter -> reset scroll to top
+        assertTrue(shouldResetReaderScroll(previousChapterUrl = "ch-210", currentChapterUrl = "ch-211"))
     }
 
     private fun assertNotNull(value: Any?) {
