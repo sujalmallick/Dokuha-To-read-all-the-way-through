@@ -133,11 +133,13 @@ interface SettingsRepository {
     val showUnreadCount: StateFlow<Boolean>
     val updateOnAppLaunch: StateFlow<Boolean>
     val updateInterval: StateFlow<UpdateInterval>
+    val incognitoMode: StateFlow<Boolean>
 
     fun setDefaultCategory(category: String)
     fun setShowUnreadCount(enabled: Boolean)
     fun setUpdateOnAppLaunch(enabled: Boolean)
     fun setUpdateInterval(interval: UpdateInterval)
+    fun setIncognitoMode(enabled: Boolean)
 
     // Downloads
     val downloadOnlyOnWifi: StateFlow<Boolean>
@@ -349,6 +351,9 @@ class FakeSettingsRepository : SettingsRepository {
     private val _updateInterval = MutableStateFlow(UpdateInterval.DAILY)
     override val updateInterval: StateFlow<UpdateInterval> = _updateInterval.asStateFlow()
 
+    private val _incognitoMode = MutableStateFlow(false)
+    override val incognitoMode: StateFlow<Boolean> = _incognitoMode.asStateFlow()
+
     override fun setDefaultCategory(category: String) {
         _defaultCategory.value = category
     }
@@ -363,6 +368,10 @@ class FakeSettingsRepository : SettingsRepository {
 
     override fun setUpdateInterval(interval: UpdateInterval) {
         _updateInterval.value = interval
+    }
+
+    override fun setIncognitoMode(enabled: Boolean) {
+        _incognitoMode.value = enabled
     }
 
     // Downloads

@@ -51,6 +51,7 @@ class PersistentSettingsRepository(
         private const val KEY_SHOW_UNREAD_COUNT = "setting_show_unread_count"
         private const val KEY_UPDATE_ON_APP_LAUNCH = "setting_update_on_app_launch"
         private const val KEY_UPDATE_INTERVAL = "setting_update_interval"
+        private const val KEY_INCOGNITO_MODE = "setting_incognito_mode"
 
         private const val KEY_DOWNLOAD_WIFI_ONLY = "setting_download_wifi_only"
         private const val KEY_DELETE_AFTER_READING = "setting_delete_after_reading"
@@ -344,6 +345,11 @@ class PersistentSettingsRepository(
     )
     override val updateInterval: StateFlow<UpdateInterval> = _updateInterval.asStateFlow()
 
+    private val _incognitoMode = MutableStateFlow(
+        storage.getBoolean(KEY_INCOGNITO_MODE, false)
+    )
+    override val incognitoMode: StateFlow<Boolean> = _incognitoMode.asStateFlow()
+
     override fun setDefaultCategory(category: String) {
         _defaultCategory.value = category
         storage.putString(KEY_DEFAULT_CATEGORY, category)
@@ -362,6 +368,11 @@ class PersistentSettingsRepository(
     override fun setUpdateInterval(interval: UpdateInterval) {
         _updateInterval.value = interval
         storage.putString(KEY_UPDATE_INTERVAL, interval.name)
+    }
+
+    override fun setIncognitoMode(enabled: Boolean) {
+        _incognitoMode.value = enabled
+        storage.putBoolean(KEY_INCOGNITO_MODE, enabled)
     }
 
     // Downloads
@@ -514,10 +525,11 @@ class PersistentSettingsRepository(
     override val lastBackupTimestamp: StateFlow<String> = _lastBackupTimestamp.asStateFlow()
 
     override fun createBackup(): String {
-        val timestamp = "Today, 12:00 PM"
+        val fileName = "dokuha_backup.json"
+        val timestamp = "Saved (${fileName})"
         _lastBackupTimestamp.value = timestamp
         storage.putString(KEY_LAST_BACKUP, timestamp)
-        return "panel_backup_stub.json"
+        return fileName
     }
 
     override fun restoreBackup(uri: String): Result<Unit> {

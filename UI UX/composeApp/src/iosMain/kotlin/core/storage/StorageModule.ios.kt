@@ -13,5 +13,6 @@ actual val platformStorageModule: Module = module {
     single<KeyValueStorage> { IosKeyValueStorage() }
     single<SecureStorage> { IosSecureStorage() }
     single<DownloadStorage> { IosDownloadStorage() }
+    single { StorageProvider() }
     single<HeadlessSolver> { HeadlessCloudflareSolver() }
 }

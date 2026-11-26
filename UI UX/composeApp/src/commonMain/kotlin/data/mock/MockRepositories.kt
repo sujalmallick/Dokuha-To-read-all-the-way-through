@@ -112,6 +112,9 @@ interface PanelRepository {
     suspend fun toggleFavorite(manga: SourceManga, isFavorite: Boolean) {}
     suspend fun updateChapterProgress(chapterUrl: String, page: Int, isRead: Boolean) {}
     suspend fun recordHistory(chapterUrl: String) {}
+    fun getReadChapterUrls(mangaUrl: String): Flow<Set<String>> = flowOf(emptySet())
+    suspend fun markChaptersRead(chapterUrls: List<String>, isRead: Boolean) {}
+    suspend fun refreshLibraryUpdates(): Int = 0
 
     fun enqueueDownload(manga: SourceManga, chapter: SourceChapter) {}
     fun toggleDownloadPause(chapterUrl: String) {}

@@ -28,6 +28,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -67,7 +69,7 @@ fun PanelButton(
     glassState: PanelGlassState? = null,
     icon: ImageVector? = null,
     trailingIcon: ImageVector? = null,
-    contentPadding: PaddingValues = PaddingValues(horizontal = 24.dp, vertical = 14.dp)
+    contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp, vertical = 12.dp)
 ) {
     val interactionSource = remember { MutableInteractionSource() }
 
@@ -97,6 +99,7 @@ fun PanelButton(
 
     Box(
         modifier = modifier
+            .defaultMinSize(minHeight = 48.dp)
             .then(surfaceModifier)
             .clickable(
                 interactionSource = interactionSource,
@@ -123,7 +126,10 @@ fun PanelButton(
                 text = text,
                 color = contentColor,
                 fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             if (trailingIcon != null) {
                 Spacer(modifier = Modifier.width(8.dp))
