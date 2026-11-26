@@ -192,10 +192,22 @@ fun LibraryScreenContent(
     // Filter & Sorting State
     var libraryFilter by remember { mutableStateOf(LibraryFilter()) }
     var isFilterSheetVisible by remember { mutableStateOf(false) }
+    var isSearchActive by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
 
-    // 2. Filter and sort by active LibraryFilter (Status, Format, Progress, Downloaded, Sort)
-    val filteredLibraryItems = remember(categoryFilteredItems, libraryFilter, libraryStats) {
-        filterAndSortLibrary(categoryFilteredItems, libraryFilter, libraryStats)
+    // 2. Filter and sort by active LibraryFilter (Status, Format, Progress, Downloaded, Sort) + searchQuery
+    val filteredLibraryItems = remember(categoryFilteredItems, libraryFilter, libraryStats, searchQuery) {
+        val base = filterAndSortLibrary(categoryFilteredItems, libraryFilter, libraryStats)
+        val q = searchQuery.trim()
+        if (q.isEmpty()) {
+            base
+        } else {
+            base.filter { manga ->
+                manga.title.contains(q, ignoreCase = true) ||
+                    (manga.author?.contains(q, ignoreCase = true) == true) ||
+                    manga.genres.any { it.contains(q, ignoreCase = true) }
+            }
+        }
     }
 
     // Batch Selection Mode State
@@ -320,6 +332,7 @@ fun LibraryScreenContent(
                                         Box(
                                             modifier = Modifier
                                                 .align(Alignment.TopEnd)
+                                                .padding(top = 4.dp, end = 4.dp)
                                                 .size(10.dp)
                                                 .clip(CircleShape)
                                                 .background(Color(0xFF3B82F6))
@@ -341,13 +354,57 @@ fun LibraryScreenContent(
                                 Spacer(modifier = Modifier.width(8.dp))
                                 // Search Icon
                                 PanelCircleIconButton(
-                                    icon = Icons.Default.Search,
+                                    icon = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
                                     size = 40.dp,
                                     iconSize = 20.dp,
                                     glassState = glassState,
-                                    onClick = { /* Search Action */ }
+                                    onClick = {
+                                        if (isSearchActive) {
+                                            isSearchActive = false
+                                            searchQuery = ""
+                                        } else {
+                                            isSearchActive = true
+                                        }
+                                    }
                                 )
                             }
+                        }
+
+                        AnimatedVisibility(visible = isSearchActive) {
+                            androidx.compose.material3.OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = {
+                                    Text(
+                                        text = "Search library by title or author...",
+                                        color = TextSecondary,
+                                        fontSize = 14.sp
+                                    )
+                                },
+                                singleLine = true,
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = null,
+                                        tint = TextSecondary
+                                    )
+                                },
+                                trailingIcon = if (searchQuery.isNotEmpty()) {
+                                    {
+                                        androidx.compose.material3.IconButton(onClick = { searchQuery = "" }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Clear search",
+                                                tint = TextSecondary
+                                            )
+                                        }
+                                    }
+                                } else null,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 10.dp)
+                            )
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))

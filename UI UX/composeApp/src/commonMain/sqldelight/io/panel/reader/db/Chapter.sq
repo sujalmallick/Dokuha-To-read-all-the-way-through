@@ -69,3 +69,22 @@ WHERE url = :url;
 deleteChaptersByMangaId:
 DELETE FROM chapters
 WHERE manga_id = :mangaId;
+
+getRecentLibraryUpdates:
+SELECT
+    c.id AS chapter_id,
+    c.url AS chapter_url,
+    c.name AS chapter_name,
+    c.chapter_number AS chapter_number,
+    c.date_fetch AS date_fetch,
+    c.date_upload AS date_upload,
+    m.url AS manga_url,
+    m.title AS manga_title,
+    m.thumbnail_url AS manga_thumbnail,
+    m.is_novel AS manga_is_novel,
+    m.source_id AS manga_source_id
+FROM chapters c
+JOIN mangas m ON c.manga_id = m.id
+WHERE m.favorite = 1 AND c.date_fetch > 0
+ORDER BY c.date_fetch DESC, c.chapter_number DESC
+LIMIT :limit;

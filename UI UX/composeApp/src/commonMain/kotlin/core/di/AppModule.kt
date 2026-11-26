@@ -2,7 +2,7 @@ package core.di
 
 import core.download.DownloadManager as CoreDownloadManager
 import core.storage.platformStorageModule
-import data.download.DefaultDownloadManager
+import data.download.CoreBackedDownloadManager
 import data.download.DownloadManager as DataDownloadManager
 import data.extension.DefaultExtensionRepository
 import data.extension.ExtensionRepository
@@ -40,12 +40,32 @@ val appModule = module {
     single { CoreDownloadManager(downloadStorage = get(), httpClient = getOrNull()) }
     single { AntiBotChallengeManager(headlessSolver = getOrNull()) }
     single<AntiBotResolver> { get<AntiBotChallengeManager>() }
-    single<PanelRepository> { SqlDelightPanelRepository(database = get(), downloadManager = getOrNull(), downloadStorage = getOrNull()) }
+    single<PanelRepository> {
+        SqlDelightPanelRepository(
+            database = get(),
+            downloadManager = getOrNull(),
+            downloadStorage = getOrNull(),
+            settingsRepository = getOrNull()
+        )
+    }
     single<ExtensionManager>(createdAtStart = true) { ExtensionManager(storage = get(), panelRepository = get(), httpClient = getOrNull(), settingsRepository = getOrNull(), antiBotResolver = getOrNull(), autoSeedDefaults = false) }
-    single<TrackerRepository> { ProductionTrackerRepository(getOrNull()) }
+    single<TrackerRepository> {
+        ProductionTrackerRepository(
+            secureStorage = getOrNull(),
+            httpClient = getOrNull(),
+            keyValueStorage = getOrNull()
+        )
+    }
     single<SettingsRepository> { PersistentSettingsRepository(get()) }
     single<ProfileRepository> { PersistentProfileRepository(get(), get()) }
-    single<DataDownloadManager> { DefaultDownloadManager() }
+    single<DataDownloadManager> {
+        CoreBackedDownloadManager(
+            coreDownloadManager = get(),
+            downloadStorage = get(),
+            storageProvider = getOrNull(),
+            panelRepository = getOrNull()
+        )
+    }
     single<ExtensionRepository> { DefaultExtensionRepository(httpClient = getOrNull(), extensionManager = getOrNull()) }
     single<CategoryRepository> { DefaultCategoryRepository() }
 }

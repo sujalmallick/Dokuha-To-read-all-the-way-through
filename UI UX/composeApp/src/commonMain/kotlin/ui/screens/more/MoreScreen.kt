@@ -96,6 +96,7 @@ class MoreScreen : Screen {
         val profile by profileRepository.profile.collectAsState()
         val themeMode by settingsRepository.themeMode.collectAsState()
         val cacheSize by settingsRepository.cacheSize.collectAsState()
+        val isIncognito by settingsRepository.incognitoMode.collectAsState()
 
         MoreScreenContent(
             profile = profile,
@@ -105,6 +106,8 @@ class MoreScreen : Screen {
                 ui.theme.ThemeMode.OLED_BLACK -> "OLED Black"
             },
             cacheSize = cacheSize,
+            isIncognito = isIncognito,
+            onToggleIncognito = { settingsRepository.setIncognitoMode(it) },
             onOpenProfile = { navigator.push(ProfileScreen()) },
             onNavigateAppearance = { navigator.push(AppearanceSettingsScreen()) },
             onNavigateReader = { navigator.push(GlobalReaderSettingsScreen()) },
@@ -132,6 +135,8 @@ fun MoreScreenContent(
     profile: UserProfile,
     themeModeName: String,
     cacheSize: String,
+    isIncognito: Boolean = false,
+    onToggleIncognito: (Boolean) -> Unit = {},
     onOpenProfile: () -> Unit,
     onNavigateAppearance: () -> Unit,
     onNavigateReader: () -> Unit,
@@ -243,6 +248,13 @@ fun MoreScreenContent(
                 SectionHeader(text = "Preferences")
                 Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                     SettingsGroup {
+                        SettingsRow.Toggle(
+                            title = "Incognito Mode",
+                            subtitle = "Pauses reading history and chapter progress",
+                            checked = isIncognito,
+                            onCheckedChange = onToggleIncognito
+                        )
+                        SettingsSeparator()
                         SettingsRow.Navigation(
                             title = "Appearance",
                             subtitle = "Theme, accent colors, glass & motion",
