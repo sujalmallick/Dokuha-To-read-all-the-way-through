@@ -123,4 +123,43 @@ class CoreFeaturesV2Test {
         assertTrue(syncRes.isSuccess)
         assertEquals(42, trackerRepo.getBinding("manga/solo", TrackerService.ANILIST)?.lastChapterRead)
     }
+
+    @Test
+    fun testCoreBackedDownloadManagerPersistsCompletedAcrossRestarts() {
+        val kvStorage = InMemoryKeyValueStorage()
+        val novels = mutableMapOf<String, Pair<String, String>>()
+        val downloadStorage = object : core.download.DownloadStorage {
+            override fun savePageImage(chapterUrl: String, pageIndex: Int, data: ByteArray) = ""
+            override fun saveNovelContent(chapterUrl: String, title: String, content: String): String {
+                novels[chapterUrl] = title to content
+                return "memory://$chapterUrl"
+            }
+            override fun getDownloadedPages(chapterUrl: String): List<core.source.SourcePage>? = null
+            override fun getDownloadedNovel(chapterUrl: String) = novels[chapterUrl]
+            override fun isChapterDownloaded(chapterUrl: String) = novels.containsKey(chapterUrl)
+            override fun deleteChapter(chapterUrl: String) = novels.remove(chapterUrl) != null
+            override fun getStorageBreakdown() = core.download.DownloadStorageBreakdown()
+        }
+        val coreDm = core.download.DownloadManager(downloadStorage = downloadStorage)
+        val manga = core.source.SourceManga(url = "manga/demo", title = "Demo Manga", isNovel = true)
+        val ch1 = core.source.SourceChapter(url = "ch-1", name = "Chapter 1")
+        downloadStorage.saveNovelContent(ch1.url, ch1.name, "Hello offline world")
+
+        val dm1 = data.download.CoreBackedDownloadManager(
+            coreDownloadManager = coreDm,
+            downloadStorage = downloadStorage,
+            keyValueStorage = kvStorage
+        )
+        dm1.enqueue(manga, listOf(ch1))
+        assertEquals(1, dm1.completedDownloads.value.size)
+
+        // Simulate app restart with same KeyValueStorage & DownloadStorage
+        val dm2 = data.download.CoreBackedDownloadManager(
+            coreDownloadManager = coreDm,
+            downloadStorage = downloadStorage,
+            keyValueStorage = kvStorage
+        )
+        assertEquals(1, dm2.completedDownloads.value.size)
+        assertEquals("ch-1", dm2.completedDownloads.value.first().chapter.url)
+    }
 }

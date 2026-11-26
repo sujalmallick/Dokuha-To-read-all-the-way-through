@@ -130,7 +130,7 @@ class SqlDelightPanelRepository(
             isNovel = if (manga.isNovel) 1L else 0L
         )
 
-        return database.mangaQueries.getMangaByUrl(manga.url).executeAsOne().id
+        return database.mangaQueries.getMangaByUrl(manga.url).executeAsOneOrNull()?.id ?: 0L
     }
 
     override fun getLibrary(category: String): Flow<List<SourceManga>> {

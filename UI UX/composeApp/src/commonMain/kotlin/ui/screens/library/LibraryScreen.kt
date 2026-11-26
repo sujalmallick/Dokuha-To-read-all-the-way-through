@@ -482,6 +482,10 @@ fun LibraryScreenContent(
                 } else if (recentlyReadItems.size == 1) {
                     val recentItem = recentlyReadItems.first()
                     val pageLabel = if (recentItem.lastPageRead > 0) "Page ${recentItem.lastPageRead}" else "In progress"
+                    val mangaStats = libraryStats[recentItem.manga.url]
+                    val realProgress = if (mangaStats != null && mangaStats.totalChapters > 0) {
+                        (mangaStats.readChapters.toFloat() / mangaStats.totalChapters.toFloat()).coerceIn(0.02f, 1f)
+                    } else 0.05f
                     item(span = { GridItemSpan(3) }) {
                         Column(modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)) {
                             Text(
@@ -494,32 +498,40 @@ fun LibraryScreenContent(
                             ContinueReadingCard(
                                 manga = recentItem.manga,
                                 chapter = recentItem.chapter,
-                                progress = 0.68f,
+                                progress = realProgress,
                                 progressText = pageLabel,
                                 onResume = { onResumeChapter(recentItem.manga, recentItem.chapter) },
                                 onClick = { onOpenManga(recentItem.manga) }
                             )
                         }
                     }
-                } else if (continueReadingPair != null) {
-                    val (manga, chapter) = continueReadingPair!!
-                    item(span = { GridItemSpan(3) }) {
-                        Column(modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)) {
-                            Text(
-                                text = "Continue Reading",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextPrimary
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
-                            ContinueReadingCard(
-                                manga = manga,
-                                chapter = chapter,
-                                progress = 0.68f,
-                                progressText = "68%",
-                                onResume = { onResumeChapter(manga, chapter) },
-                                onClick = { onOpenManga(manga) }
-                            )
+                } else {
+                    val fallbackPair = continueReadingPair
+                    if (fallbackPair != null) {
+                        val (manga, chapter) = fallbackPair
+                        val mangaStats = libraryStats[manga.url]
+                        val realProgress = if (mangaStats != null && mangaStats.totalChapters > 0) {
+                            (mangaStats.readChapters.toFloat() / mangaStats.totalChapters.toFloat()).coerceIn(0.02f, 1f)
+                        } else 0f
+                        val pctText = "${(realProgress * 100).toInt()}%"
+                        item(span = { GridItemSpan(3) }) {
+                            Column(modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)) {
+                                Text(
+                                    text = "Continue Reading",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                ContinueReadingCard(
+                                    manga = manga,
+                                    chapter = chapter,
+                                    progress = realProgress,
+                                    progressText = pctText,
+                                    onResume = { onResumeChapter(manga, chapter) },
+                                    onClick = { onOpenManga(manga) }
+                                )
+                            }
                         }
                     }
                 }

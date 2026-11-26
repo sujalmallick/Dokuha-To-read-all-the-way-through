@@ -227,7 +227,6 @@ fun TitleDetailsScreenContent(
     trackerRepository: data.tracker.TrackerRepository? = null
 ) {
     val glassState = rememberPanelGlassState()
-    var isBookmarked by remember { mutableStateOf(false) }
     var isDescriptionExpanded by remember { mutableStateOf(false) }
     var showBatchDownloadSheet by remember { mutableStateOf(false) }
     var showCatchUpSheet by remember { mutableStateOf(false) }
@@ -749,13 +748,13 @@ fun TitleDetailsScreenContent(
                 onClick = onBack
             )
             PanelCircleIconButton(
-                icon = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                icon = if (isInLibrary) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                 size = 40.dp,
                 iconSize = 20.dp,
-                tint = if (isBookmarked) MaterialTheme.colorScheme.primary else TextPrimary,
+                tint = if (isInLibrary) MaterialTheme.colorScheme.primary else TextPrimary,
                 glassState = glassState,
                 hasDimming = true,
-                onClick = { isBookmarked = !isBookmarked }
+                onClick = onToggleLibrary
             )
         }
 
@@ -1456,9 +1455,9 @@ private fun TrackModalSheet(
                 }
             }
 
-            if (!statusMessage.isNullOrBlank()) {
+            statusMessage?.let { msg ->
                 Text(
-                    text = statusMessage!!,
+                    text = msg,
                     color = TextSecondary,
                     fontSize = 12.sp
                 )
