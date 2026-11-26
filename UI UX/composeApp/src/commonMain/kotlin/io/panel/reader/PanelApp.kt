@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,10 +38,6 @@ import ui.theme.PanelTheme
 fun PanelApp(
     appDeclaration: KoinAppDeclaration? = null
 ) {
-    setSingletonImageLoaderFactory { context ->
-        newPanelImageLoader(context)
-    }
-
     if (KoinPlatformTools.defaultContext().getOrNull() != null) {
         KoinContext {
             PanelAppRoot()
@@ -58,9 +55,14 @@ fun PanelApp(
 @OptIn(cafe.adriel.voyager.core.annotation.ExperimentalVoyagerApi::class)
 @Composable
 private fun PanelAppRoot() {
+    val httpClient: io.ktor.client.HttpClient = koinInject()
+    setSingletonImageLoaderFactory { context ->
+        newPanelImageLoader(context, httpClient)
+    }
+
     val settingsRepository: SettingsRepository = koinInject()
     val antiBotManager = koinInject<AntiBotChallengeManager>()
-    val extensionManager: core.extensions.ExtensionManager = koinInject()
+    val koin = org.koin.compose.getKoin()
     val activeChallenge by antiBotManager.activeChallenge.collectAsState()
 
     val themeMode by settingsRepository.themeMode.collectAsState()
@@ -70,6 +72,12 @@ private fun PanelAppRoot() {
     val isOnboarded by settingsRepository.isOnboardingCompleted.collectAsState()
 
     var showSplash by rememberSaveable { mutableStateOf(true) }
+
+    LaunchedEffect(showSplash) {
+        if (!showSplash) {
+            koin.get<core.extensions.ExtensionManager>().ensureInitialized()
+        }
+    }
 
     val accentColor = PanelAccentColors.getOrElse(accentIndex) { PanelAccentColors[0] }
 

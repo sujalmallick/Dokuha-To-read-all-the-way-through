@@ -56,7 +56,17 @@ val appModule = module {
         }
         repo
     }
-    single<ExtensionManager>(createdAtStart = true) { ExtensionManager(storage = get(), panelRepository = get(), httpClient = getOrNull(), settingsRepository = getOrNull(), antiBotResolver = getOrNull(), autoSeedDefaults = false) }
+    single<ExtensionManager> {
+        ExtensionManager(
+            storage = get(),
+            panelRepository = get(),
+            httpClient = getOrNull(),
+            settingsRepository = getOrNull(),
+            antiBotResolver = getOrNull(),
+            autoSeedDefaults = false,
+            deferInit = true
+        )
+    }
     single<TrackerRepository> {
         ProductionTrackerRepository(
             secureStorage = getOrNull(),
