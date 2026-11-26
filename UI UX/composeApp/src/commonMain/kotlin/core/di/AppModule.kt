@@ -63,7 +63,8 @@ val appModule = module {
             coreDownloadManager = get(),
             downloadStorage = get(),
             storageProvider = getOrNull(),
-            panelRepository = getOrNull()
+            panelRepository = getOrNull(),
+            keyValueStorage = getOrNull()
         )
     }
     single<ExtensionRepository> { DefaultExtensionRepository(httpClient = getOrNull(), extensionManager = getOrNull()) }

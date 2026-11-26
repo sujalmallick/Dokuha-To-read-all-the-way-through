@@ -918,6 +918,13 @@ class LibrarySettingsScreen : Screen {
                                     .fillMaxWidth()
                                     .clickable {
                                         repo.setUpdateInterval(interval)
+                                        when (interval) {
+                                            UpdateInterval.MANUAL -> core.updates.LibraryUpdateScheduler.cancel()
+                                            UpdateInterval.EVERY_12_HOURS -> core.updates.LibraryUpdateScheduler.schedulePeriodicUpdates(12L)
+                                            UpdateInterval.DAILY -> core.updates.LibraryUpdateScheduler.schedulePeriodicUpdates(24L)
+                                            UpdateInterval.EVERY_2_DAYS -> core.updates.LibraryUpdateScheduler.schedulePeriodicUpdates(48L)
+                                            UpdateInterval.WEEKLY -> core.updates.LibraryUpdateScheduler.schedulePeriodicUpdates(168L)
+                                        }
                                         isIntervalSheetVisible = false
                                     }
                                     .padding(vertical = 12.dp),

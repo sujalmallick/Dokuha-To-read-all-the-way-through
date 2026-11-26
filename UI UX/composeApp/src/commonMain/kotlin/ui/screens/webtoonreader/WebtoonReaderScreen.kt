@@ -146,6 +146,9 @@ data class WebtoonReaderScreen(
         var currentChapterTitle by remember(chapterTitle) { mutableStateOf(chapterTitle) }
         var pagesRefreshTrigger by remember { mutableIntStateOf(0) }
 
+        val mangaDetails by remember(mangaUrl) {
+            repository.getMangaDetails(mangaUrl)
+        }.collectAsState(initial = null)
         val chapters by repository.getChapters(mangaUrl).collectAsState(initial = emptyList())
         val pages by remember(currentChapterUrl, pagesRefreshTrigger) {
             repository.getPages(currentChapterUrl)
@@ -200,9 +203,11 @@ data class WebtoonReaderScreen(
                                 val isNextDownloaded = downloadManager.isChapterDownloaded(mangaUrl, nextChapter.url)
                                 val nextStatus = downloadManager.getChapterStatus(mangaUrl, nextChapter.url)
                                 if (!isNextDownloaded && nextStatus == null) {
-                                    // TODO(#19): Wire real core.download.DownloadManager instead of DefaultDownloadManager simulator
-                                    val dummyManga = SourceManga(url = mangaUrl, title = currentChapterTitle)
-                                    downloadManager.enqueue(dummyManga, listOf(nextChapter))
+                                    val targetManga = mangaDetails ?: SourceManga(
+                                        url = mangaUrl,
+                                        title = currentChapterTitle
+                                    )
+                                    downloadManager.enqueue(targetManga, listOf(nextChapter))
                                 }
                             }
                         }

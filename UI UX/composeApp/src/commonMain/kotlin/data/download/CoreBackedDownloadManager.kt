@@ -4,6 +4,7 @@ import core.download.DownloadManager as CoreDownloadManager
 import core.download.DownloadStorage
 import core.source.SourceChapter
 import core.source.SourceManga
+import core.storage.KeyValueStorage
 import core.storage.StorageProvider
 import data.mock.MockDownloadItem
 import data.mock.MockStorageInfo
@@ -19,6 +20,17 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+
+@Serializable
+private data class PersistedCompletedDownload(
+    val id: String,
+    val manga: SourceManga,
+    val chapter: SourceChapter,
+    val totalBytes: Long = 0L
+)
 
 /**
  * Production DownloadManager implementation backed by [CoreDownloadManager],
@@ -30,12 +42,14 @@ class CoreBackedDownloadManager(
     private val downloadStorage: DownloadStorage,
     private val storageProvider: StorageProvider? = null,
     private val panelRepository: PanelRepository? = null,
+    private val keyValueStorage: KeyValueStorage? = null,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 ) : DownloadManager {
 
+    private val json = Json { ignoreUnknownKeys = true }
     private val enqueuedMetadata = mutableMapOf<String, Pair<SourceManga, SourceChapter>>()
 
-    private val _completedDownloads = MutableStateFlow<List<DownloadJob>>(emptyList())
+    private val _completedDownloads = MutableStateFlow(loadPersistedCompleted())
     override val completedDownloads: StateFlow<List<DownloadJob>> = _completedDownloads.asStateFlow()
 
     private val _storageInfo = MutableStateFlow(computeStorageInfo())
@@ -61,7 +75,9 @@ class CoreBackedDownloadManager(
                             etaSeconds = 0
                         )
                         _completedDownloads.update { list ->
-                            if (list.any { it.id == completedJob.id }) list else listOf(completedJob) + list
+                            val next = if (list.any { it.id == completedJob.id }) list else listOf(completedJob) + list
+                            persistCompleted(next)
+                            next
                         }
                     }
                 }
@@ -90,7 +106,9 @@ class CoreBackedDownloadManager(
                     status = DownloadStatus.COMPLETED
                 )
                 _completedDownloads.update { list ->
-                    if (list.any { it.chapter.url == chapter.url }) list else listOf(alreadyDone) + list
+                    val next = if (list.any { it.chapter.url == chapter.url }) list else listOf(alreadyDone) + list
+                    persistCompleted(next)
+                    next
                 }
             }
         }
@@ -137,12 +155,15 @@ class CoreBackedDownloadManager(
 
     override fun clearCompleted() {
         _completedDownloads.value = emptyList()
+        persistCompleted(emptyList())
     }
 
     override fun deleteDownloadedChapter(mangaUrl: String, chapterUrl: String) {
         downloadStorage.deleteChapter(chapterUrl)
         _completedDownloads.update { list ->
-            list.filterNot { it.chapter.url == chapterUrl }
+            val next = list.filterNot { it.chapter.url == chapterUrl }
+            persistCompleted(next)
+            next
         }
         refreshStorageInfo()
     }
@@ -164,6 +185,41 @@ class CoreBackedDownloadManager(
 
     fun refreshStorageInfo() {
         _storageInfo.value = computeStorageInfo()
+    }
+
+    private fun loadPersistedCompleted(): List<DownloadJob> {
+        val raw = keyValueStorage?.getString(KEY_COMPLETED_DOWNLOADS, "") ?: return emptyList()
+        if (raw.isBlank()) return emptyList()
+        val parsed = runCatching { json.decodeFromString<List<PersistedCompletedDownload>>(raw) }
+            .getOrDefault(emptyList())
+        return parsed
+            .filter { downloadStorage.isChapterDownloaded(it.chapter.url) }
+            .map {
+                DownloadJob(
+                    id = it.id,
+                    manga = it.manga,
+                    chapter = it.chapter,
+                    progress = 1f,
+                    downloadedBytes = it.totalBytes,
+                    totalBytes = it.totalBytes,
+                    status = DownloadStatus.COMPLETED
+                )
+            }
+    }
+
+    private fun persistCompleted(jobs: List<DownloadJob>) {
+        val store = keyValueStorage ?: return
+        val serialized = jobs.map {
+            PersistedCompletedDownload(
+                id = it.id,
+                manga = it.manga,
+                chapter = it.chapter,
+                totalBytes = it.totalBytes
+            )
+        }
+        runCatching {
+            store.putString(KEY_COMPLETED_DOWNLOADS, json.encodeToString(serialized))
+        }
     }
 
     private fun computeStorageInfo(): MockStorageInfo {
@@ -213,5 +269,9 @@ class CoreBackedDownloadManager(
     private fun resolveChapterUrl(id: String): String {
         val separatorIdx = id.indexOf("::")
         return if (separatorIdx >= 0) id.substring(separatorIdx + 2) else id
+    }
+
+    private companion object {
+        const val KEY_COMPLETED_DOWNLOADS = "completed_downloads_v1"
     }
 }
