@@ -133,7 +133,8 @@ data class NovelReaderScreen(
     val chapterUrl: String = "manga/the-wind-rises/ch-12",
     val chapterNumber: String = "Chapter 12",
     val chapterTitle: String = "The Wind Rises",
-    val mangaUrl: String? = null
+    val mangaUrl: String? = null,
+    val sourceId: String? = null
 ) : Screen {
 
     @Composable
@@ -156,13 +157,13 @@ data class NovelReaderScreen(
         val targetMangaUrl = remember(mangaUrl, currentChapterUrl) {
             mangaUrl ?: if (currentChapterUrl.contains("/")) currentChapterUrl.substringBeforeLast("/") else ""
         }
-        val chapters by repository.getChapters(targetMangaUrl).collectAsState(initial = emptyList())
+        val chapters by repository.getChapters(targetMangaUrl, sourceId).collectAsState(initial = emptyList())
         var isLoading by remember(currentChapterUrl, refreshTrigger) { mutableStateOf(true) }
         var loadingTimedOut by remember(currentChapterUrl, refreshTrigger) { mutableStateOf(false) }
-        val novelContent by remember(currentChapterUrl, refreshTrigger) {
+        val novelContent by remember(currentChapterUrl, sourceId, refreshTrigger) {
             kotlinx.coroutines.flow.flow {
                 try {
-                    repository.getNovelContent(currentChapterUrl).collect { content ->
+                    repository.getNovelContent(currentChapterUrl, sourceId).collect { content ->
                         isLoading = false
                         emit(content)
                     }

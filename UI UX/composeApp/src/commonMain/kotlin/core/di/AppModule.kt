@@ -1,6 +1,6 @@
 package core.di
 
-import core.download.DownloadManager as CoreDownloadManager
+import core.download.DownloadManager
 import core.storage.platformStorageModule
 import data.download.CoreBackedDownloadManager
 import data.download.DownloadManager as DataDownloadManager
@@ -37,16 +37,24 @@ val appModule = module {
         }
     }
     single { PanelDatabase(get<DatabaseDriverFactory>().createDriver()) }
-    single { CoreDownloadManager(downloadStorage = get(), httpClient = getOrNull()) }
+    single {
+        val manager = DownloadManager(downloadStorage = get(), httpClient = getOrNull())
+        manager
+    }
     single { AntiBotChallengeManager(headlessSolver = getOrNull()) }
     single<AntiBotResolver> { get<AntiBotChallengeManager>() }
     single<PanelRepository> {
-        SqlDelightPanelRepository(
+        val repo = SqlDelightPanelRepository(
             database = get(),
             downloadManager = getOrNull(),
             downloadStorage = getOrNull(),
             settingsRepository = getOrNull()
         )
+        getOrNull<DownloadManager>()?.setSourceProvider { manga, chapter ->
+            val sid = manga.sourceId.takeIf { it != 0L }?.toString()
+            repo.resolveSource(sid, manga.url, chapter.url)
+        }
+        repo
     }
     single<ExtensionManager>(createdAtStart = true) { ExtensionManager(storage = get(), panelRepository = get(), httpClient = getOrNull(), settingsRepository = getOrNull(), antiBotResolver = getOrNull(), autoSeedDefaults = false) }
     single<TrackerRepository> {

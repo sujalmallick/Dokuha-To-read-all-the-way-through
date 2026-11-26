@@ -63,11 +63,11 @@ class CoreBackedDownloadManager(
 
     init {
         scope.launch {
-            var previousItems = emptyMap<String, MockDownloadItem>()
+            var previousItems = emptyMap<String, core.download.DownloadJob>()
             coreDownloadManager.queue.collect { currentItems ->
                 val currentById = currentItems.associateBy { it.id }
                 previousItems.forEach { (id, prev) ->
-                    if (!currentById.containsKey(id) && downloadStorage.isChapterDownloaded(id)) {
+                    if (!currentById.containsKey(id) && downloadStorage.isChapterDownloaded(prev.chapter.url)) {
                         val completedJob = prev.toDownloadJob().copy(
                             progress = 1f,
                             downloadedBytes = prev.totalBytes,
@@ -250,17 +250,18 @@ class CoreBackedDownloadManager(
         )
     }
 
-    private fun MockDownloadItem.toDownloadJob(): DownloadJob {
+    private fun core.download.DownloadJob.toDownloadJob(): DownloadJob {
         return DownloadJob(
-            id = jobId(manga.url, chapter.url),
+            id = id,
             manga = manga,
             chapter = chapter,
             progress = progress,
             downloadedBytes = downloadedBytes,
             totalBytes = totalBytes,
-            speedBytesPerSec = if (isPaused) 0L else 1_200_000L,
-            etaSeconds = etaMinutes * 60,
-            status = if (isPaused) DownloadStatus.PAUSED else DownloadStatus.DOWNLOADING
+            speedBytesPerSec = speedBytesPerSec,
+            etaSeconds = etaSeconds,
+            status = DownloadStatus.valueOf(status.name),
+            error = error
         )
     }
 

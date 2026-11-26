@@ -50,7 +50,7 @@ class AndroidDownloadStorage(context: Context) : DownloadStorage {
         )
         manifestFile.writeText(json.encodeToString(manifest))
 
-        return file.toURI().toString()
+        return "file://${file.absolutePath}"
     }
 
     override fun saveNovelContent(chapterUrl: String, title: String, content: String): String {
@@ -58,7 +58,7 @@ class AndroidDownloadStorage(context: Context) : DownloadStorage {
         val file = File(dir, "novel.json")
         val data = AndroidNovelSavedData(title = title, content = content)
         file.writeText(json.encodeToString(data))
-        return file.toURI().toString()
+        return "file://${file.absolutePath}"
     }
 
     override fun getDownloadedPages(chapterUrl: String): List<SourcePage>? {
@@ -70,10 +70,11 @@ class AndroidDownloadStorage(context: Context) : DownloadStorage {
             val manifest = json.decodeFromString<AndroidDownloadManifest>(manifestFile.readText())
             manifest.fileNames.mapIndexed { index, fileName ->
                 val file = File(dir, fileName)
+                val fileUri = "file://${file.absolutePath}"
                 SourcePage(
                     index = index + 1,
-                    url = file.toURI().toString(),
-                    imageUrl = file.toURI().toString()
+                    url = fileUri,
+                    imageUrl = fileUri
                 )
             }
         } catch (_: Exception) {

@@ -53,8 +53,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import core.source.SourceChapter
 import core.source.SourceManga
-import data.download.DownloadManager
-import data.download.DownloadStatus
+import core.download.DownloadManager
+import core.download.DownloadStatus
 import ui.components.PanelCircleIconButton
 import ui.theme.CapsuleShape
 import ui.theme.GlassBorder

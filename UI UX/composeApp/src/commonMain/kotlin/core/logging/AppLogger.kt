@@ -66,56 +66,49 @@ object AppLogger {
                 pendingDiskQueue.add(formatted)
                 if (!isFlushing) {
                     isFlushing = true
-                    flushPendingQueueLocked()
+                    drainQueueLocked()
                 }
             }
         }
     }
 
-    private fun flushPendingQueueLocked() {
-        if (pendingDiskQueue.isEmpty()) {
-            isFlushing = false
-            return
+    private fun drainQueueLocked() {
+        val logDir = PlatformLogger.getLogDirectory()
+        if (!fileSystem.exists(logDir)) {
+            fileSystem.createDirectories(logDir)
         }
+        val activeLogFile = logDir / "dokuha.log"
 
-        val entriesToWrite = pendingDiskQueue.toList()
-        pendingDiskQueue.clear()
+        while (pendingDiskQueue.isNotEmpty()) {
+            val entriesToWrite = pendingDiskQueue.toList()
+            pendingDiskQueue.clear()
 
-        try {
-            val logDir = PlatformLogger.getLogDirectory()
-            if (!fileSystem.exists(logDir)) {
-                fileSystem.createDirectories(logDir)
-            }
-            val activeLogFile = logDir / "dokuha.log"
-
-            // Check size and rotate if necessary
-            if (fileSystem.exists(activeLogFile)) {
-                val metadata = fileSystem.metadataOrNull(activeLogFile)
-                if (metadata != null && (metadata.size ?: 0L) > MAX_LOG_FILE_SIZE_BYTES) {
-                    val rotatedFile = logDir / "dokuha.1.log"
-                    if (fileSystem.exists(rotatedFile)) {
-                        fileSystem.delete(rotatedFile)
+            try {
+                // Check size and rotate if necessary
+                if (fileSystem.exists(activeLogFile)) {
+                    val metadata = fileSystem.metadataOrNull(activeLogFile)
+                    if (metadata != null && (metadata.size ?: 0L) > MAX_LOG_FILE_SIZE_BYTES) {
+                        val rotatedFile = logDir / "dokuha.1.log"
+                        if (fileSystem.exists(rotatedFile)) {
+                            fileSystem.delete(rotatedFile)
+                        }
+                        fileSystem.atomicMove(activeLogFile, rotatedFile)
                     }
-                    fileSystem.atomicMove(activeLogFile, rotatedFile)
                 }
-            }
 
-            // Append entries
-            fileSystem.appendingSink(activeLogFile).buffer().use { sink ->
-                for (line in entriesToWrite) {
-                    sink.writeUtf8(line)
-                    sink.writeUtf8("\n")
+                // Append entries
+                fileSystem.appendingSink(activeLogFile).buffer().use { sink ->
+                    for (line in entriesToWrite) {
+                        sink.writeUtf8(line)
+                        sink.writeUtf8("\n")
+                    }
                 }
-            }
-        } catch (_: Throwable) {
-            // Avoid recursion if disk write fails
-        } finally {
-            if (pendingDiskQueue.isNotEmpty()) {
-                flushPendingQueueLocked()
-            } else {
-                isFlushing = false
+            } catch (_: Throwable) {
+                // Avoid recursion or infinite loop if disk write fails
+                break
             }
         }
+        isFlushing = false
     }
 
     fun getLogFilePath(): Path {

@@ -73,9 +73,8 @@ import cafe.adriel.voyager.navigator.currentOrThrow
 import core.source.MangaStatus
 import core.source.SourceChapter
 import core.source.SourceManga
-import data.download.DefaultDownloadManager
-import data.download.DownloadManager
-import data.download.DownloadStatus
+import core.download.DownloadManager
+import core.download.DownloadStatus
 import data.mock.PanelRepository
 import kotlinx.coroutines.flow.onEach
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -118,12 +117,23 @@ data class TitleDetailsScreen(
         var isLoadingDetails by remember(mangaUrl, sourceId, refreshTrigger) { mutableStateOf(true) }
         var isLoadingChapters by remember(mangaUrl, sourceId, refreshTrigger) { mutableStateOf(true) }
 
+        val initialSourceId = remember(sourceId, mangaUrl) {
+            sourceId?.toLongOrNull()
+                ?: repository.resolveSource(sourceId, mangaUrl, null)?.id
+                ?: 0L
+        }
+
         val manga by remember(mangaUrl, sourceId, refreshTrigger) {
             repository.getMangaDetails(mangaUrl, sourceId, initialTitle)
                 .onEach { isLoadingDetails = false }
         }.collectAsState(
             initial = if (initialTitle.isNotBlank()) {
-                SourceManga(url = mangaUrl, title = initialTitle, thumbnailUrl = initialThumbnailUrl, sourceId = sourceId?.toLongOrNull() ?: 0L)
+                SourceManga(
+                    url = mangaUrl,
+                    title = initialTitle,
+                    thumbnailUrl = initialThumbnailUrl,
+                    sourceId = initialSourceId
+                )
             } else {
                 null
             }
@@ -162,17 +172,25 @@ data class TitleDetailsScreen(
                 }
             },
             onToggleLibrary = {
-                val currentManga = manga ?: SourceManga(url = mangaUrl, title = initialTitle.ifBlank { "Unknown" }, thumbnailUrl = initialThumbnailUrl)
+                val targetManga = manga ?: SourceManga(
+                    url = mangaUrl,
+                    title = initialTitle.ifBlank { "Unknown" },
+                    thumbnailUrl = initialThumbnailUrl,
+                    sourceId = initialSourceId
+                )
                 scope.launch {
-                    repository.toggleFavorite(currentManga, !isInLibrary)
+                    repository.toggleFavorite(targetManga, !isInLibrary)
                 }
             },
             onBack = { navigator.pop() },
             onReadChapter = { chapter ->
+                val effectiveSourceId = manga?.sourceId?.takeIf { it != 0L }?.toString()
+                    ?: sourceId
+                    ?: initialSourceId.takeIf { it != 0L }?.toString()
                 if (manga?.isNovel == true) {
-                    navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name, mangaUrl))
+                    navigator.push(NovelReaderScreen(chapter.url, "Chapter ${chapter.chapterNumber}", chapter.name, mangaUrl, effectiveSourceId))
                 } else {
-                    navigator.push(WebtoonReaderScreen(mangaUrl, chapter.url, chapter.name))
+                    navigator.push(WebtoonReaderScreen(mangaUrl, chapter.url, chapter.name, effectiveSourceId))
                 }
             },
             onOpenAdaptation = { target ->
@@ -186,13 +204,23 @@ data class TitleDetailsScreen(
                 )
             },
             onDownloadChapter = { chapter ->
-                val currentManga = manga ?: SourceManga(url = mangaUrl, title = initialTitle.ifBlank { "Unknown" }, thumbnailUrl = initialThumbnailUrl)
-                repository.enqueueDownload(currentManga, chapter)
+                val targetManga = manga ?: SourceManga(
+                    url = mangaUrl,
+                    title = initialTitle.ifBlank { "Unknown" },
+                    thumbnailUrl = initialThumbnailUrl,
+                    sourceId = initialSourceId
+                )
+                repository.enqueueDownload(targetManga, chapter)
             },
             onDownloadAll = {
-                val currentManga = manga ?: SourceManga(url = mangaUrl, title = initialTitle.ifBlank { "Unknown" }, thumbnailUrl = initialThumbnailUrl)
+                val targetManga = manga ?: SourceManga(
+                    url = mangaUrl,
+                    title = initialTitle.ifBlank { "Unknown" },
+                    thumbnailUrl = initialThumbnailUrl,
+                    sourceId = initialSourceId
+                )
                 chapters.forEach { ch ->
-                    repository.enqueueDownload(currentManga, ch)
+                    repository.enqueueDownload(targetManga, ch)
                 }
             }
         )
@@ -223,7 +251,7 @@ fun TitleDetailsScreenContent(
     onDownloadChapter: (SourceChapter) -> Unit = {},
     onDownloadAll: () -> Unit = {},
     modifier: Modifier = Modifier,
-    downloadManager: DownloadManager = remember { DefaultDownloadManager(autoStartSimulation = false) },
+    downloadManager: DownloadManager = koinInject(),
     trackerRepository: data.tracker.TrackerRepository? = null
 ) {
     val glassState = rememberPanelGlassState()
@@ -680,6 +708,9 @@ fun TitleDetailsScreenContent(
                 val chapterStatus = remember(chapter.url, downloadQueue, completedDownloads) {
                     downloadManager.getChapterStatus(displayManga.url, chapter.url)
                 }
+                val chapterProgress = remember(chapter.url, downloadQueue) {
+                    downloadQueue.firstOrNull { it.chapter.url == chapter.url }?.progress
+                }
 
                 Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                     ChapterRowItem(
@@ -688,15 +719,17 @@ fun TitleDetailsScreenContent(
                         isRead = isRead,
                         isDownloaded = isDownloaded,
                         downloadStatus = chapterStatus,
+                        downloadProgress = chapterProgress,
                         onClick = { onReadChapter(chapter) },
                         onDownloadClick = {
                             if (!isDownloaded && chapterStatus == null) {
                                 downloadManager.enqueue(displayManga, listOf(chapter))
-                                onDownloadChapter(chapter)
-                            } else if (chapterStatus == DownloadStatus.DOWNLOADING) {
+                            } else if (chapterStatus == DownloadStatus.DOWNLOADING || chapterStatus == DownloadStatus.QUEUED) {
                                 downloadManager.pause("${displayManga.url}::${chapter.url}")
                             } else if (chapterStatus == DownloadStatus.PAUSED) {
                                 downloadManager.resume("${displayManga.url}::${chapter.url}")
+                            } else if (chapterStatus == DownloadStatus.ERROR) {
+                                downloadManager.retry("${displayManga.url}::${chapter.url}")
                             }
                         },
                         onOptionsClick = { showChapterMenu = true }

@@ -42,7 +42,7 @@ class AppLoggerTest {
             throwable = "java.net.SocketTimeoutException"
         )
         val formatted = entry.toFormattedString()
-        assertTrue(formatted.contains("[E][Network] Connection timeout"))
+        assertTrue(formatted.contains("[1000][E][Network] Connection timeout"))
         assertTrue(formatted.contains("java.net.SocketTimeoutException"))
     }
 }

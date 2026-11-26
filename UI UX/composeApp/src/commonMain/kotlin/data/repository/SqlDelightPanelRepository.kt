@@ -164,18 +164,42 @@ class SqlDelightPanelRepository(
             .map { it?.toPair() }
     }
 
+    private fun matchSourceById(registered: Map<Long, ContentSource>, sourceId: String): ContentSource? {
+        return registered[sourceId.toLongOrNull()] ?: registered.values.firstOrNull {
+            it.id.toString() == sourceId ||
+            it.name.equals(sourceId, ignoreCase = true) ||
+            (it as? core.extensions.js.JsExtensionSource)?.manifest?.id.equals(sourceId, ignoreCase = true) ||
+            (it as? core.extensions.mangayomi.MangayomiSourceAdapter)?.manifest?.id?.toString() == sourceId ||
+            (it as? core.extensions.paperback.PaperbackSourceAdapter)?.manifest?.id.equals(sourceId, ignoreCase = true) ||
+            (it as? core.extensions.lnreader.LNReaderSourceAdapter)?.manifest?.id.equals(sourceId, ignoreCase = true)
+        }
+    }
+
+    override fun resolveSource(
+        sourceId: String?,
+        mangaUrl: String?,
+        chapterUrl: String?
+    ): ContentSource? {
+        val registered = _dynamicSources.value
+        if (registered.isEmpty()) return null
+
+        // Explicit routing takes priority when sourceId is known.
+        if (!sourceId.isNullOrBlank() && sourceId != "0") {
+            return matchSourceById(registered, sourceId)
+        }
+
+        // Fallback resolution only when sourceId is missing/0L.
+        return chapterUrl?.takeIf { it.isNotBlank() }?.let { findMatchingDynamicSource(it, null) }
+            ?: mangaUrl?.takeIf { it.isNotBlank() }?.let { findMatchingDynamicSource(it, null) }
+    }
+
     private fun findMatchingDynamicSource(url: String, sourceId: String?): ContentSource? {
         val registered = _dynamicSources.value
         if (registered.isEmpty()) return null
 
-        // 1. Direct routing via sourceId parameter
-        if (sourceId != null) {
-            val fromParam = registered.values.firstOrNull {
-                it.id.toString() == sourceId ||
-                it.name.equals(sourceId, ignoreCase = true) ||
-                (it as? core.extensions.js.JsExtensionSource)?.manifest?.id.equals(sourceId, ignoreCase = true)
-            }
-            if (fromParam != null) return fromParam
+        // 1. Strict direct routing via explicit sourceId parameter
+        if (!sourceId.isNullOrBlank() && sourceId != "0") {
+            return matchSourceById(registered, sourceId)
         }
 
         // 2. Routing via existing database record
@@ -305,7 +329,7 @@ class SqlDelightPanelRepository(
     }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    override fun getPages(chapterUrl: String): Flow<List<SourcePage>> {
+    override fun getPages(chapterUrl: String, sourceId: String?): Flow<List<SourcePage>> {
         val downloadedPages = downloadStorage?.getDownloadedPages(chapterUrl)
         if (!downloadedPages.isNullOrEmpty()) {
             return flowOf(downloadedPages)
@@ -313,10 +337,9 @@ class SqlDelightPanelRepository(
 
         return _dynamicSources
             .filter { it.isNotEmpty() }
-            .flatMapLatest { registered ->
+            .flatMapLatest { _ ->
                 flow {
-                    val matching = (findMatchingDynamicSource(chapterUrl, null) as? ComicSource)
-                        ?: registered.values.filterIsInstance<ComicSource>().firstOrNull()
+                    val matching = findMatchingDynamicSource(chapterUrl, sourceId) as? ComicSource
                     if (matching != null) {
                         val pages = try {
                             matching.getPageList(SourceChapter(url = chapterUrl, name = ""))
@@ -334,7 +357,7 @@ class SqlDelightPanelRepository(
     }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-    override fun getNovelContent(chapterUrl: String): Flow<NovelContent?> {
+    override fun getNovelContent(chapterUrl: String, sourceId: String?): Flow<NovelContent?> {
         val downloadedNovel = downloadStorage?.getDownloadedNovel(chapterUrl)
         if (downloadedNovel != null) {
             return flowOf(
@@ -349,10 +372,9 @@ class SqlDelightPanelRepository(
 
         return _dynamicSources
             .filter { it.isNotEmpty() }
-            .flatMapLatest { registered ->
+            .flatMapLatest { _ ->
                 flow {
-                    val matching = (findMatchingDynamicSource(chapterUrl, null) as? NovelSource)
-                        ?: registered.values.filterIsInstance<NovelSource>().firstOrNull()
+                    val matching = findMatchingDynamicSource(chapterUrl, sourceId) as? NovelSource
                     if (matching != null) {
                         val content = try {
                             matching.getChapterContent(SourceChapter(url = chapterUrl, name = ""))
@@ -539,7 +561,8 @@ class SqlDelightPanelRepository(
                         url = row.manga_url,
                         title = row.manga_title,
                         thumbnailUrl = row.manga_thumbnail,
-                        isNovel = row.manga_is_novel == 1L
+                        isNovel = row.manga_is_novel == 1L,
+                        sourceId = row.manga_source_id
                     )
                     val chapter = SourceChapter(
                         url = row.chapter_url,
@@ -617,7 +640,20 @@ class SqlDelightPanelRepository(
     }
 
     override fun getDownloads(): Flow<List<MockDownloadItem>> {
-        return downloadManager?.queue ?: flowOf(emptyList())
+        return (downloadManager?.queue ?: flowOf(emptyList())).map { list ->
+            list.map { job ->
+                MockDownloadItem(
+                    id = job.id,
+                    manga = job.manga,
+                    chapter = job.chapter,
+                    progress = job.progress,
+                    downloadedBytes = job.downloadedBytes,
+                    totalBytes = job.totalBytes,
+                    etaMinutes = if (job.etaSeconds > 0) (job.etaSeconds + 59) / 60 else 0,
+                    isPaused = job.isPaused
+                )
+            }
+        }
     }
 
     override fun getStorageInfo(): Flow<MockStorageInfo> {
@@ -625,11 +661,8 @@ class SqlDelightPanelRepository(
     }
 
     override fun enqueueDownload(manga: SourceManga, chapter: SourceChapter) {
-        val source = _dynamicSources.value.values.firstOrNull { src ->
-            chapter.url.startsWith(src.baseUrl) ||
-            manga.url.startsWith(src.baseUrl) ||
-            (chapter.url.length == 36 && chapter.url.contains("-"))
-        }
+        val sid = manga.sourceId.takeIf { it != 0L }?.toString()
+        val source = resolveSource(sid, manga.url, chapter.url)
         downloadManager?.enqueueDownload(manga, chapter, source)
     }
 
@@ -761,7 +794,7 @@ class SqlDelightPanelRepository(
     override suspend fun toggleFavorite(manga: SourceManga, isFavorite: Boolean) {
         withContext(Dispatchers.Default) {
             val existing = database.mangaQueries.getMangaByUrl(manga.url).executeAsOneOrNull()
-            val preservedSourceId = existing?.source_id ?: 0L
+            val preservedSourceId = existing?.source_id?.takeIf { it != 0L } ?: manga.sourceId
             insertOrUpdateMangaInternal(manga, sourceId = preservedSourceId, forceFavorite = isFavorite)
         }
     }
@@ -858,7 +891,8 @@ class SqlDelightPanelRepository(
             genres = manga_genres?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList(),
             status = try { MangaStatus.valueOf(manga_status) } catch (_: Exception) { MangaStatus.UNKNOWN },
             thumbnailUrl = manga_thumbnail,
-            isNovel = manga_is_novel == 1L
+            isNovel = manga_is_novel == 1L,
+            sourceId = manga_source_id
         )
         val chapter = SourceChapter(
             url = chapter_url,

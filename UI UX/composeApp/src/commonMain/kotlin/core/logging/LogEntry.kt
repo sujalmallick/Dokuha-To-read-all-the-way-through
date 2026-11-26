@@ -23,7 +23,7 @@ data class LogEntry(
             LogLevel.WARN -> "W"
             LogLevel.ERROR -> "E"
         }
-        val base = "[$lvl][$tag] $message"
+        val base = "[$timestamp][$lvl][$tag] $message"
         return if (throwable != null) "$base\n$throwable" else base
     }
 }

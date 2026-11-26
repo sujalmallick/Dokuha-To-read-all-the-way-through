@@ -25,6 +25,12 @@ actual object PlatformLogger {
         val fileUrl = NSURL.fileURLWithPath(filePath.toString())
         val activityViewController = UIActivityViewController(listOf(fileUrl), null)
         val rootViewController = UIApplication.sharedApplication.keyWindow?.rootViewController
+
+        activityViewController.popoverPresentationController?.let { popover ->
+            popover.sourceView = rootViewController?.view
+            popover.sourceRect = rootViewController?.view?.bounds ?: platform.CoreGraphics.CGRectZero.readValue()
+        }
+
         rootViewController?.presentViewController(activityViewController, animated = true, completion = null)
     }
 }

@@ -33,8 +33,10 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -53,7 +55,7 @@ import androidx.compose.ui.layout.ContentScale
 import coil3.compose.AsyncImage
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
-import data.download.DownloadStatus
+import core.download.DownloadStatus
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.StrokeCap
@@ -467,6 +469,7 @@ fun ChapterRowItem(
     isRead: Boolean = false,
     isDownloaded: Boolean = false,
     downloadStatus: DownloadStatus? = null,
+    downloadProgress: Float? = null,
     onClick: () -> Unit,
     onDownloadClick: () -> Unit = {},
     onOptionsClick: () -> Unit = {},
@@ -476,6 +479,7 @@ fun ChapterRowItem(
     val isDownloading = downloadStatus == DownloadStatus.DOWNLOADING
     val isQueued = downloadStatus == DownloadStatus.QUEUED
     val isPaused = downloadStatus == DownloadStatus.PAUSED
+    val isError = downloadStatus == DownloadStatus.ERROR
 
     Row(
         modifier = modifier
@@ -517,25 +521,67 @@ fun ChapterRowItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             val primaryColor = MaterialTheme.colorScheme.primary
-            PanelCircleIconButton(
-                icon = when {
-                    isCompleted -> Icons.Default.Check
-                    isPaused -> Icons.Default.PlayArrow
-                    isDownloading -> Icons.Default.Pause
-                    else -> Icons.Default.FileDownload
-                },
-                size = 36.dp,
-                iconSize = 18.dp,
-                tint = when {
-                    isCompleted -> primaryColor
-                    isDownloading -> primaryColor
-                    isQueued -> TextSecondary
-                    else -> TextPrimary
-                },
-                backgroundColor = if (isCompleted) primaryColor.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.08f),
-                borderColor = if (isCompleted) primaryColor.copy(alpha = 0.40f) else Color.White.copy(alpha = 0.18f),
-                onClick = onDownloadClick
-            )
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(42.dp)
+            ) {
+                if (isDownloading) {
+                    if (downloadProgress != null && downloadProgress > 0f) {
+                        CircularProgressIndicator(
+                            progress = { downloadProgress },
+                            modifier = Modifier.size(40.dp),
+                            strokeWidth = 2.5.dp,
+                            color = primaryColor,
+                            trackColor = primaryColor.copy(alpha = 0.2f)
+                        )
+                    } else {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(40.dp),
+                            strokeWidth = 2.5.dp,
+                            color = primaryColor,
+                            trackColor = primaryColor.copy(alpha = 0.2f)
+                        )
+                    }
+                } else if (isQueued) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(40.dp),
+                        strokeWidth = 2.dp,
+                        color = TextSecondary.copy(alpha = 0.6f),
+                        trackColor = Color.White.copy(alpha = 0.08f)
+                    )
+                }
+
+                val errorColor = MaterialTheme.colorScheme.error
+                PanelCircleIconButton(
+                    icon = when {
+                        isCompleted -> Icons.Default.Check
+                        isError -> Icons.Default.Refresh
+                        isPaused -> Icons.Default.PlayArrow
+                        isDownloading -> Icons.Default.Pause
+                        else -> Icons.Default.FileDownload
+                    },
+                    size = 36.dp,
+                    iconSize = 18.dp,
+                    tint = when {
+                        isCompleted -> primaryColor
+                        isError -> errorColor
+                        isDownloading -> primaryColor
+                        isQueued -> TextSecondary
+                        else -> TextPrimary
+                    },
+                    backgroundColor = when {
+                        isCompleted -> primaryColor.copy(alpha = 0.15f)
+                        isError -> errorColor.copy(alpha = 0.15f)
+                        else -> Color.White.copy(alpha = 0.08f)
+                    },
+                    borderColor = when {
+                        isCompleted -> primaryColor.copy(alpha = 0.40f)
+                        isError -> errorColor.copy(alpha = 0.45f)
+                        else -> Color.White.copy(alpha = 0.18f)
+                    },
+                    onClick = onDownloadClick
+                )
+            }
             PanelCircleIconButton(
                 icon = Icons.Default.MoreVert,
                 size = 36.dp,
