@@ -29,22 +29,28 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
+      - name: Cache Kotlin/Native toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: ${{ runner.os }}-konan-${{ hashFiles('UI UX/gradle/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-konan-
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
         working-directory: UI UX
 
       - name: Build Kotlin Multiplatform iOS Framework
         run: |
-          ./gradlew --stop
-          ./gradlew clean \
-            -Dorg.gradle.jvmargs="-Xmx6144M -XX:+UseG1GC -Dfile.encoding=UTF-8" \
-            -Dkotlin.daemon.jvmargs="-Xmx4096M -XX:+UseG1GC"
           if [ "${{ inputs.configuration }}" = "Debug" ]; then
             ./gradlew :composeApp:linkDebugFrameworkIosArm64 \
+              --parallel --build-cache \
               -Dorg.gradle.jvmargs="-Xmx6144M -XX:+UseG1GC -Dfile.encoding=UTF-8" \
               -Dkotlin.daemon.jvmargs="-Xmx4096M -XX:+UseG1GC"
           else
             ./gradlew :composeApp:linkReleaseFrameworkIosArm64 \
+              --parallel --build-cache \
               -Dorg.gradle.jvmargs="-Xmx6144M -XX:+UseG1GC -Dfile.encoding=UTF-8" \
               -Dkotlin.daemon.jvmargs="-Xmx4096M -XX:+UseG1GC"
           fi
@@ -59,7 +65,7 @@ jobs:
             -configuration ${{ inputs.configuration }} \
             -destination 'generic/platform=iOS' \
             -archivePath build/Dokuha.xcarchive \
-            -jobs 2 \
+            -jobs 4 \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
