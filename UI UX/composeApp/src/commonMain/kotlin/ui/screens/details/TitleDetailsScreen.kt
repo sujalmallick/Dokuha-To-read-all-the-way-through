@@ -741,6 +741,7 @@ fun TitleDetailsScreenContent(
         ) {
             PanelCircleIconButton(
                 icon = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
                 size = 40.dp,
                 iconSize = 20.dp,
                 glassState = glassState,
@@ -749,6 +750,7 @@ fun TitleDetailsScreenContent(
             )
             PanelCircleIconButton(
                 icon = if (isInLibrary) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                contentDescription = if (isInLibrary) "Remove from library" else "Add to library",
                 size = 40.dp,
                 iconSize = 20.dp,
                 tint = if (isInLibrary) MaterialTheme.colorScheme.primary else TextPrimary,

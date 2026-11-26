@@ -1,5 +1,6 @@
 package ui.volume
 
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.mutableStateOf
@@ -12,7 +13,8 @@ import androidx.compose.runtime.mutableStateOf
  */
 data class VolumeKeyState(
     val upPresses: State<Int>,
-    val downPresses: State<Int>
+    val downPresses: State<Int>,
+    val isReaderActive: MutableState<Boolean> = mutableStateOf(false)
 )
 
 private val _noOpUp = mutableStateOf(0)
