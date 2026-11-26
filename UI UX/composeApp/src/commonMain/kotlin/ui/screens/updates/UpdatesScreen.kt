@@ -22,11 +22,14 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -86,10 +89,27 @@ class UpdatesScreen : Screen {
 
         val updateGroups by repository.getUpdates().collectAsState(initial = emptyList())
         val historyGroups by repository.getHistory().collectAsState(initial = emptyList())
+        var isRefreshingUpdates by remember { mutableStateOf(false) }
 
         UpdatesScreenContent(
             updateGroups = updateGroups,
             historyGroups = historyGroups,
+            isRefreshingUpdates = isRefreshingUpdates,
+            onRefreshUpdates = {
+                if (!isRefreshingUpdates) {
+                    isRefreshingUpdates = true
+                    coroutineScope.launch {
+                        try {
+                            repository.refreshLibraryUpdates()
+                        } finally {
+                            isRefreshingUpdates = false
+                        }
+                    }
+                }
+            },
+            onDownloadUpdate = { manga, chapter ->
+                repository.enqueueDownload(manga, chapter)
+            },
             onOpenManga = { manga ->
                 navigator.push(
                     TitleDetailsScreen(
@@ -130,10 +150,14 @@ class UpdatesScreen : Screen {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UpdatesScreenContent(
     updateGroups: List<MockUpdateGroup>,
     historyGroups: List<HistoryGroup> = emptyList(),
+    isRefreshingUpdates: Boolean = false,
+    onRefreshUpdates: () -> Unit = {},
+    onDownloadUpdate: (SourceManga, SourceChapter) -> Unit = { _, _ -> },
     onOpenManga: (SourceManga) -> Unit,
     onResumeChapter: (SourceManga, SourceChapter) -> Unit,
     onDeleteHistoryItem: (Long) -> Unit = {},
@@ -225,6 +249,13 @@ fun UpdatesScreenContent(
         }
 
         // LAYER 1: Scrollable Content Layer (marked with glassSource)
+        PullToRefreshBox(
+            isRefreshing = selectedTab == "Updates" && isRefreshingUpdates,
+            onRefresh = {
+                if (selectedTab == "Updates") onRefreshUpdates()
+            },
+            modifier = Modifier.fillMaxSize()
+        ) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -252,7 +283,15 @@ fun UpdatesScreenContent(
                             letterSpacing = (-0.5).sp
                         )
 
-                        if (selectedTab == "History" && historyGroups.isNotEmpty()) {
+                        if (selectedTab == "Updates") {
+                            ui.components.PanelCircleIconButton(
+                                icon = Icons.Default.Refresh,
+                                size = 38.dp,
+                                iconSize = 19.dp,
+                                glassState = glassState,
+                                onClick = onRefreshUpdates
+                            )
+                        } else if (selectedTab == "History" && historyGroups.isNotEmpty()) {
                             Box(
                                 modifier = Modifier
                                     .clip(CapsuleShape)
@@ -345,7 +384,7 @@ fun UpdatesScreenContent(
                                 thumbnailUrl = item.manga.thumbnailUrl,
                                 onResume = { onResumeChapter(item.manga, item.chapter) },
                                 onClick = { onOpenManga(item.manga) },
-                                onDownloadClick = {}
+                                onDownloadClick = { onDownloadUpdate(item.manga, item.chapter) }
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                         }
@@ -420,6 +459,7 @@ fun UpdatesScreenContent(
                     }
                 }
             }
+        }
         }
 
         // LAYER 2: Floating Liquid Glass Bottom Navigation Bar (Sibling Overlay)

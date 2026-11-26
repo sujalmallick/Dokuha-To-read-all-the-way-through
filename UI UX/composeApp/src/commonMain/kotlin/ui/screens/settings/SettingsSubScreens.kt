@@ -918,6 +918,13 @@ class LibrarySettingsScreen : Screen {
                                     .fillMaxWidth()
                                     .clickable {
                                         repo.setUpdateInterval(interval)
+                                        when (interval) {
+                                            UpdateInterval.MANUAL -> core.updates.LibraryUpdateScheduler.cancel()
+                                            UpdateInterval.EVERY_12_HOURS -> core.updates.LibraryUpdateScheduler.schedulePeriodicUpdates(12L)
+                                            UpdateInterval.DAILY -> core.updates.LibraryUpdateScheduler.schedulePeriodicUpdates(24L)
+                                            UpdateInterval.EVERY_2_DAYS -> core.updates.LibraryUpdateScheduler.schedulePeriodicUpdates(48L)
+                                            UpdateInterval.WEEKLY -> core.updates.LibraryUpdateScheduler.schedulePeriodicUpdates(168L)
+                                        }
                                         isIntervalSheetVisible = false
                                     }
                                     .padding(vertical = 12.dp),
@@ -1380,10 +1387,9 @@ class BackupSettingsScreen : Screen {
                                         coroutineScope.launch {
                                             runCatching {
                                                 val json = panelRepo.exportLibraryJson()
-                                                repo.createBackup()
-                                                // In production: write json to file via platform API.
-                                                // Here we surface the byte count so the user sees success.
-                                                statusMessage = "✓ Exported ${json.length} bytes"
+                                                val fileName = repo.createBackup()
+                                                val savedPath = data.backup.BackupFileStore.writeBackup(fileName, json).getOrThrow()
+                                                statusMessage = "✓ Exported ${json.length} bytes to $savedPath"
                                             }.onFailure { e ->
                                                 statusMessage = "✗ Export failed: ${e.message}"
                                             }
@@ -1394,19 +1400,20 @@ class BackupSettingsScreen : Screen {
                             )
                             SettingsSeparator()
                             SettingsRow.Action(
-                                text = if (isImporting) "Importing…" else "Import from JSON backup",
-                                secondaryText = "Restores library titles & history",
+                                text = if (isImporting) "Importing…" else "Restore from latest backup",
+                                secondaryText = "Restores library titles, categories & history",
                                 onClick = {
                                     if (!isImporting) {
                                         isImporting = true
                                         statusMessage = null
                                         coroutineScope.launch {
                                             runCatching {
-                                                // In production: open file picker and read the file.
-                                                // Stub: attempt import with empty string to exercise the path.
-                                                val restored = panelRepo.importLibraryJson("{\"schema_version\":1,\"created_at\":0,\"library\":[],\"history\":[]}")
+                                                val latestName = data.backup.BackupFileStore.listBackups().firstOrNull()
+                                                    ?: "dokuha_backup.json"
+                                                val raw = data.backup.BackupFileStore.readBackup(latestName).getOrThrow()
+                                                val restored = panelRepo.importLibraryJson(raw)
                                                 statusMessage = if (restored >= 0)
-                                                    "✓ Restored $restored title(s)"
+                                                    "✓ Restored $restored title(s) from $latestName"
                                                 else
                                                     "✗ Invalid backup file"
                                             }.onFailure { e ->
@@ -1452,9 +1459,20 @@ class StorageSettingsScreen : Screen {
     override fun Content() {
         val navigator = LocalNavigator.currentOrThrow
         val repo: SettingsRepository = koinInject()
+        val downloadManager: data.download.DownloadManager = koinInject()
+        val storageStats by downloadManager.storageInfo.collectAsState()
         val primaryColor = MaterialTheme.colorScheme.primary
 
         val cacheSize by repo.cacheSize.collectAsState()
+        val totalDownloadsMb = (storageStats.mangaMb + storageStats.manhwaMb + storageStats.novelsMb + storageStats.othersMb)
+        val formattedDownloads = if (totalDownloadsMb >= 1024f) {
+            val gbTenths = ((totalDownloadsMb / 1024f) * 10).toInt()
+            "${gbTenths / 10}.${gbTenths % 10} GB"
+        } else {
+            "${totalDownloadsMb.toInt()} MB"
+        }
+        val freeGb = (storageStats.totalGb - storageStats.usedGb).coerceAtLeast(0f)
+        val freeGbText = "${freeGb.toInt()} GB free of ${storageStats.totalGb.toInt()} GB"
 
         var isClearCacheDialogVisible by remember { mutableStateOf(false) }
         var isClearHistoryDialogVisible by remember { mutableStateOf(false) }
@@ -1494,13 +1512,13 @@ class StorageSettingsScreen : Screen {
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Text(
-                                        text = cacheSize,
+                                        text = formattedDownloads,
                                         fontSize = 32.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = TextPrimary
                                     )
                                     Text(
-                                        text = "in local storage",
+                                        text = "downloaded · $freeGbText",
                                         fontSize = 13.sp,
                                         color = TextSecondary,
                                         modifier = Modifier.padding(bottom = 5.dp)

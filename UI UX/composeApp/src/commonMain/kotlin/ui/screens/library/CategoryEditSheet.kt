@@ -233,10 +233,10 @@ fun CategoryEditSheet(
                             }
                         }
 
-                        if (errorMessage != null) {
+                        errorMessage?.let { msg ->
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
-                                text = errorMessage!!,
+                                text = msg,
                                 color = Color(0xFFEF4444),
                                 fontSize = 12.sp
                             )

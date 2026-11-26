@@ -215,9 +215,10 @@ class ExtensionsScreen : Screen {
             extensionVariants[key] ?: emptyList()
         }
 
-        if (pendingInstallItem != null && pendingVariants.isNotEmpty()) {
+        val pendingItem = pendingInstallItem
+        if (pendingItem != null && pendingVariants.isNotEmpty()) {
             RepoPickerDialog(
-                extensionName = pendingInstallItem!!.name,
+                extensionName = pendingItem.name,
                 variants = pendingVariants,
                 onSelect = { chosen ->
                     pendingInstallItem = null

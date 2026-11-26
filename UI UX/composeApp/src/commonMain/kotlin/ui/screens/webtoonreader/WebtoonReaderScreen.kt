@@ -147,6 +147,9 @@ data class WebtoonReaderScreen(
         var currentChapterTitle by remember(chapterTitle) { mutableStateOf(chapterTitle) }
         var pagesRefreshTrigger by remember { mutableIntStateOf(0) }
 
+        val mangaDetails by remember(mangaUrl, sourceId) {
+            repository.getMangaDetails(mangaUrl, sourceId)
+        }.collectAsState(initial = null)
         val chapters by repository.getChapters(mangaUrl, sourceId).collectAsState(initial = emptyList())
         val pages by remember(currentChapterUrl, sourceId, pagesRefreshTrigger) {
             repository.getPages(currentChapterUrl, sourceId)
@@ -202,13 +205,14 @@ data class WebtoonReaderScreen(
                                 val nextStatus = downloadManager.getChapterStatus(mangaUrl, nextChapter.url)
                                 if (!isNextDownloaded && nextStatus == null) {
                                     val resolvedSid = sourceId?.toLongOrNull()
+                                        ?: mangaDetails?.sourceId?.takeIf { it != 0L }
                                         ?: repository.resolveSource(sourceId, mangaUrl, nextChapter.url)?.id
                                         ?: 0L
-                                    val targetManga = SourceManga(
+                                    val baseManga = mangaDetails ?: SourceManga(
                                         url = mangaUrl,
-                                        title = currentChapterTitle,
-                                        sourceId = resolvedSid
+                                        title = currentChapterTitle
                                     )
+                                    val targetManga = baseManga.copy(sourceId = resolvedSid)
                                     downloadManager.enqueue(targetManga, listOf(nextChapter))
                                 }
                             }

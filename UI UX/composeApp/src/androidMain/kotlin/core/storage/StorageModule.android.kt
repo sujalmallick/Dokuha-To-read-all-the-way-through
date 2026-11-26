@@ -14,5 +14,6 @@ actual val platformStorageModule: Module = module {
     single<KeyValueStorage> { AndroidKeyValueStorage(androidContext()) }
     single<SecureStorage> { AndroidSecureStorage(androidContext()) }
     single<DownloadStorage> { AndroidDownloadStorage(androidContext()) }
+    single { StorageProvider(androidContext()) }
     single<HeadlessSolver> { HeadlessCloudflareSolver(androidContext()) }
 }

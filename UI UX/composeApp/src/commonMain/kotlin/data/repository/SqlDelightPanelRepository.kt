@@ -58,7 +58,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 class SqlDelightPanelRepository(
     private val database: PanelDatabase,
     private val downloadManager: DownloadManager? = null,
-    private val downloadStorage: DownloadStorage? = null
+    private val downloadStorage: DownloadStorage? = null,
+    private val settingsRepository: data.settings.SettingsRepository? = null
 ) : PanelRepository {
 
     private val _dynamicSources = MutableStateFlow<Map<Long, ContentSource>>(emptyMap())
@@ -129,7 +130,7 @@ class SqlDelightPanelRepository(
             isNovel = if (manga.isNovel) 1L else 0L
         )
 
-        return database.mangaQueries.getMangaByUrl(manga.url).executeAsOne().id
+        return database.mangaQueries.getMangaByUrl(manga.url).executeAsOneOrNull()?.id ?: 0L
     }
 
     override fun getLibrary(category: String): Flow<List<SourceManga>> {
@@ -455,7 +456,89 @@ class SqlDelightPanelRepository(
     }
 
     override fun getUpdates(): Flow<List<MockUpdateGroup>> {
-        return flowOf(emptyList())
+        return database.chapterQueries.getRecentLibraryUpdates(limit = 100L)
+            .asFlow()
+            .mapToList(Dispatchers.Default)
+            .map { rows ->
+                if (rows.isEmpty()) return@map emptyList()
+                val now = currentTimeMillis()
+                val oneDay = 24 * 60 * 60 * 1000L
+                val twoDays = 48 * 60 * 60 * 1000L
+
+                val todayItems = mutableListOf<MockUpdateItem>()
+                val yesterdayItems = mutableListOf<MockUpdateItem>()
+                val earlierItems = mutableListOf<MockUpdateItem>()
+
+                for (row in rows) {
+                    val manga = SourceManga(
+                        url = row.manga_url,
+                        title = row.manga_title,
+                        thumbnailUrl = row.manga_thumbnail,
+                        isNovel = row.manga_is_novel == 1L,
+                        sourceId = row.manga_source_id
+                    )
+                    val chapter = SourceChapter(
+                        url = row.chapter_url,
+                        name = row.chapter_name,
+                        dateUpload = row.date_upload,
+                        chapterNumber = row.chapter_number.toFloat()
+                    )
+                    val item = MockUpdateItem(manga = manga, chapter = chapter)
+                    val diff = (now - row.date_fetch).coerceAtLeast(0L)
+                    when {
+                        diff < oneDay -> todayItems.add(item)
+                        diff < twoDays -> yesterdayItems.add(item)
+                        else -> earlierItems.add(item)
+                    }
+                }
+
+                buildList {
+                    if (todayItems.isNotEmpty()) add(MockUpdateGroup("Today", todayItems))
+                    if (yesterdayItems.isNotEmpty()) add(MockUpdateGroup("Yesterday", yesterdayItems))
+                    if (earlierItems.isNotEmpty()) add(MockUpdateGroup("Earlier", earlierItems))
+                }
+            }
+    }
+
+    override suspend fun refreshLibraryUpdates(): Int {
+        return withContext(Dispatchers.Default) {
+            val libraryMangas = database.mangaQueries.getLibrary().executeAsList()
+            var newCount = 0
+            val now = currentTimeMillis()
+
+            for (mangaRow in libraryMangas) {
+                val source = findMatchingDynamicSource(mangaRow.url, mangaRow.source_id.toString()) ?: continue
+                val fetched = runCatching {
+                    source.getChapterList(mangaRow.toSourceManga())
+                }.getOrNull() ?: continue
+
+                database.transaction {
+                    for ((idx, ch) in fetched.withIndex()) {
+                        val existingCh = database.chapterQueries.getChapterByUrl(ch.url).executeAsOneOrNull()
+                        if (existingCh == null) {
+                            newCount++
+                        }
+                        database.chapterQueries.insertOrUpdateChapter(
+                            id = existingCh?.id,
+                            mangaId = mangaRow.id,
+                            url = ch.url,
+                            name = ch.name,
+                            scanlator = ch.scanlator,
+                            read = existingCh?.read ?: 0L,
+                            bookmark = existingCh?.bookmark ?: 0L,
+                            lastPageRead = existingCh?.last_page_read ?: 0L,
+                            chapterNumber = ch.chapterNumber.toDouble(),
+                            sourceOrder = idx.toLong(),
+                            dateFetch = existingCh?.date_fetch?.takeIf { it > 0L } ?: now,
+                            dateUpload = ch.dateUpload,
+                            lastModifiedAt = now
+                        )
+                    }
+                }
+                kotlinx.coroutines.delay(150L)
+            }
+            newCount
+        }
     }
 
     override fun getHistory(): Flow<List<HistoryGroup>> {
@@ -717,6 +800,7 @@ class SqlDelightPanelRepository(
     }
 
     override suspend fun updateChapterProgress(chapterUrl: String, page: Int, isRead: Boolean) {
+        if (settingsRepository?.incognitoMode?.value == true) return
         withContext(Dispatchers.Default) {
             database.chapterQueries.updateChapterProgress(
                 read = if (isRead) 1L else 0L,
@@ -736,6 +820,7 @@ class SqlDelightPanelRepository(
     }
 
     override suspend fun recordHistory(chapterUrl: String) {
+        if (settingsRepository?.incognitoMode?.value == true) return
         withContext(Dispatchers.Default) {
             val chapter = database.chapterQueries.getChapterByUrl(chapterUrl).executeAsOneOrNull()
             if (chapter != null) {
@@ -744,6 +829,33 @@ class SqlDelightPanelRepository(
                     readAt = currentTimeMillis(),
                     timeRead = 30L
                 )
+            }
+        }
+    }
+
+    override fun getReadChapterUrls(mangaUrl: String): Flow<Set<String>> {
+        return database.chapterQueries.getChaptersByMangaUrl(mangaUrl)
+            .asFlow()
+            .mapToList(Dispatchers.Default)
+            .map { chapters ->
+                chapters.filter { it.read == 1L }.map { it.url }.toSet()
+            }
+    }
+
+    override suspend fun markChaptersRead(chapterUrls: List<String>, isRead: Boolean) {
+        if (chapterUrls.isEmpty()) return
+        withContext(Dispatchers.Default) {
+            val now = currentTimeMillis()
+            val readFlag = if (isRead) 1L else 0L
+            database.transaction {
+                chapterUrls.forEach { url ->
+                    database.chapterQueries.updateChapterProgress(
+                        read = readFlag,
+                        lastPageRead = 0L,
+                        lastModifiedAt = now,
+                        url = url
+                    )
+                }
             }
         }
     }

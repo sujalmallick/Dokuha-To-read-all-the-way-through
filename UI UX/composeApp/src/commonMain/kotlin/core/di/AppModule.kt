@@ -2,6 +2,8 @@ package core.di
 
 import core.download.DownloadManager
 import core.storage.platformStorageModule
+import data.download.CoreBackedDownloadManager
+import data.download.DownloadManager as DataDownloadManager
 import data.extension.DefaultExtensionRepository
 import data.extension.ExtensionRepository
 import data.library.CategoryRepository
@@ -42,7 +44,12 @@ val appModule = module {
     single { AntiBotChallengeManager(headlessSolver = getOrNull()) }
     single<AntiBotResolver> { get<AntiBotChallengeManager>() }
     single<PanelRepository> {
-        val repo = SqlDelightPanelRepository(database = get(), downloadManager = getOrNull(), downloadStorage = getOrNull())
+        val repo = SqlDelightPanelRepository(
+            database = get(),
+            downloadManager = getOrNull(),
+            downloadStorage = getOrNull(),
+            settingsRepository = getOrNull()
+        )
         getOrNull<DownloadManager>()?.setSourceProvider { manga, chapter ->
             val sid = manga.sourceId.takeIf { it != 0L }?.toString()
             repo.resolveSource(sid, manga.url, chapter.url)
@@ -50,9 +57,24 @@ val appModule = module {
         repo
     }
     single<ExtensionManager>(createdAtStart = true) { ExtensionManager(storage = get(), panelRepository = get(), httpClient = getOrNull(), settingsRepository = getOrNull(), antiBotResolver = getOrNull(), autoSeedDefaults = false) }
-    single<TrackerRepository> { ProductionTrackerRepository(getOrNull()) }
+    single<TrackerRepository> {
+        ProductionTrackerRepository(
+            secureStorage = getOrNull(),
+            httpClient = getOrNull(),
+            keyValueStorage = getOrNull()
+        )
+    }
     single<SettingsRepository> { PersistentSettingsRepository(get()) }
     single<ProfileRepository> { PersistentProfileRepository(get(), get()) }
+    single<DataDownloadManager> {
+        CoreBackedDownloadManager(
+            coreDownloadManager = get(),
+            downloadStorage = get(),
+            storageProvider = getOrNull(),
+            panelRepository = getOrNull(),
+            keyValueStorage = getOrNull()
+        )
+    }
     single<ExtensionRepository> { DefaultExtensionRepository(httpClient = getOrNull(), extensionManager = getOrNull()) }
     single<CategoryRepository> { DefaultCategoryRepository() }
 }

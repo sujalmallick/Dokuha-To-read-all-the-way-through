@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -110,6 +111,7 @@ data class TitleDetailsScreen(
         val navigator = LocalNavigator.currentOrThrow
         val repository: PanelRepository = koinInject()
         val downloadManager: DownloadManager = koinInject()
+        val trackerRepository: data.tracker.TrackerRepository = koinInject()
         val scope = rememberCoroutineScope()
         var refreshTrigger by remember { mutableIntStateOf(0) }
         var isLoadingDetails by remember(mangaUrl, sourceId, refreshTrigger) { mutableStateOf(true) }
@@ -149,16 +151,26 @@ data class TitleDetailsScreen(
         val adaptationManga by remember(currentManga) {
             if (currentManga != null) repository.getAdaptation(currentManga) else flowOf(null)
         }.collectAsState(initial = null)
+        val readChapterUrls by remember(mangaUrl) {
+            repository.getReadChapterUrls(mangaUrl)
+        }.collectAsState(initial = emptySet())
 
         TitleDetailsScreenContent(
             manga = manga,
             chapters = chapters,
+            readChapterUrls = readChapterUrls,
             adaptationManga = adaptationManga,
             isLoadingDetails = isLoadingDetails,
             isLoadingChapters = isLoadingChapters,
             downloadManager = downloadManager,
             isInLibrary = isInLibrary,
+            trackerRepository = trackerRepository,
             onRefresh = { refreshTrigger++ },
+            onMarkChaptersRead = { urls, isRead ->
+                scope.launch {
+                    repository.markChaptersRead(urls, isRead)
+                }
+            },
             onToggleLibrary = {
                 val targetManga = manga ?: SourceManga(
                     url = mangaUrl,
@@ -215,15 +227,23 @@ data class TitleDetailsScreen(
     }
 }
 
+enum class ChapterFilterMode(val label: String) {
+    ALL("All"),
+    UNREAD("Unread"),
+    DOWNLOADED("Downloaded")
+}
+
 @Composable
 fun TitleDetailsScreenContent(
     manga: SourceManga?,
     chapters: List<SourceChapter>,
+    readChapterUrls: Set<String> = emptySet(),
     adaptationManga: SourceManga? = null,
     isLoadingDetails: Boolean = false,
     isLoadingChapters: Boolean = false,
     isInLibrary: Boolean = false,
     onRefresh: () -> Unit = {},
+    onMarkChaptersRead: (List<String>, Boolean) -> Unit = { _, _ -> },
     onToggleLibrary: () -> Unit = {},
     onBack: () -> Unit,
     onReadChapter: (SourceChapter) -> Unit,
@@ -231,13 +251,16 @@ fun TitleDetailsScreenContent(
     onDownloadChapter: (SourceChapter) -> Unit = {},
     onDownloadAll: () -> Unit = {},
     modifier: Modifier = Modifier,
-    downloadManager: DownloadManager = koinInject()
+    downloadManager: DownloadManager = koinInject(),
+    trackerRepository: data.tracker.TrackerRepository? = null
 ) {
     val glassState = rememberPanelGlassState()
-    var isBookmarked by remember { mutableStateOf(false) }
     var isDescriptionExpanded by remember { mutableStateOf(false) }
     var showBatchDownloadSheet by remember { mutableStateOf(false) }
     var showCatchUpSheet by remember { mutableStateOf(false) }
+    var showTrackSheet by remember { mutableStateOf(false) }
+    var chapterFilter by remember { mutableStateOf(ChapterFilterMode.ALL) }
+    var sortAscending by remember { mutableStateOf(false) }
 
     val downloadQueue by downloadManager.queue.collectAsState()
     val completedDownloads by downloadManager.completedDownloads.collectAsState()
@@ -249,6 +272,17 @@ fun TitleDetailsScreenContent(
         genres = emptyList(),
         status = MangaStatus.UNKNOWN
     )
+
+    val displayedChapters = remember(chapters, chapterFilter, sortAscending, readChapterUrls, completedDownloads) {
+        val filtered = when (chapterFilter) {
+            ChapterFilterMode.ALL -> chapters
+            ChapterFilterMode.UNREAD -> chapters.filter { it.url !in readChapterUrls }
+            ChapterFilterMode.DOWNLOADED -> chapters.filter {
+                downloadManager.isChapterDownloaded(displayManga.url, it.url)
+            }
+        }
+        if (sortAscending) filtered.reversed() else filtered
+    }
 
     Box(
         modifier = modifier
@@ -340,7 +374,8 @@ fun TitleDetailsScreenContent(
                     // Primary CTA Row: "Start Reading" & "Previously On... (Recap)"
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         PanelButton(
                             text = if (chapters.isNotEmpty()) "Start Reading" else "No Chapters",
@@ -351,13 +386,16 @@ fun TitleDetailsScreenContent(
                                     onReadChapter(firstChapter)
                                 }
                             },
-                            modifier = Modifier.weight(1f)
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(50.dp)
                         )
 
                         // Feature 5: "Previously On..." Catch-up Button
                         Box(
                             modifier = Modifier
-                                .height(52.dp)
+                                .height(50.dp)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(Color.White.copy(alpha = 0.08f))
                                 .border(1.dp, GlassBorderStrong, RoundedCornerShape(12.dp))
@@ -365,7 +403,10 @@ fun TitleDetailsScreenContent(
                                 .padding(horizontal = 14.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.AutoStories,
                                     contentDescription = "Catch up",
@@ -408,7 +449,7 @@ fun TitleDetailsScreenContent(
                         ActionGlassButton(
                             icon = Icons.Default.FavoriteBorder,
                             text = "Track",
-                            onClick = { /* Track */ },
+                            onClick = { showTrackSheet = true },
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -529,6 +570,66 @@ fun TitleDetailsScreenContent(
                 }
             }
 
+            // Chapter Filter & Sort Bar
+            if (chapters.isNotEmpty()) {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ChapterFilterMode.entries.forEach { mode ->
+                                val selected = chapterFilter == mode
+                                val primaryColor = MaterialTheme.colorScheme.primary
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CapsuleShape)
+                                        .background(
+                                            if (selected) primaryColor.copy(alpha = 0.22f)
+                                            else Color.White.copy(alpha = 0.06f)
+                                        )
+                                        .border(
+                                            1.dp,
+                                            if (selected) primaryColor else GlassBorder,
+                                            CapsuleShape
+                                        )
+                                        .clickable { chapterFilter = mode }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = mode.label,
+                                        color = if (selected) primaryColor else TextSecondary,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .clip(CapsuleShape)
+                                .background(Color.White.copy(alpha = 0.06f))
+                                .border(1.dp, GlassBorder, CapsuleShape)
+                                .clickable { sortAscending = !sortAscending }
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (sortAscending) "Oldest" else "Newest",
+                                color = TextSecondary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
+
             if (isLoadingChapters && chapters.isEmpty()) {
                 item {
                     Box(
@@ -596,14 +697,10 @@ fun TitleDetailsScreenContent(
             }
 
             // Chapter List Items (Quiet translucent fill, non-glass content layer)
-            items(chapters) { chapter ->
-                val dateStr = when (chapter.name) {
-                    "Ch. 210" -> "Jun 15, 2024"
-                    "Ch. 209" -> "Jun 8, 2024"
-                    "Ch. 208" -> "Jun 1, 2024"
-                    "Ch. 207" -> "May 25, 2024"
-                    else -> "Recently"
-                }
+            items(displayedChapters, key = { it.url }) { chapter ->
+                val dateStr = if (chapter.dateUpload > 0L) "Uploaded" else "Recently"
+                val isRead = chapter.url in readChapterUrls
+                var showChapterMenu by remember(chapter.url) { mutableStateOf(false) }
 
                 val isDownloaded = remember(chapter.url, completedDownloads) {
                     downloadManager.isChapterDownloaded(displayManga.url, chapter.url)
@@ -619,7 +716,7 @@ fun TitleDetailsScreenContent(
                     ChapterRowItem(
                         title = chapter.name,
                         date = dateStr,
-                        isRead = chapter.name == "Ch. 208" || chapter.name == "Ch. 207",
+                        isRead = isRead,
                         isDownloaded = isDownloaded,
                         downloadStatus = chapterStatus,
                         downloadProgress = chapterProgress,
@@ -635,8 +732,32 @@ fun TitleDetailsScreenContent(
                                 downloadManager.retry("${displayManga.url}::${chapter.url}")
                             }
                         },
-                        onOptionsClick = {}
+                        onOptionsClick = { showChapterMenu = true }
                     )
+
+                    androidx.compose.material3.DropdownMenu(
+                        expanded = showChapterMenu,
+                        onDismissRequest = { showChapterMenu = false }
+                    ) {
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(if (isRead) "Mark as unread" else "Mark as read") },
+                            onClick = {
+                                showChapterMenu = false
+                                onMarkChaptersRead(listOf(chapter.url), !isRead)
+                            }
+                        )
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text("Mark previous as read") },
+                            onClick = {
+                                showChapterMenu = false
+                                val idxInDesc = chapters.indexOfFirst { it.url == chapter.url }
+                                if (idxInDesc >= 0) {
+                                    val previousUrls = chapters.drop(idxInDesc).map { it.url }
+                                    onMarkChaptersRead(previousUrls, true)
+                                }
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -660,13 +781,13 @@ fun TitleDetailsScreenContent(
                 onClick = onBack
             )
             PanelCircleIconButton(
-                icon = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
+                icon = if (isInLibrary) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                 size = 40.dp,
                 iconSize = 20.dp,
-                tint = if (isBookmarked) MaterialTheme.colorScheme.primary else TextPrimary,
+                tint = if (isInLibrary) MaterialTheme.colorScheme.primary else TextPrimary,
                 glassState = glassState,
                 hasDimming = true,
-                onClick = { isBookmarked = !isBookmarked }
+                onClick = onToggleLibrary
             )
         }
 
@@ -691,6 +812,17 @@ fun TitleDetailsScreenContent(
                         onReadChapter(firstChapter)
                     }
                 }
+            )
+        }
+
+        if (showTrackSheet && trackerRepository != null) {
+            TrackModalSheet(
+                manga = displayManga,
+                latestReadChapterNumber = chapters
+                    .filter { it.url in readChapterUrls }
+                    .maxOfOrNull { it.chapterNumber.toInt().coerceAtLeast(0) } ?: 0,
+                trackerRepository = trackerRepository,
+                onDismiss = { showTrackSheet = false }
             )
         }
     }
@@ -1003,6 +1135,7 @@ fun ActionGlassButton(
 
     Box(
         modifier = modifier
+            .defaultMinSize(minHeight = 64.dp)
             .nonGlassPress(interactionSource)
             .clip(shape)
             .background(Color.White.copy(alpha = 0.07f))
@@ -1012,7 +1145,7 @@ fun ActionGlassButton(
                 indication = null,
                 onClick = onClick
             )
-            .padding(vertical = 12.dp, horizontal = 4.dp),
+            .padding(vertical = 12.dp, horizontal = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -1031,6 +1164,7 @@ fun ActionGlassButton(
                 color = TextPrimary,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -1125,6 +1259,243 @@ private fun QuickDownloadChip(
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TrackModalSheet(
+    manga: SourceManga,
+    latestReadChapterNumber: Int,
+    trackerRepository: data.tracker.TrackerRepository,
+    onDismiss: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    val trackers by trackerRepository.trackers.collectAsState()
+    var selectedService by remember { mutableStateOf(data.profile.TrackerService.ANILIST) }
+    val activeAccount = trackers.firstOrNull { it.service == selectedService }
+    var tokenInput by remember { mutableStateOf("") }
+    var searchQuery by remember(manga.title) { mutableStateOf(manga.title) }
+    var searchResults by remember { mutableStateOf<List<data.tracker.TrackSearchResult>>(emptyList()) }
+    var currentBinding by remember(manga.url, selectedService) {
+        mutableStateOf(trackerRepository.getBinding(manga.url, selectedService))
+    }
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+    var isBusy by remember { mutableStateOf(false) }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = ui.theme.PanelSurface,
+        contentColor = TextPrimary
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+                .navigationBarsPadding(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "Track Progress",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = TextPrimary
+            )
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    data.profile.TrackerService.ANILIST to "AniList",
+                    data.profile.TrackerService.MY_ANIME_LIST to "MyAnimeList"
+                ).forEach { (service, label) ->
+                    val isSelected = selectedService == service
+                    val primary = MaterialTheme.colorScheme.primary
+                    Box(
+                        modifier = Modifier
+                            .clip(CapsuleShape)
+                            .background(if (isSelected) primary.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.06f))
+                            .border(1.dp, if (isSelected) primary else GlassBorder, CapsuleShape)
+                            .clickable { selectedService = service; statusMessage = null }
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            color = if (isSelected) primary else TextSecondary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
+            if (activeAccount?.isConnected != true) {
+                Text(
+                    text = "Paste your ${if (selectedService == data.profile.TrackerService.ANILIST) "AniList" else "MyAnimeList"} OAuth access token to sync:",
+                    fontSize = 13.sp,
+                    color = TextSecondary
+                )
+                androidx.compose.material3.OutlinedTextField(
+                    value = tokenInput,
+                    onValueChange = { tokenInput = it },
+                    placeholder = { Text("Access token", color = TextSecondary) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                PanelButton(
+                    text = if (isBusy) "Connecting..." else "Connect",
+                    onClick = {
+                        if (!isBusy) {
+                            isBusy = true
+                            scope.launch {
+                                val res = trackerRepository.connectWithToken(selectedService, tokenInput)
+                                isBusy = false
+                                statusMessage = res.fold(
+                                    onSuccess = { "Connected as ${it.username ?: "User"}" },
+                                    onFailure = { it.message ?: "Connection failed" }
+                                )
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                Text(
+                    text = "Connected as ${activeAccount.username ?: "User"}",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                val binding = currentBinding
+                if (binding == null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        androidx.compose.material3.OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f)
+                        )
+                        PanelButton(
+                            text = if (isBusy) "..." else "Search",
+                            onClick = {
+                                if (!isBusy) {
+                                    isBusy = true
+                                    scope.launch {
+                                        val res = trackerRepository.searchMedia(selectedService, searchQuery)
+                                        isBusy = false
+                                        res.onSuccess { searchResults = it }
+                                            .onFailure { statusMessage = it.message }
+                                    }
+                                }
+                            }
+                        )
+                    }
+
+                    searchResults.take(4).forEach { result ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color.White.copy(alpha = 0.06f))
+                                .border(1.dp, GlassBorder, RoundedCornerShape(12.dp))
+                                .clickable {
+                                    val newBinding = data.tracker.TrackBinding(
+                                        mangaUrl = manga.url,
+                                        service = selectedService,
+                                        remoteId = result.remoteId,
+                                        remoteTitle = result.title,
+                                        lastChapterRead = latestReadChapterNumber,
+                                        totalChapters = result.totalChapters
+                                    )
+                                    trackerRepository.saveBinding(newBinding)
+                                    currentBinding = newBinding
+                                    searchResults = emptyList()
+                                }
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = result.title,
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "Bind",
+                                color = MaterialTheme.colorScheme.primary,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        text = binding.remoteTitle,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Chapters: ${binding.lastChapterRead}${binding.totalChapters?.let { " / $it" } ?: ""}",
+                            color = TextSecondary,
+                            fontSize = 13.sp,
+                            modifier = Modifier.weight(1f)
+                        )
+                        PanelButton(
+                            text = "Use Read ($latestReadChapterNumber)",
+                            variant = ui.components.ButtonVariant.OUTLINE,
+                            onClick = {
+                                currentBinding = binding.copy(lastChapterRead = latestReadChapterNumber)
+                            }
+                        )
+                    }
+                    PanelButton(
+                        text = if (isBusy) "Syncing..." else "Sync Progress",
+                        onClick = {
+                            if (!isBusy) {
+                                isBusy = true
+                                scope.launch {
+                                    val res = trackerRepository.syncProgress(binding)
+                                    isBusy = false
+                                    statusMessage = res.fold(
+                                        onSuccess = {
+                                            currentBinding = it
+                                            "Synced chapter ${it.lastChapterRead}"
+                                        },
+                                        onFailure = { it.message ?: "Sync failed" }
+                                    )
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            statusMessage?.let { msg ->
+                Text(
+                    text = msg,
+                    color = TextSecondary,
+                    fontSize = 12.sp
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
         }
     }
 }
