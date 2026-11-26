@@ -20,6 +20,14 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
+      - name: Cache Kotlin/Native toolchain
+        uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: ${{ runner.os }}-konan-${{ hashFiles('UI UX/gradle/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-konan-
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
         working-directory: UI UX
@@ -28,6 +36,7 @@ jobs:
         # NOTE: Compiles and links the ComposeApp static framework for iosSimulatorArm64
         run: |
           ./gradlew :composeApp:compileKotlinIosSimulatorArm64 :composeApp:linkDebugFrameworkIosSimulatorArm64 \
+            --parallel --build-cache \
             -Dorg.gradle.jvmargs="-Xmx6144M -XX:+UseG1GC -Dfile.encoding=UTF-8" \
             -Dkotlin.daemon.jvmargs="-Xmx4096M -XX:+UseG1GC"
           ./gradlew --stop
