@@ -466,8 +466,10 @@ class PersistentSettingsRepository(
             return Result.failure(IllegalArgumentException(validation.errorMessage ?: "Invalid URL"))
         }
 
-        val normalizedUrl = validation.normalizedUrl!!
-        val fingerprint = validation.fingerprint!!
+        val normalizedUrl = validation.normalizedUrl
+            ?: return Result.failure(IllegalArgumentException(validation.errorMessage ?: "Invalid URL"))
+        val fingerprint = validation.fingerprint
+            ?: return Result.failure(IllegalArgumentException("Missing repository fingerprint"))
 
         // Deduplication
         if (_extensionRepos.value.any { it.url.equals(normalizedUrl, ignoreCase = true) }) {

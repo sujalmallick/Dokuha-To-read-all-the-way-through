@@ -43,8 +43,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
+import core.logging.AppCoroutineExceptionHandler
+import core.logging.launchSafe
 import kotlinx.coroutines.flow.flowOf
 import ui.theme.GlassBorder
 import ui.theme.GlassBorderStrong
@@ -112,7 +116,8 @@ data class TitleDetailsScreen(
         val repository: PanelRepository = koinInject()
         val downloadManager: DownloadManager = koinInject()
         val trackerRepository: data.tracker.TrackerRepository = koinInject()
-        val scope = rememberCoroutineScope()
+        val scope = rememberCoroutineScope { AppCoroutineExceptionHandler }
+        val snackbarHostState = remember { SnackbarHostState() }
         var refreshTrigger by remember { mutableIntStateOf(0) }
         var isLoadingDetails by remember(mangaUrl, sourceId, refreshTrigger) { mutableStateOf(true) }
         var isLoadingChapters by remember(mangaUrl, sourceId, refreshTrigger) { mutableStateOf(true) }
@@ -167,7 +172,14 @@ data class TitleDetailsScreen(
             trackerRepository = trackerRepository,
             onRefresh = { refreshTrigger++ },
             onMarkChaptersRead = { urls, isRead ->
-                scope.launch {
+                scope.launchSafe(
+                    tag = "TitleDetailsScreen",
+                    onError = {
+                        scope.launchSafe("TitleDetailsScreen", onError = {}) {
+                            snackbarHostState.showSnackbar("Could not update chapter status. Please try again.")
+                        }
+                    }
+                ) {
                     repository.markChaptersRead(urls, isRead)
                 }
             },
@@ -178,10 +190,18 @@ data class TitleDetailsScreen(
                     thumbnailUrl = initialThumbnailUrl,
                     sourceId = initialSourceId
                 )
-                scope.launch {
+                scope.launchSafe(
+                    tag = "TitleDetailsScreen",
+                    onError = {
+                        scope.launchSafe("TitleDetailsScreen", onError = {}) {
+                            snackbarHostState.showSnackbar("Could not update library status. Please try again.")
+                        }
+                    }
+                ) {
                     repository.toggleFavorite(targetManga, !isInLibrary)
                 }
             },
+            snackbarHostState = snackbarHostState,
             onBack = { navigator.pop() },
             onReadChapter = { chapter ->
                 val effectiveSourceId = manga?.sourceId?.takeIf { it != 0L }?.toString()
@@ -250,6 +270,7 @@ fun TitleDetailsScreenContent(
     onOpenAdaptation: (SourceManga) -> Unit = {},
     onDownloadChapter: (SourceChapter) -> Unit = {},
     onDownloadAll: () -> Unit = {},
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     modifier: Modifier = Modifier,
     downloadManager: DownloadManager = koinInject(),
     trackerRepository: data.tracker.TrackerRepository? = null
@@ -827,6 +848,14 @@ fun TitleDetailsScreenContent(
                 onDismiss = { showTrackSheet = false }
             )
         }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 16.dp)
+        )
     }
 }
 

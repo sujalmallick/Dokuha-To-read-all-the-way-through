@@ -436,7 +436,8 @@ class FakeSettingsRepository : SettingsRepository {
             return Result.failure(IllegalArgumentException(validation.errorMessage ?: "Invalid URL"))
         }
 
-        val normalized = validation.normalizedUrl!!
+        val normalized = validation.normalizedUrl
+            ?: return Result.failure(IllegalArgumentException(validation.errorMessage ?: "Invalid URL"))
         if (_extensionRepos.value.any { it.url.equals(normalized, ignoreCase = true) }) {
             return Result.failure(IllegalArgumentException("Repository has already been added"))
         }
