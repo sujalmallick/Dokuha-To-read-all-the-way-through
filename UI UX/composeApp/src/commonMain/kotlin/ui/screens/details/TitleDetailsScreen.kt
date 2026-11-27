@@ -396,19 +396,44 @@ fun TitleDetailsScreenContent(
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // Primary CTA Row: "Start Reading" & "Previously On... (Recap)"
+                    // Primary CTA Row: "Start Reading" / "Continue Reading Ch. X" & "Recap"
+                    val chronologicalChapters = remember(chapters) { chapters.asReversed() }
+                    val lastReadChronoIndex = remember(chronologicalChapters, readChapterUrls) {
+                        chronologicalChapters.indexOfLast { it.url in readChapterUrls }
+                    }
+                    val ctaTargetChapter = remember(chronologicalChapters, lastReadChronoIndex) {
+                        if (chronologicalChapters.isEmpty()) null
+                        else if (lastReadChronoIndex >= 0) {
+                            chronologicalChapters.getOrNull(lastReadChronoIndex + 1)
+                                ?: chronologicalChapters[lastReadChronoIndex]
+                        } else {
+                            chronologicalChapters.first()
+                        }
+                    }
+                    val ctaLabel = when {
+                        ctaTargetChapter == null -> "No Chapters"
+                        lastReadChronoIndex >= 0 -> {
+                            val chLabel = if (ctaTargetChapter.chapterNumber > 0f) {
+                                "Ch. ${ctaTargetChapter.chapterNumber.toString().removeSuffix(".0")}"
+                            } else {
+                                ctaTargetChapter.name
+                            }
+                            "Continue $chLabel"
+                        }
+                        else -> "Start Reading"
+                    }
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         PanelButton(
-                            text = if (chapters.isNotEmpty()) "Start Reading" else "No Chapters",
+                            text = ctaLabel,
                             icon = Icons.Default.PlayArrow,
                             onClick = {
-                                if (chapters.isNotEmpty()) {
-                                    val firstChapter = chapters.lastOrNull() ?: chapters.first()
-                                    onReadChapter(firstChapter)
+                                if (ctaTargetChapter != null) {
+                                    onReadChapter(ctaTargetChapter)
                                 }
                             },
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp),
