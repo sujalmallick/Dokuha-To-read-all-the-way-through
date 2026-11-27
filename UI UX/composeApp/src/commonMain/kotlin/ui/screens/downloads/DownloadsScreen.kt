@@ -307,7 +307,7 @@ fun DownloadsScreenContent(
                     Spacer(modifier = Modifier.height(20.dp))
                 }
             } else {
-                itemsIndexed(effectiveQueue) { index, item ->
+                itemsIndexed(effectiveQueue, key = { _, item -> item.id }) { index, item ->
                     val downloadedMb = item.downloadedBytes / (1024 * 1024)
                     val totalMb = item.totalBytes / (1024 * 1024)
                     val etaMins = (item.etaSeconds / 60).coerceAtLeast(1)
@@ -378,7 +378,7 @@ fun DownloadsScreenContent(
                     Spacer(modifier = Modifier.height(12.dp))
                 }
 
-                itemsIndexed(completed) { index, item ->
+                itemsIndexed(completed, key = { _, item -> item.id }) { index, item ->
                     val totalMb = item.totalBytes / (1024 * 1024)
                     CompletedChapterCard(
                         title = item.manga.title,

@@ -511,7 +511,10 @@ fun BrowseScreenContent(
                     }
                 } else {
                     // 3 in a row grid for search results
-                    items(displayedSearchResults.chunked(3)) { rowMangas ->
+                    items(
+                        items = displayedSearchResults.chunked(3),
+                        key = { row -> row.firstOrNull()?.url ?: row.hashCode() }
+                    ) { rowMangas ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)

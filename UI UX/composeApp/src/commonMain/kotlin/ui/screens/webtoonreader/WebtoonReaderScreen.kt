@@ -557,17 +557,12 @@ fun WebtoonReaderScreenContent(
                 val p = displayPages[i]
                 val url = p.imageUrl ?: p.url
                 if (!url.isNullOrBlank() && (url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true))) {
-                    val request = ImageRequest.Builder(platformContext)
-                        .data(url)
-                        .apply {
-                            val headers = p.headers
-                            val networkHeaders = NetworkHeaders.Builder().apply {
-                                add("User-Agent", defaultReaderUa)
-                                headers?.forEach { (k, v) -> add(k, v) }
-                            }.build()
-                            httpHeaders(networkHeaders)
-                        }
-                        .build()
+                    val request = buildReaderImageRequest(
+                        context = platformContext,
+                        imageUrl = url,
+                        headers = p.headers,
+                        defaultUserAgent = defaultReaderUa
+                    )
                     imageLoader.enqueue(request)
                 }
             }
@@ -733,7 +728,10 @@ fun WebtoonReaderScreenContent(
                                     onNext = handleNext
                                 )
                         ) {
-                            itemsIndexed(displayPages) { index, page ->
+                            itemsIndexed(
+                                items = displayPages,
+                                key = { index, page -> "${index}_${page.url}" }
+                            ) { index, page ->
                                 val imageUrl = page.imageUrl ?: page.url
                                 val hasValidImage = !imageUrl.isBlank() && (
                                     imageUrl.startsWith("http://", ignoreCase = true) ||
@@ -1812,37 +1810,54 @@ fun WebtoonPanelSlice(
 
     if (hasValidImage) {
         val platformContext = LocalPlatformContext.current
-        val imageRequest = remember(imageUrl, page?.headers) {
-            ImageRequest.Builder(platformContext)
-                .data(imageUrl)
-                .apply {
-                    val headers = page?.headers
-                    val networkHeaders = NetworkHeaders.Builder().apply {
-                        add("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
-                        headers?.forEach { (k, v) -> add(k, v) }
-                    }.build()
-                    httpHeaders(networkHeaders)
-                }
-                .build()
-        }
-        AsyncImage(
-            model = imageRequest,
-            contentDescription = "Slice ${sliceIndex + 1}",
-            contentScale = ContentScale.FillWidth,
-            colorFilter = appliedFilter,
-            modifier = modifier.fillMaxWidth(),
-            onState = { state ->
-                when (state) {
-                    is coil3.compose.AsyncImagePainter.State.Error -> {
-                        println("[WebtoonPanelSlice] Page $sliceIndex FAILED: ${state.result.throwable.message}")
+        val defaultUa = remember { CloudflareChallengeHeuristics.defaultReaderUserAgent() }
+        var retryKey by remember(imageUrl) { mutableIntStateOf(0) }
+        var loadError by remember(retryKey, imageUrl) { mutableStateOf<String?>(null) }
+
+        if (loadError != null) {
+            Box(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                MangaPageErrorCard(
+                    pageNumber = sliceIndex + 1,
+                    errorMessage = loadError,
+                    onRetry = {
+                        loadError = null
+                        retryKey++
                     }
-                    is coil3.compose.AsyncImagePainter.State.Success -> {
-                        println("[WebtoonPanelSlice] Page $sliceIndex SUCCESS: ${state.result.image.width}x${state.result.image.height}")
-                    }
-                    else -> {}
-                }
+                )
             }
-        )
+        } else {
+            val imageRequest = remember(imageUrl, page?.headers, retryKey, defaultUa) {
+                buildReaderImageRequest(
+                    context = platformContext,
+                    imageUrl = imageUrl,
+                    headers = page?.headers,
+                    defaultUserAgent = defaultUa
+                )
+            }
+            AsyncImage(
+                model = imageRequest,
+                contentDescription = "Slice ${sliceIndex + 1}",
+                contentScale = ContentScale.FillWidth,
+                colorFilter = appliedFilter,
+                modifier = modifier.fillMaxWidth(),
+                onState = { state ->
+                    when (state) {
+                        is coil3.compose.AsyncImagePainter.State.Error -> {
+                            loadError = formatImageLoadError(imageUrl, state.result.throwable.message)
+                        }
+                        is coil3.compose.AsyncImagePainter.State.Success -> {
+                            loadError = null
+                        }
+                        else -> {}
+                    }
+                }
+            )
+        }
     } else {
         Canvas(modifier = modifier) {
         val width = size.width

@@ -45,12 +45,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.PlatformContext
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import coil3.compose.LocalPlatformContext
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
 import coil3.request.ImageRequest
+import coil3.size.Precision
+import coil3.size.Size
 import core.extensions.js.CloudflareChallengeHeuristics
 import core.source.SourcePage
 import data.reader.ReaderColorFilters
@@ -95,17 +98,12 @@ fun MangaPageCanvas(
         val platformContext = LocalPlatformContext.current
         val defaultUa = remember { CloudflareChallengeHeuristics.defaultReaderUserAgent() }
         val imageRequest = remember(imageUrl, page?.headers, retryKey, defaultUa) {
-            ImageRequest.Builder(platformContext)
-                .data(imageUrl)
-                .apply {
-                    val headers = page?.headers
-                    val networkHeaders = NetworkHeaders.Builder().apply {
-                        add("User-Agent", defaultUa)
-                        headers?.forEach { (k, v) -> add(k, v) }
-                    }.build()
-                    httpHeaders(networkHeaders)
-                }
-                .build()
+            buildReaderImageRequest(
+                context = platformContext,
+                imageUrl = imageUrl,
+                headers = page?.headers,
+                defaultUserAgent = defaultUa
+            )
         }
 
         Box(
@@ -223,8 +221,48 @@ fun MangaPageCanvas(
     }
 }
 
+internal fun computeReaderDecodeSize(
+    maxWidthPx: Int = 1440,
+    maxHeightPx: Int = 2880
+): Size = Size(maxWidthPx.coerceIn(320, 2048), maxHeightPx.coerceIn(480, 4096))
+
+internal fun formatImageLoadError(url: String?, throwableMessage: String?): String {
+    val msg = throwableMessage.orEmpty()
+    val isCleartext = !url.isNullOrBlank() &&
+        url.startsWith("http://", ignoreCase = true) &&
+        (msg.contains("cleartext", ignoreCase = true) || msg.contains("not permitted", ignoreCase = true))
+    return if (isCleartext) {
+        "HTTP image blocked by network security policy (HTTPS required)"
+    } else if (msg.isNotBlank()) {
+        msg
+    } else {
+        "Image could not be retrieved"
+    }
+}
+
+internal fun buildReaderImageRequest(
+    context: PlatformContext,
+    imageUrl: String,
+    headers: Map<String, String>?,
+    defaultUserAgent: String,
+    decodeSize: Size = computeReaderDecodeSize()
+): ImageRequest {
+    return ImageRequest.Builder(context)
+        .data(imageUrl)
+        .size(decodeSize)
+        .precision(Precision.INEXACT)
+        .apply {
+            val networkHeaders = NetworkHeaders.Builder().apply {
+                add("User-Agent", defaultUserAgent)
+                headers?.forEach { (k, v) -> add(k, v) }
+            }.build()
+            httpHeaders(networkHeaders)
+        }
+        .build()
+}
+
 @Composable
-private fun MangaPageErrorCard(
+internal fun MangaPageErrorCard(
     pageNumber: Int,
     errorMessage: String?,
     onRetry: (() -> Unit)?,
