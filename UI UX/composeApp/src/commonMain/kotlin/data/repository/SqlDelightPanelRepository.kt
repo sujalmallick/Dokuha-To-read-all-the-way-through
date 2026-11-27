@@ -37,6 +37,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -66,7 +67,7 @@ class SqlDelightPanelRepository(
     val dynamicSources: StateFlow<Map<Long, ContentSource>> = _dynamicSources.asStateFlow()
 
     init {
-        CoroutineScope(Dispatchers.Default).launch {
+        kotlinx.coroutines.CoroutineScope(Dispatchers.Default).launch {
             runCatching { purgeFakeStarterDataIfPresent() }
         }
     }
