@@ -1,5 +1,6 @@
 package core.extensions.js
 
+import core.logging.AppLogger
 import core.source.ComicSource
 import core.source.MangaStatus
 import core.source.MangasPage
@@ -191,8 +192,7 @@ class JsExtensionSource(
                 )
             }
         } catch (e: Exception) {
-            println("[JsExtensionSource] Error in parsePageList: ${e.message}")
-            e.printStackTrace()
+            AppLogger.e("JsExtensionSource", "Error in parseChapterList", e)
             emptyList()
         }
     }
@@ -219,8 +219,7 @@ class JsExtensionSource(
                 )
             }
         } catch (e: Exception) {
-            println("[JsExtensionSource] Error in parsePageList: ${e.message}")
-            e.printStackTrace()
+            AppLogger.e("JsExtensionSource", "Error in parseChapterList", e)
             emptyList()
         }
     }

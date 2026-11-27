@@ -706,12 +706,6 @@ fun GlobalReaderSettingsScreenContent(
                             checked = keepScreenOn,
                             onCheckedChange = onToggleKeepScreenOn
                         )
-                        SettingsSeparator()
-                        SettingsRow.Navigation(
-                            title = "Tap zones",
-                            value = "Standard",
-                            onClick = { /* Placeholder page */ }
-                        )
                     }
                 }
                 Spacer(modifier = Modifier.height(24.dp))
@@ -1823,16 +1817,14 @@ class AboutSettingsScreen : Screen {
                                 value = "1.0.0 (Dokuha)"
                             )
                             SettingsSeparator()
-                            SettingsRow.Navigation(
+                            SettingsRow.Value(
                                 title = "Open-source licenses",
-                                value = "Apache 2.0",
-                                onClick = { /* View licenses */ }
+                                value = "Apache 2.0"
                             )
                             SettingsSeparator()
-                            SettingsRow.Navigation(
+                            SettingsRow.Value(
                                 title = "Source code",
-                                value = "GitHub",
-                                onClick = { /* External browser stub */ }
+                                value = "GitHub (sujalmallick/Dokuha)"
                             )
                             SettingsSeparator()
                             SettingsRow.Navigation(

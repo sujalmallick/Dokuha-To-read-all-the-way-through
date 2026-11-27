@@ -596,15 +596,6 @@ fun NovelReaderScreenContent(
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 PanelCircleIconButton(
-                    icon = Icons.AutoMirrored.Filled.FormatListBulleted,
-                    size = 40.dp,
-                    iconSize = 20.dp,
-                    tint = themeColors.textColor,
-                    glassState = glassState,
-                    hasDimming = true,
-                    onClick = { /* Table of contents */ }
-                )
-                PanelCircleIconButton(
                     icon = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
                     size = 40.dp,
                     iconSize = 20.dp,

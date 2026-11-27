@@ -222,14 +222,6 @@ fun DownloadsScreenContent(
                         color = TextPrimary,
                         letterSpacing = (-0.5).sp
                     )
-                    PanelCircleIconButton(
-                        icon = Icons.Default.MoreHoriz,
-                        size = 40.dp,
-                        iconSize = 20.dp,
-                        backgroundColor = Color.White.copy(alpha = 0.08f),
-                        borderColor = Color.White.copy(alpha = 0.18f),
-                        onClick = { /* Menu */ }
-                    )
                 }
                 Spacer(modifier = Modifier.height(16.dp))
             }

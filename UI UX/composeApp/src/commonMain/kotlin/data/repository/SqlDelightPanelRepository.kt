@@ -8,6 +8,7 @@ import core.download.DownloadStorage
 import core.extensions.js.ExtensionCatalogItem
 import core.extensions.js.JsExtensionManifest
 import core.extensions.model.InstalledExtensionInfo
+import core.logging.AppLogger
 import core.platform.currentTimeMillis
 import core.source.ComicSource
 import core.source.ContentSource
@@ -295,7 +296,7 @@ class SqlDelightPanelRepository(
                     insertOrUpdateMangaInternal(effectiveFresh, sourceId = matchingDynamic.id, forceFavorite = null)
                     emit(effectiveFresh)
                 } catch (e: Exception) {
-                    println("[SqlDelightPanelRepository] Error getting details for $url from source ${matchingDynamic.name}: ${e.message}")
+                    AppLogger.w("SqlDelightPanelRepository", "Error getting details from source ${matchingDynamic.name}: ${e::class.simpleName}")
                     if (cached == null && fallbackTitle.isBlank()) emit(null)
                 }
             }.flowOn(Dispatchers.Default)
@@ -346,7 +347,7 @@ class SqlDelightPanelRepository(
                     val updated = database.chapterQueries.getChaptersByMangaId(mangaId).executeAsList().map { it.toSourceChapter() }
                     emit(updated)
                 } catch (e: Exception) {
-                    println("[SqlDelightPanelRepository] Error getting chapters for $mangaUrl from source ${matchingDynamic.name}: ${e.message}")
+                    AppLogger.w("SqlDelightPanelRepository", "Error getting chapters from source ${matchingDynamic.name}: ${e::class.simpleName}")
                     if (cached.isEmpty()) emit(emptyList())
                 }
             }.flowOn(Dispatchers.Default)
@@ -374,8 +375,7 @@ class SqlDelightPanelRepository(
                         val pages = try {
                             matching.getPageList(SourceChapter(url = chapterUrl, name = ""))
                         } catch (e: Exception) {
-                            println("[SqlDelightPanelRepository] Exception in getPageList for $chapterUrl: ${e.message}")
-                            e.printStackTrace()
+                            AppLogger.e("SqlDelightPanelRepository", "Exception in getPageList", e)
                             emptyList()
                         }
                         emit(pages)
@@ -828,14 +828,14 @@ class SqlDelightPanelRepository(
                     } else {
                         matchingDynamic.getPopular(page).mangas
                     }
-                    println("[getSourceCatalogue] source $sourceId returned ${pageResult.size} mangas")
+                    AppLogger.d("SqlDelightPanelRepository", "Source $sourceId returned ${pageResult.size} mangas")
                     pageResult.map { manga ->
                         if (manga.sourceId == 0L) manga.copy(sourceId = matchingDynamic.id) else manga
                     }
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    println("[getSourceCatalogue] Error for source $sourceId: ${e.message}")
+                    AppLogger.w("SqlDelightPanelRepository", "Error fetching catalogue for source $sourceId: ${e::class.simpleName}")
                     emptyList()
                 }
                 emit(results)

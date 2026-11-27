@@ -1,5 +1,6 @@
 package ui.screens.glasslab
 
+import core.logging.AppLogger
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -407,7 +408,7 @@ class GlassLabScreen : Screen {
                                         tint = ${if (isDarkTint) "Color.Black" else "Color.White"}.copy(alpha = ${tintAlpha}f)
                                     )
                                 """.trimIndent()
-                                println(logMessage)
+                                AppLogger.d("GlassLabScreen", logMessage)
                             },
                             modifier = Modifier.fillMaxWidth(),
                             shape = CapsuleShape,
