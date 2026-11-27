@@ -1,0 +1,28 @@
+name: Verify SQLDelight Migrations
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify-migrations:
+    name: Verify SQLDelight Migrations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+        working-directory: UI UX
+
+      - name: Verify SQLDelight PanelDatabase Migrations
+        run: ./gradlew :composeApp:verifyCommonMainPanelDatabaseMigration
+        working-directory: UI UX

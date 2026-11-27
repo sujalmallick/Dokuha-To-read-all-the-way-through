@@ -24,7 +24,6 @@ import org.junit.runner.RunWith
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
-import kotlin.test.assertTrue
 
 @RunWith(AndroidJUnit4::class)
 class ReaderPrefsMigrationTest {
@@ -37,12 +36,7 @@ class ReaderPrefsMigrationTest {
         context.deleteDatabase(dbName)
     }
 
-    @Test
-    fun testUpgradeFromV2PreservesExistingDataAndSupportsReaderPrefs() = runBlocking {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        context.deleteDatabase(dbName)
-
-        // 1. Seed a real v2 database (before reader_prefs existed) with existing user data
+    private fun seedV2Database(context: Context) {
         val helper = object : SQLiteOpenHelper(context, dbName, null, 2) {
             override fun onCreate(db: SQLiteDatabase) {
                 db.execSQL(
@@ -130,8 +124,14 @@ class ReaderPrefsMigrationTest {
         }
         helper.writableDatabase.close()
         helper.close()
+    }
 
-        // 2. Open with AndroidSqliteDriver using PanelDatabase.Schema (migrates v2 -> v3 via 2.sqm)
+    @Test
+    fun testUpgradeFromV2PreservesExistingDataAndSupportsReaderPrefs() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.deleteDatabase(dbName)
+        seedV2Database(context)
+
         val driver = AndroidSqliteDriver(PanelDatabase.Schema, context, dbName)
         val db = PanelDatabase(driver)
 
@@ -139,7 +139,6 @@ class ReaderPrefsMigrationTest {
         assertNotNull(migratedManga)
         assertEquals("Solo Leveling", migratedManga.title)
 
-        // 3. Verify SqlDelightReaderPrefsRepository CRUD, clamping, unknown enum safety, and incognito
         val global = PersistentSettingsRepository(InMemoryKeyValueStorage())
         val repo = SqlDelightReaderPrefsRepository(db, global, clock = { 1000L })
         val key = canonicalTitleKey("Solo Leveling", isNovel = false)
@@ -167,14 +166,54 @@ class ReaderPrefsMigrationTest {
         assertEquals(false, loaded.splitDoubleSpread)
         assertEquals(true, loaded.dualPageOffset)
 
-        // Incognito write stays in session overlay and does not overwrite SQLite
+        driver.close()
+    }
+
+    @Test
+    fun testIncognitoWritesNeverReachDb_readsIncludeOverlay_andResetClearsOverlay() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.deleteDatabase(dbName)
+        seedV2Database(context)
+
+        val driver = AndroidSqliteDriver(PanelDatabase.Schema, context, dbName)
+        val db = PanelDatabase(driver)
+        val global = PersistentSettingsRepository(InMemoryKeyValueStorage())
+        val repo = SqlDelightReaderPrefsRepository(db, global, clock = { 1000L })
+        val key = canonicalTitleKey("Solo Leveling", isNovel = false)
+
+        // Seed persisted override while incognito is OFF
+        repo.upsertPrefs(TitleReaderPrefs(titleKey = key, readingMode = DefaultReadingMode.RIGHT_TO_LEFT))
+        assertEquals("RIGHT_TO_LEFT", db.readerPrefsQueries.getByTitleKey(key).executeAsOneOrNull()?.reading_mode)
+
+        // Turn incognito ON: writes stay in session overlay, DB remains unchanged
         global.setIncognitoMode(true)
         repo.updatePrefs(key) { it.copy(readingMode = DefaultReadingMode.VERTICAL) }
+        assertEquals(DefaultReadingMode.VERTICAL, repo.getPrefs(key)?.readingMode)
         assertEquals(DefaultReadingMode.VERTICAL, repo.observePrefs(key).first()?.readingMode)
+        assertEquals("RIGHT_TO_LEFT", db.readerPrefsQueries.getByTitleKey(key).executeAsOneOrNull()?.reading_mode)
+
+        // Reset during incognito clears overlay so reads return null, while DB remains untouched
+        repo.resetPrefs(key)
+        assertNull(repo.getPrefs(key))
+        assertNull(repo.observePrefs(key).first())
+        assertEquals("RIGHT_TO_LEFT", db.readerPrefsQueries.getByTitleKey(key).executeAsOneOrNull()?.reading_mode)
+
+        // Turning incognito OFF restores persisted DB state
         global.setIncognitoMode(false)
         assertEquals(DefaultReadingMode.RIGHT_TO_LEFT, repo.getPrefs(key)?.readingMode)
 
-        // Unknown enum stored in DB safely falls back to null without crashing
+        driver.close()
+    }
+
+    @Test
+    fun testUnknownEnumInDatabaseFallsBackToNull() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.deleteDatabase(dbName)
+        val driver = AndroidSqliteDriver(PanelDatabase.Schema, context, dbName)
+        val db = PanelDatabase(driver)
+        val global = PersistentSettingsRepository(InMemoryKeyValueStorage())
+        val repo = SqlDelightReaderPrefsRepository(db, global)
+
         db.readerPrefsQueries.upsert(
             titleKey = "manga:legacy-unknown",
             readingMode = "OLD_REMOVED_MODE",
@@ -188,18 +227,36 @@ class ReaderPrefsMigrationTest {
             novelLineHeight = 0.2,
             updatedAt = 2000L
         )
+
         val safeLoaded = repo.getPrefs("manga:legacy-unknown")
         assertNotNull(safeLoaded)
         assertNull(safeLoaded.readingMode)
         assertNull(safeLoaded.colorFilter)
+        assertNull(safeLoaded.novelTheme)
+        assertNull(safeLoaded.novelFont)
         assertEquals(0.4f, safeLoaded.sidePadding)
         assertEquals(26f, safeLoaded.novelFontSize)
         assertEquals(1.2f, safeLoaded.novelLineHeight)
 
-        // Reset removes row cleanly
+        driver.close()
+    }
+
+    @Test
+    fun testResetDeletesRowFromDatabase() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.deleteDatabase(dbName)
+        val driver = AndroidSqliteDriver(PanelDatabase.Schema, context, dbName)
+        val db = PanelDatabase(driver)
+        val global = PersistentSettingsRepository(InMemoryKeyValueStorage())
+        val repo = SqlDelightReaderPrefsRepository(db, global)
+        val key = canonicalTitleKey("Omniscient Reader", isNovel = false)
+
+        repo.upsertPrefs(TitleReaderPrefs(titleKey = key, sidePadding = 0.2f))
+        assertNotNull(db.readerPrefsQueries.getByTitleKey(key).executeAsOneOrNull())
+
         repo.resetPrefs(key)
+        assertNull(db.readerPrefsQueries.getByTitleKey(key).executeAsOneOrNull())
         assertNull(repo.getPrefs(key))
-        assertTrue(repo.getAllPrefs().any { it.titleKey == "manga:legacy-unknown" })
 
         driver.close()
     }

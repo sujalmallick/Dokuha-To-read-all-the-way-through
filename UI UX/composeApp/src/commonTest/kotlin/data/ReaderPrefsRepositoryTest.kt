@@ -171,6 +171,16 @@ class ReaderPrefsRepositoryTest {
         assertEquals("manga:全职高手", zh2)
         assertNotEquals(zh1, zh2)
 
+        // NFKC normalization (fullwidth vs halfwidth Latin & Katakana)
+        assertEquals(
+            canonicalTitleKey("Solo Leveling", isNovel = false),
+            canonicalTitleKey("Ｓｏｌｏ　Ｌｅｖｅｌｉｎｇ", isNovel = false)
+        )
+        assertEquals(
+            canonicalTitleKey("ソロ", isNovel = false),
+            canonicalTitleKey("ｿﾛ", isNovel = false)
+        )
+
         // Emoji-only fallback
         val emoji1 = canonicalTitleKey("🔥🚀", isNovel = false)
         val emoji2 = canonicalTitleKey("😭😭", isNovel = false)
