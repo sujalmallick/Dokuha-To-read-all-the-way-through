@@ -31,7 +31,7 @@ internal actual fun liquidElement(
   liquidState: LiquidState,
   block: LiquidScope.() -> Unit,
 ): AbstractLiquidElement<out AbstractLiquidNode> = when {
-  isRuntimeShaderSupported -> LiquidElement(liquidState, block)
+  Build.VERSION.SDK_INT >= 33 && isRuntimeShaderSupported -> LiquidElement(liquidState, block)
   else -> LiquidBackupElement(liquidState, block)
 }
 
