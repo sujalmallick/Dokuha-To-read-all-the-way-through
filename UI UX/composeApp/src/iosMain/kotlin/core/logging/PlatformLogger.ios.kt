@@ -3,6 +3,7 @@ package core.logging
 import kotlinx.cinterop.ExperimentalForeignApi
 import okio.Path
 import okio.Path.Companion.toPath
+import platform.CoreGraphics.CGRectMake
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
@@ -10,6 +11,7 @@ import platform.Foundation.NSURL
 import platform.Foundation.NSUserDomainMask
 import platform.UIKit.UIActivityViewController
 import platform.UIKit.UIApplication
+import platform.UIKit.popoverPresentationController
 
 @OptIn(ExperimentalForeignApi::class)
 actual object PlatformLogger {
@@ -28,7 +30,7 @@ actual object PlatformLogger {
 
         activityViewController.popoverPresentationController?.let { popover ->
             popover.sourceView = rootViewController?.view
-            popover.sourceRect = rootViewController?.view?.bounds ?: platform.CoreGraphics.CGRectZero.readValue()
+            popover.sourceRect = rootViewController?.view?.bounds ?: CGRectMake(0.0, 0.0, 0.0, 0.0)
         }
 
         rootViewController?.presentViewController(activityViewController, animated = true, completion = null)
