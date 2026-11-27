@@ -1,9 +1,6 @@
 package ui.screens.webtoonreader
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,10 +18,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Restore
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -32,6 +28,7 @@ import androidx.compose.material3.SheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,9 +40,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -67,27 +61,20 @@ import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import panelreader.composeapp.generated.resources.Res
-import panelreader.composeapp.generated.resources.reader_cancel
-import panelreader.composeapp.generated.resources.reader_confirm_reset
-import panelreader.composeapp.generated.resources.reader_custom_override_badge
-import panelreader.composeapp.generated.resources.reader_custom_setting_a11y
-import panelreader.composeapp.generated.resources.reader_incognito_temp_notice
-import panelreader.composeapp.generated.resources.reader_reset_to_defaults
-import panelreader.composeapp.generated.resources.reader_scope_all_titles
-import panelreader.composeapp.generated.resources.reader_scope_this_title
+import panelreader.composeapp.generated.resources.reader_global_settings_section
 import panelreader.composeapp.generated.resources.reader_settings_title
-import ui.components.GlassSegmentedControl
+import ui.components.AdaptiveReaderOptionSelector
 import ui.components.PanelSlider
 import ui.components.PanelSwitch
 import ui.components.PanelTab
-import ui.glass.GlassVariant
-import ui.glass.glassDimming
-import ui.glass.glassSurface
+import ui.components.ReaderIncognitoNotice
+import ui.components.ReaderResetOverridesControl
+import ui.components.ReaderScopeToggle
+import ui.components.SettingLabelWithCustomBadge
+import ui.components.adaptiveReaderSheetSurface
 import ui.glass.rememberPanelGlassState
 import ui.theme.CapsuleShape
 import ui.theme.PanelTheme
-import ui.theme.TextPrimary
-import ui.theme.TextSecondary
 
 /**
  * In-place Modal Bottom Sheet for Reader Settings.
@@ -121,7 +108,8 @@ fun ReaderSettingsBottomSheet(
 }
 
 /**
- * Liquid glass card containing all reader setting controls with per-title / global scope.
+ * Liquid glass card containing manga/webtoon reader setting controls with per-title / global scope
+ * and a clearly separated global-only section.
  */
 @Composable
 fun ReaderSettingsSheetCard(
@@ -135,12 +123,23 @@ fun ReaderSettingsSheetCard(
     val prefsRepo = readerPrefsRepository ?: remember { FakeReaderPrefsRepository(repo) }
     val coroutineScope = rememberCoroutineScope()
 
+    // Open on "All titles" by default so users don't create hidden overrides accidentally,
+    // unless the title already has per-title overrides.
     var scope by rememberSaveable(titleKey) {
-        mutableStateOf(
-            if (titleKey != null) ReaderSettingsScope.THIS_TITLE else ReaderSettingsScope.ALL_TITLES
-        )
+        mutableStateOf(ReaderSettingsScope.ALL_TITLES)
     }
+    var hasInitializedScope by rememberSaveable(titleKey) { mutableStateOf(false) }
     var pendingResetConfirm by rememberSaveable(titleKey) { mutableStateOf(false) }
+
+    LaunchedEffect(titleKey, prefsRepo) {
+        if (!hasInitializedScope && titleKey != null) {
+            val initialPrefs = prefsRepo.getPrefs(titleKey)
+            if (initialPrefs?.hasMangaOverrides == true) {
+                scope = ReaderSettingsScope.THIS_TITLE
+            }
+            hasInitializedScope = true
+        }
+    }
 
     val resolvedFlow = remember(titleKey, repo, prefsRepo) {
         val overrideFlow = if (titleKey != null) prefsRepo.observePrefs(titleKey) else flowOf(null)
@@ -176,12 +175,7 @@ fun ReaderSettingsSheetCard(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp)
-            .glassDimming(alpha = 0.30f, shape = sheetShape)
-            .glassSurface(
-                state = glassState,
-                variant = GlassVariant.Regular,
-                shape = sheetShape
-            )
+            .adaptiveReaderSheetSurface(glassState = glassState, shape = sheetShape)
     ) {
         Column(
             modifier = Modifier
@@ -213,59 +207,18 @@ fun ReaderSettingsSheetCard(
             // Scope Switcher ("This title" vs "All titles")
             if (titleKey != null) {
                 Spacer(modifier = Modifier.height(12.dp))
-                val scopeOptions = listOf(
-                    ReaderSettingsScope.THIS_TITLE,
-                    ReaderSettingsScope.ALL_TITLES
-                )
-                val thisTitleLabel = stringResource(Res.string.reader_scope_this_title)
-                val allTitlesLabel = stringResource(Res.string.reader_scope_all_titles)
-                GlassSegmentedControl(
-                    items = scopeOptions,
-                    selectedIndex = scopeOptions.indexOf(scope).coerceAtLeast(0),
-                    onItemSelected = {
-                        scope = scopeOptions[it]
+                ReaderScopeToggle(
+                    scope = scope,
+                    onScopeSelected = { chosen ->
+                        scope = chosen
+                        hasInitializedScope = true
                         pendingResetConfirm = false
-                    },
-                    labelProvider = { item ->
-                        when (item) {
-                            ReaderSettingsScope.THIS_TITLE -> thisTitleLabel
-                            ReaderSettingsScope.ALL_TITLES -> allTitlesLabel
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp)
+                    }
                 )
             }
 
             // Incognito notice when editing per-title settings
-            AnimatedVisibility(visible = isIncognito && isTitleScope) {
-                Column {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.secondaryContainer)
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.VisibilityOff,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = stringResource(Res.string.reader_incognito_temp_notice),
-                            color = MaterialTheme.colorScheme.onSecondaryContainer,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-            }
+            ReaderIncognitoNotice(visible = isIncognito && isTitleScope)
 
             Spacer(modifier = Modifier.height(18.dp))
 
@@ -277,8 +230,7 @@ fun ReaderSettingsSheetCard(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Unified Glass Segmented Control with sliding lens indicator
-            GlassSegmentedControl(
+            AdaptiveReaderOptionSelector(
                 items = readingModes,
                 selectedIndex = readingModes.indexOf(selectedMode).coerceAtLeast(0),
                 onItemSelected = { idx ->
@@ -298,10 +250,7 @@ fun ReaderSettingsSheetCard(
                         DefaultReadingMode.LEFT_TO_RIGHT -> "LTR"
                         DefaultReadingMode.VERTICAL -> "Vertical"
                     }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
+                }
             )
 
             Spacer(modifier = Modifier.height(18.dp))
@@ -315,7 +264,7 @@ fun ReaderSettingsSheetCard(
             Spacer(modifier = Modifier.height(10.dp))
 
             val colorFilters = ReaderColorFilter.entries
-            GlassSegmentedControl(
+            AdaptiveReaderOptionSelector(
                 items = colorFilters,
                 selectedIndex = colorFilters.indexOf(readerColorFilter).coerceAtLeast(0),
                 onItemSelected = { idx ->
@@ -335,83 +284,8 @@ fun ReaderSettingsSheetCard(
                         ReaderColorFilter.SEPIA -> "Sepia"
                         ReaderColorFilter.HIGH_CONTRAST -> "Contrast"
                     }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-            )
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            // Background Page Preloading Buffer (Global)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Background Preload Buffer",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp
-                )
-                Text(
-                    text = "$readerPreloadPages pages ahead",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            val preloadOptions = listOf(2, 4, 6, 10)
-            GlassSegmentedControl(
-                items = preloadOptions,
-                selectedIndex = preloadOptions.indexOf(readerPreloadPages).let { if (it >= 0) it else 2 },
-                onItemSelected = { repo.setReaderPreloadPages(preloadOptions[it]) },
-                labelProvider = { "$it pgs" },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 48.dp)
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Brightness Slider (Global)
-            Column {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.WbSunny,
-                            contentDescription = "Brightness",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Brightness",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                    Text(
-                        text = "${(brightness * 100).toInt()}%",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
                 }
-                PanelSlider(
-                    value = brightness,
-                    onValueChange = { repo.setBrightness(it) },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+            )
 
             Spacer(modifier = Modifier.height(14.dp))
 
@@ -524,6 +398,104 @@ fun ReaderSettingsSheetCard(
                 }
             }
 
+            // Reset to defaults (visible ONLY when the title has active overrides)
+            if (titleKey != null && resolved.hasMangaOverrides) {
+                Spacer(modifier = Modifier.height(16.dp))
+                ReaderResetOverridesControl(
+                    pendingConfirm = pendingResetConfirm,
+                    onRequestReset = { pendingResetConfirm = true },
+                    onCancelReset = { pendingResetConfirm = false },
+                    onConfirmReset = {
+                        pendingResetConfirm = false
+                        coroutineScope.launch {
+                            prefsRepo.resetPrefs(titleKey)
+                        }
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Clearly labeled Global-only section (never follows "This title" toggle)
+            Text(
+                text = stringResource(Res.string.reader_global_settings_section),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Brightness Slider (Global)
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.WbSunny,
+                            contentDescription = "Brightness",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Brightness",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                    Text(
+                        text = "${(brightness * 100).toInt()}%",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                PanelSlider(
+                    value = brightness,
+                    onValueChange = { repo.setBrightness(it) },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Background Page Preloading Buffer (Global)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Background Preload Buffer",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp
+                )
+                Text(
+                    text = "$readerPreloadPages pages ahead",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            val preloadOptions = listOf(2, 4, 6, 10)
+            AdaptiveReaderOptionSelector(
+                items = preloadOptions,
+                selectedIndex = preloadOptions.indexOf(readerPreloadPages).let { if (it >= 0) it else 2 },
+                onItemSelected = { repo.setReaderPreloadPages(preloadOptions[it]) },
+                labelProvider = { "$it pgs" }
+            )
+
             Spacer(modifier = Modifier.height(14.dp))
 
             // Auto-Download Next Chapter Toggle Switch (Global)
@@ -582,132 +554,7 @@ fun ReaderSettingsSheetCard(
                 )
             }
 
-            // Reset to defaults (visible ONLY when the title has active overrides)
-            if (titleKey != null && resolved.hasMangaOverrides) {
-                Spacer(modifier = Modifier.height(16.dp))
-                if (!pendingResetConfirm) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 48.dp)
-                            .clip(CapsuleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
-                            .border(1.dp, MaterialTheme.colorScheme.outline, CapsuleShape)
-                            .clickable(role = Role.Button) { pendingResetConfirm = true }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Restore,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = stringResource(Res.string.reader_reset_to_defaults),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 48.dp)
-                                .clip(CapsuleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .border(1.dp, MaterialTheme.colorScheme.outline, CapsuleShape)
-                                .clickable(role = Role.Button) { pendingResetConfirm = false }
-                                .padding(horizontal = 12.dp, vertical = 12.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = stringResource(Res.string.reader_cancel),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .heightIn(min = 48.dp)
-                                .clip(CapsuleShape)
-                                .background(MaterialTheme.colorScheme.errorContainer)
-                                .clickable(role = Role.Button) {
-                                    pendingResetConfirm = false
-                                    coroutineScope.launch {
-                                        prefsRepo.resetPrefs(titleKey)
-                                    }
-                                }
-                                .padding(horizontal = 12.dp, vertical = 12.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = stringResource(Res.string.reader_confirm_reset),
-                                color = MaterialTheme.colorScheme.onErrorContainer,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-
             Spacer(modifier = Modifier.height(8.dp))
-        }
-    }
-}
-
-@Composable
-private fun SettingLabelWithCustomBadge(
-    label: String,
-    isCustom: Boolean,
-    labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
-    fontSize: Int = 13
-) {
-    val customLabel = stringResource(Res.string.reader_custom_override_badge)
-    val a11yDescription = if (isCustom) {
-        stringResource(Res.string.reader_custom_setting_a11y, label)
-    } else {
-        label
-    }
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.semantics(mergeDescendants = true) {
-            contentDescription = a11yDescription
-        }
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = labelColor,
-            fontSize = fontSize.sp,
-            fontWeight = FontWeight.Medium
-        )
-        if (isCustom) {
-            Spacer(modifier = Modifier.width(8.dp))
-            Box(
-                modifier = Modifier
-                    .clip(CapsuleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer)
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = customLabel,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
         }
     }
 }
