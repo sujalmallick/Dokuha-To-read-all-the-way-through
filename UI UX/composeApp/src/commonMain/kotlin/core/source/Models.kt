@@ -84,12 +84,12 @@ interface NovelSource : ContentSource {
 }
 
 data class StorageInfo(
-    val totalGb: Float = 64f,
-    val usedGb: Float = 2.4f,
-    val mangaMb: Float = 1600f,
-    val manhwaMb: Float = 512f,
-    val novelsMb: Float = 208f,
-    val othersMb: Float = 136f
+    val totalGb: Float = 0f,
+    val usedGb: Float = 0f,
+    val mangaMb: Float = 0f,
+    val manhwaMb: Float = 0f,
+    val novelsMb: Float = 0f,
+    val othersMb: Float = 0f
 )
 
 enum class BrowseSortOrder(val displayName: String) {
