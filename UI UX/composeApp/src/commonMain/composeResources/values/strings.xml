@@ -1,0 +1,5 @@
+<resources>
+    <string name="reader_previous_chapter">Previous Chapter</string>
+    <string name="reader_next_chapter">Next Chapter</string>
+    <string name="reader_tap_to_retry">Tap to Retry</string>
+</resources>
