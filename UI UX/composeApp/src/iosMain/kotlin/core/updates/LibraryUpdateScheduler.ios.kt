@@ -7,8 +7,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import org.koin.core.context.GlobalContext
 import org.koin.core.context.startKoin
+import org.koin.mp.KoinPlatformTools
 import platform.BackgroundTasks.BGAppRefreshTaskRequest
 import platform.BackgroundTasks.BGTaskScheduler
 import platform.Foundation.NSDate
@@ -43,7 +43,7 @@ actual object LibraryUpdateScheduler {
         onSuccess: () -> Unit,
         onFailure: () -> Unit
     ): () -> Unit {
-        val koin = GlobalContext.getOrNull() ?: runCatching {
+        val koin = KoinPlatformTools.defaultContext().getOrNull() ?: runCatching {
             startKoin { modules(appModule) }.koin
         }.getOrNull()
 
