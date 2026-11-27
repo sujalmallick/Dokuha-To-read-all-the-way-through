@@ -96,10 +96,9 @@ class AppLogoAndSplashTest {
 
     @Test
     fun testSplashFormats_rotatesMultipleFormats() {
-        assertEquals(4, SplashFormats.size)
-        assertTrue(SplashFormats.contains("manhua"))
-        assertTrue(SplashFormats.contains("manhwa"))
-        assertTrue(SplashFormats.contains("manga"))
-        assertTrue(SplashFormats.contains("novel"))
+        assertEquals(
+            listOf("manhua", "manhwa", "manga", "comic", "novel"),
+            SplashFormats
+        )
     }
 }

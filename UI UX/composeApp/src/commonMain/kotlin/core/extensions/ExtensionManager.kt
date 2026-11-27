@@ -70,6 +70,9 @@ class ExtensionManager(
     private val _repoUrls = MutableStateFlow<List<String>>(emptyList())
     val repoUrls: StateFlow<List<String>> = _repoUrls.asStateFlow()
 
+    private val _initError = MutableStateFlow<String?>(null)
+    val initError: StateFlow<String?> = _initError.asStateFlow()
+
     private val activeSources = mutableMapOf<String, ContentSource>()
     private val initMutex = Mutex()
     private var isInitialized = false
@@ -98,10 +101,15 @@ class ExtensionManager(
 
     private fun initializeSync() {
         if (isInitialized) return
-        loadRepositories()
-        restoreInstalledExtensions()
-        if (autoSeedDefaults) {
-            seedDefaultsIfEmpty()
+        runCatching {
+            loadRepositories()
+            restoreInstalledExtensions()
+            if (autoSeedDefaults) {
+                seedDefaultsIfEmpty()
+            }
+        }.onFailure { err ->
+            if (err is kotlinx.coroutines.CancellationException) throw err
+            _initError.value = err.message ?: "Failed to restore extensions"
         }
         isInitialized = true
     }

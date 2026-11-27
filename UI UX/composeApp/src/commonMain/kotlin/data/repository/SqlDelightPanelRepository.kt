@@ -33,10 +33,16 @@ import io.panel.reader.db.Chapters
 import io.panel.reader.db.GetContinueReading
 import io.panel.reader.db.Mangas
 import io.panel.reader.db.PanelDatabase
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -65,8 +71,13 @@ class SqlDelightPanelRepository(
     private val _dynamicSources = MutableStateFlow<Map<Long, ContentSource>>(emptyMap())
     val dynamicSources: StateFlow<Map<Long, ContentSource>> = _dynamicSources.asStateFlow()
 
-    init {
-        purgeFakeStarterDataIfPresent()
+    private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val purgeJob: Job = repositoryScope.launch {
+        runCatching { purgeFakeStarterDataIfPresent() }
+    }
+
+    fun close() {
+        repositoryScope.cancel()
     }
 
     private fun purgeFakeStarterDataIfPresent() {
@@ -136,6 +147,7 @@ class SqlDelightPanelRepository(
     override fun getLibrary(category: String): Flow<List<SourceManga>> {
         return database.mangaQueries.getLibrary()
             .asFlow()
+            .onStart { purgeJob.join() }
             .mapToList(Dispatchers.Default)
             .map { list -> list.map { it.toSourceManga() } }
     }
