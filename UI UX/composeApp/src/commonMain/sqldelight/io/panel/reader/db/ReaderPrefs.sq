@@ -1,0 +1,57 @@
+CREATE TABLE reader_prefs (
+    title_key TEXT PRIMARY KEY NOT NULL,
+    reading_mode TEXT,
+    color_filter TEXT,
+    side_padding REAL,
+    split_double_spread INTEGER,
+    dual_page_offset INTEGER,
+    novel_theme TEXT,
+    novel_font TEXT,
+    novel_font_size REAL,
+    novel_line_height REAL,
+    updated_at INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX reader_prefs_updated_at_idx ON reader_prefs(updated_at);
+
+getByTitleKey:
+SELECT *
+FROM reader_prefs
+WHERE title_key = :titleKey
+LIMIT 1;
+
+getAll:
+SELECT *
+FROM reader_prefs
+ORDER BY updated_at DESC;
+
+upsert:
+INSERT OR REPLACE INTO reader_prefs (
+    title_key,
+    reading_mode,
+    color_filter,
+    side_padding,
+    split_double_spread,
+    dual_page_offset,
+    novel_theme,
+    novel_font,
+    novel_font_size,
+    novel_line_height,
+    updated_at
+) VALUES (
+    :titleKey,
+    :readingMode,
+    :colorFilter,
+    :sidePadding,
+    :splitDoubleSpread,
+    :dualPageOffset,
+    :novelTheme,
+    :novelFont,
+    :novelFontSize,
+    :novelLineHeight,
+    :updatedAt
+);
+
+deleteByTitleKey:
+DELETE FROM reader_prefs
+WHERE title_key = :titleKey;

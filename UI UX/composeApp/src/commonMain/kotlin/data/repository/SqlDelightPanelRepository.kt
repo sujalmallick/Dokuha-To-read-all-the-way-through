@@ -5,6 +5,9 @@ import app.cash.sqldelight.coroutines.mapToList
 import app.cash.sqldelight.coroutines.mapToOneOrNull
 import core.download.DownloadManager
 import core.download.DownloadStorage
+import core.extensions.js.ExtensionCatalogItem
+import core.extensions.js.JsExtensionManifest
+import core.extensions.model.InstalledExtensionInfo
 import core.logging.AppLogger
 import core.platform.currentTimeMillis
 import core.source.ComicSource
@@ -23,9 +26,7 @@ import data.mock.HistoryGroup
 import data.mock.HistoryItem
 import data.mock.LibraryMangaStats
 import data.mock.MockDownloadItem
-import data.mock.MockExtension
 import data.mock.MockSourceInfo
-import data.mock.MockStorageInfo
 import data.mock.MockUpdateGroup
 import data.mock.MockUpdateItem
 import data.mock.PanelRepository
@@ -36,6 +37,7 @@ import io.panel.reader.db.Mangas
 import io.panel.reader.db.PanelDatabase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
@@ -48,6 +50,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
@@ -71,6 +74,21 @@ class SqlDelightPanelRepository(
 
     private val _dynamicSources = MutableStateFlow<Map<Long, ContentSource>>(emptyMap())
     val dynamicSources: StateFlow<Map<Long, ContentSource>> = _dynamicSources.asStateFlow()
+
+    private val _installedExtensionsFlow = MutableStateFlow<StateFlow<List<JsExtensionManifest>>?>(null)
+    private val _availableExtensionsFlow = MutableStateFlow<StateFlow<List<ExtensionCatalogItem>>?>(null)
+
+    /**
+     * Post-construction binder to wire [core.extensions.ExtensionManager] flows without
+     * introducing a circular Koin dependency (`PanelRepository <-> ExtensionManager`).
+     */
+    fun bindExtensionFlows(
+        installed: StateFlow<List<JsExtensionManifest>>,
+        available: StateFlow<List<ExtensionCatalogItem>>? = null
+    ) {
+        _installedExtensionsFlow.value = installed
+        _availableExtensionsFlow.value = available
+    }
 
     private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val purgeJob: Job = repositoryScope.launch {
@@ -413,32 +431,28 @@ class SqlDelightPanelRepository(
         return flowOf(counterpart)
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     override fun getTrending(): Flow<List<SourceManga>> {
-        val sources = _dynamicSources.value.values.toList()
-        if (sources.isNotEmpty()) {
-            return flow {
-                val results = mutableListOf<SourceManga>()
-                for (src in sources) {
-                    try {
-                        val popular = src.getPopular(1).mangas.take(5).map { manga ->
-                            if (manga.sourceId == 0L) manga.copy(sourceId = src.id) else manga
+        return _dynamicSources.flatMapLatest { sourceMap ->
+            val sources = sourceMap.values.toList()
+            if (sources.isEmpty()) {
+                flowOf(emptyList())
+            } else {
+                flow {
+                    val results = mutableListOf<SourceManga>()
+                    for (src in sources) {
+                        try {
+                            val popular = src.getPopular(1).mangas.take(5).map { manga ->
+                                if (manga.sourceId == 0L) manga.copy(sourceId = src.id) else manga
+                            }
+                            results.addAll(popular)
+                        } catch (_: Exception) {
                         }
-                        results.addAll(popular)
-                    } catch (_: Exception) {
                     }
-                }
-                if (results.isNotEmpty()) {
                     emit(results.distinctBy { it.url })
-                    return@flow
-                }
-                val local = database.mangaQueries.getLibrary().executeAsList().take(3).map { it.toSourceManga() }
-                emit(local)
+                }.flowOn(Dispatchers.Default)
             }
         }
-        return database.mangaQueries.getLibrary()
-            .asFlow()
-            .mapToList(Dispatchers.Default)
-            .map { list -> list.take(3).map { it.toSourceManga() } }
     }
 
     override fun getSources(): Flow<List<MockSourceInfo>> {
@@ -463,8 +477,45 @@ class SqlDelightPanelRepository(
         }
     }
 
-    override fun getExtensions(): Flow<List<MockExtension>> {
-        return flowOf(emptyList())
+    @OptIn(ExperimentalCoroutinesApi::class)
+    override fun getExtensions(): Flow<List<InstalledExtensionInfo>> {
+        return combine(_installedExtensionsFlow, _availableExtensionsFlow) { installedFlow, availableFlow ->
+            installedFlow to availableFlow
+        }.flatMapLatest { (installedFlow, availableFlow) ->
+            if (installedFlow == null) {
+                flowOf(emptyList())
+            } else if (availableFlow == null) {
+                installedFlow.map { list ->
+                    list.map { inst ->
+                        InstalledExtensionInfo(
+                            id = inst.id,
+                            name = inst.name,
+                            version = inst.version,
+                            lang = inst.lang,
+                            isInstalled = true,
+                            hasUpdate = false,
+                            iconUrl = inst.iconUrl
+                        )
+                    }
+                }
+            } else {
+                combine(installedFlow, availableFlow) { installedList, availableList ->
+                    installedList.map { inst ->
+                        val catalogMatch = availableList.firstOrNull { it.id == inst.id }
+                        val hasUpdate = catalogMatch != null && catalogMatch.version != inst.version
+                        InstalledExtensionInfo(
+                            id = inst.id,
+                            name = inst.name,
+                            version = inst.version,
+                            lang = inst.lang,
+                            isInstalled = true,
+                            hasUpdate = hasUpdate,
+                            iconUrl = inst.iconUrl
+                        )
+                    }
+                }
+            }
+        }
     }
 
     override fun getUpdates(): Flow<List<MockUpdateGroup>> {
@@ -668,8 +719,8 @@ class SqlDelightPanelRepository(
         }
     }
 
-    override fun getStorageInfo(): Flow<MockStorageInfo> {
-        return downloadManager?.storageInfo ?: flowOf(MockStorageInfo())
+    override fun getStorageInfo(): Flow<StorageInfo> {
+        return downloadManager?.storageInfo ?: flowOf(StorageInfo())
     }
 
     override fun enqueueDownload(manga: SourceManga, chapter: SourceChapter) {
@@ -693,10 +744,10 @@ class SqlDelightPanelRepository(
     // ── Backup / Restore ────────────────────────────────────────────────────
 
     override suspend fun exportLibraryJson(): String =
-        BackupEngine.exportJson(this, nowMs = currentTimeMillis())
+        BackupEngine.exportJson(this, nowMs = currentTimeMillis(), readerPrefsRepository = data.settings.SqlDelightReaderPrefsRepository(database, settingsRepository))
 
     override suspend fun importLibraryJson(json: String): Int =
-        BackupEngine.importJson(json, this)
+        BackupEngine.importJson(json, this, readerPrefsRepository = data.settings.SqlDelightReaderPrefsRepository(database, settingsRepository))
 
     override fun searchManga(
         query: String,

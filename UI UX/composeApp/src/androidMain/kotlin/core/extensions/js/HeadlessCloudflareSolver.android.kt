@@ -27,7 +27,7 @@ actual class HeadlessCloudflareSolver(private val context: Context) : HeadlessSo
                     settings.domStorageEnabled = true
                     settings.databaseEnabled = true
                     settings.javaScriptCanOpenWindowsAutomatically = true
-                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
 
                     val defaultUa = WebSettings.getDefaultUserAgent(context)
                     val resolvedUa = if (userAgent.isNotBlank() && userAgent.contains("Android", ignoreCase = true) && !userAgent.startsWith("Dokuha/")) {

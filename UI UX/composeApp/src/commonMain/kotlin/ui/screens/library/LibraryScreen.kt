@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -178,14 +179,29 @@ fun LibraryScreenContent(
     val continueReadingPair by repository.getContinueReading().collectAsState(initial = null)
     val recentlyReadItems by repository.getRecentlyReadManga(limit = 10L).collectAsState(initial = emptyList())
 
-    // 1. Filter library items according to active category
-    val categoryFilteredItems = remember(allLibraryItems, selectedCategory, mappings) {
+    // 1. Filter library items according to active category (supports explicit mappings + smart status fallback)
+    val categoryFilteredItems = remember(allLibraryItems, selectedCategory, mappings, libraryStats) {
         if (selectedCategory == DefaultCategories.ALL) {
             allLibraryItems
         } else {
             allLibraryItems.filter { manga ->
-                val assigned = mappings[manga.url] ?: mappings[manga.title.lowercase().replace(" ", "-")] ?: emptySet()
-                selectedCategory in assigned
+                val assigned = mappings[manga.url]
+                    ?: mappings[manga.title.lowercase().replace(" ", "-")]
+                    ?: emptySet()
+                if (selectedCategory in assigned) {
+                    true
+                } else if (assigned.isNotEmpty()) {
+                    false
+                } else {
+                    val stats = libraryStats[manga.url]
+                    when (selectedCategory) {
+                        DefaultCategories.READING -> stats != null && stats.readChapters > 0 && stats.readChapters < stats.totalChapters
+                        DefaultCategories.PLAN_TO_READ -> stats == null || stats.readChapters == 0
+                        DefaultCategories.COMPLETED -> stats != null && stats.totalChapters > 0 && stats.readChapters >= stats.totalChapters
+                        DefaultCategories.ON_HOLD -> manga.status == core.source.MangaStatus.ON_HIATUS
+                        else -> false
+                    }
+                }
             }
         }
     }
@@ -231,7 +247,7 @@ fun LibraryScreenContent(
     ) {
         // Main scrollable content (glass sampling source)
         LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
+            columns = GridCells.Adaptive(minSize = 112.dp),
             modifier = Modifier
                 .fillMaxSize()
                 .glassSource(glassState),
@@ -245,7 +261,7 @@ fun LibraryScreenContent(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Header Bar
-            item(span = { GridItemSpan(3) }) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(modifier = Modifier.statusBarsPadding()) {
                     if (isSelectionMode) {
                         // BATCH SELECTION MODE HEADER
@@ -446,7 +462,7 @@ fun LibraryScreenContent(
             // Continue Reading Section (Only in non-selection mode)
             if (!isSelectionMode) {
                 if (recentlyReadItems.size > 1) {
-                    item(span = { GridItemSpan(3) }) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
                         Column(modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -490,7 +506,7 @@ fun LibraryScreenContent(
                     val realProgress = if (mangaStats != null && mangaStats.totalChapters > 0) {
                         (mangaStats.readChapters.toFloat() / mangaStats.totalChapters.toFloat()).coerceIn(0.02f, 1f)
                     } else 0.05f
-                    item(span = { GridItemSpan(3) }) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
                         Column(modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)) {
                             Text(
                                 text = "Continue Reading",
@@ -518,7 +534,7 @@ fun LibraryScreenContent(
                             (mangaStats.readChapters.toFloat() / mangaStats.totalChapters.toFloat()).coerceIn(0.02f, 1f)
                         } else 0f
                         val pctText = "${(realProgress * 100).toInt()}%"
-                        item(span = { GridItemSpan(3) }) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
                             Column(modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)) {
                                 Text(
                                     text = "Continue Reading",
@@ -543,7 +559,7 @@ fun LibraryScreenContent(
 
             // Empty Library / Filter State
             if (filteredLibraryItems.isEmpty() && (isSelectionMode || recentlyReadItems.isEmpty())) {
-                item(span = { GridItemSpan(3) }) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -602,21 +618,21 @@ fun LibraryScreenContent(
                 }
             }
 
-            // Library Grid Items (3 columns)
+            // Library Grid Items (responsive adaptive columns)
             itemsIndexed(filteredLibraryItems, key = { _, manga -> manga.url }) { index, manga ->
-                val chapterSubtitle = when (manga.title) {
-                    "Solo Leveling" -> "Ch. 179"
-                    "Aurora Blade" -> "Ch. 24"
-                    "Wind Beneath" -> "Ch. 102"
-                    "Shadow Crown" -> "Ch. 86"
-                    "Neon Requiem" -> "Ch. 47"
-                    "Frostbound" -> "Ch. 12"
-                    else -> "Ch. 1"
-                }
-
                 val isSelected = manga.url in selectedMangaUrls
                 val stats = libraryStats[manga.url]
                 val unread = if (stats != null) (stats.totalChapters - stats.readChapters).coerceAtLeast(0) else null
+                val progressFraction = if (stats != null && stats.totalChapters > 0) {
+                    (stats.readChapters.toFloat() / stats.totalChapters.toFloat()).coerceIn(0f, 1f)
+                } else null
+                val chapterSubtitle = when {
+                    stats != null && stats.totalChapters > 0 && stats.readChapters > 0 ->
+                        "${stats.readChapters}/${stats.totalChapters} ch · ${(progressFraction!! * 100).toInt()}%"
+                    stats != null && stats.totalChapters > 0 ->
+                        "${stats.totalChapters} chapters"
+                    else -> "Unread"
+                }
 
                 MangaCoverCard(
                     title = manga.title,
@@ -627,6 +643,7 @@ fun LibraryScreenContent(
                     isSelectionMode = isSelectionMode,
                     unreadCount = unread,
                     showUnreadBadge = showUnreadCount,
+                    progress = progressFraction,
                     onClick = {
                         if (isSelectionMode) {
                             selectedMangaUrls = if (isSelected) {
@@ -750,41 +767,46 @@ private fun BatchActionBar(
 
     Box(
         modifier = modifier
+            .widthIn(max = 560.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(Color(0xF0111522))
-            .border(1.dp, GlassBorderStrong, RoundedCornerShape(22.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xF5111522))
+            .border(1.dp, GlassBorderStrong, RoundedCornerShape(20.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceAround,
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
             BatchActionButton(
                 icon = Icons.AutoMirrored.Filled.DriveFileMove,
                 label = "Move",
                 enabled = hasSelection,
-                onClick = onMove
+                onClick = onMove,
+                modifier = Modifier.weight(1f)
             )
             BatchActionButton(
                 icon = Icons.Default.DoneAll,
                 label = "Mark Read",
                 enabled = hasSelection,
-                onClick = onMarkRead
+                onClick = onMarkRead,
+                modifier = Modifier.weight(1f)
             )
             BatchActionButton(
                 icon = Icons.Default.Download,
                 label = "Download",
                 enabled = hasSelection,
-                onClick = onDownload
+                onClick = onDownload,
+                modifier = Modifier.weight(1f)
             )
             BatchActionButton(
                 icon = Icons.Default.Delete,
                 label = "Remove",
                 enabled = hasSelection,
                 contentColor = Color(0xFFEF4444),
-                onClick = onRemove
+                onClick = onRemove,
+                modifier = Modifier.weight(1f)
             )
         }
     }
@@ -796,16 +818,17 @@ private fun BatchActionButton(
     label: String,
     enabled: Boolean,
     contentColor: Color = Color.White,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val color = if (enabled) contentColor else Color.White.copy(alpha = 0.25f)
+    val color = if (enabled) contentColor else Color.White.copy(alpha = 0.35f)
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .clip(RoundedCornerShape(12.dp))
             .clickable(enabled = enabled, interactionSource = interaction, indication = null, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 4.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
@@ -814,12 +837,14 @@ private fun BatchActionButton(
             tint = color,
             modifier = Modifier.size(20.dp)
         )
-        Spacer(modifier = Modifier.height(3.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = label,
             color = color,
             fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
     }
 }

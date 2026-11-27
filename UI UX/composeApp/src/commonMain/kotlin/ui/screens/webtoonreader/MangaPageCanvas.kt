@@ -231,8 +231,8 @@ fun MangaPageCanvas(
 }
 
 internal fun computeReaderDecodeSize(
-    maxWidthPx: Int = 1440,
-    maxHeightPx: Int = 2880
+    maxWidthPx: Int = 2048,
+    maxHeightPx: Int = 4096
 ): Size = Size(maxWidthPx.coerceIn(320, 2048), maxHeightPx.coerceIn(480, 4096))
 
 internal fun formatImageLoadError(url: String?, throwableMessage: String?): String {

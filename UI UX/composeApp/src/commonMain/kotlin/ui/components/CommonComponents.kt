@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -302,6 +303,7 @@ fun MangaCoverCard(
     isSelectionMode: Boolean = false,
     unreadCount: Int? = null,
     showUnreadBadge: Boolean = true,
+    progress: Float? = null,
     onLongClick: (() -> Unit)? = null
 ) {
     val clickModifier = if (onLongClick != null) {
@@ -416,6 +418,23 @@ fun MangaCoverCard(
                     )
                 }
             }
+
+            if (progress != null && progress > 0f) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .height(3.dp)
+                        .background(Color.Black.copy(alpha = 0.45f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(progress.coerceIn(0f, 1f))
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+                }
+            }
         }
         Spacer(modifier = Modifier.height(6.dp))
         Text(
@@ -424,14 +443,20 @@ fun MangaCoverCard(
             fontSize = 13.sp,
             color = TextPrimary,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 2.dp)
         )
         Text(
             text = subtitle,
             style = MaterialTheme.typography.labelSmall,
             color = TextSecondary,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 2.dp)
         )
     }
 }
@@ -1449,33 +1474,18 @@ fun HistoryItemCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    if (!progressText.isNullOrBlank()) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xFF1E88E5).copy(alpha = 0.22f))
-                                .border(0.5.dp, Color(0xFF1E88E5).copy(alpha = 0.45f), RoundedCornerShape(6.dp))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = progressText,
-                                color = Color(0xFF90CAF9),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                    if (timeText.isNotBlank()) {
-                        Text(
-                            text = timeText,
-                            fontSize = 11.sp,
-                            color = TextSecondary.copy(alpha = 0.75f)
-                        )
-                    }
+                val metaText = listOfNotNull(
+                    progressText?.takeIf { it.isNotBlank() },
+                    timeText.takeIf { it.isNotBlank() }
+                ).joinToString(" · ")
+                if (metaText.isNotBlank()) {
+                    Text(
+                        text = metaText,
+                        fontSize = 12.sp,
+                        color = TextSecondary.copy(alpha = 0.78f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
 

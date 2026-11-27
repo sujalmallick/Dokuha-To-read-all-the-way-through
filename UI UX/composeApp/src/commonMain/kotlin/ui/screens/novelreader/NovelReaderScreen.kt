@@ -51,7 +51,10 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import core.platform.PlatformTts
@@ -68,10 +71,18 @@ import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
 import core.source.NovelContent
 import data.mock.PanelRepository
+import data.settings.FakeReaderPrefsRepository
 import data.settings.FakeSettingsRepository
 import data.settings.NovelFont
 import data.settings.NovelReaderTheme
+import data.settings.ReaderPrefsRepository
+import data.settings.ReaderSettingsScope
 import data.settings.SettingsRepository
+import data.settings.canonicalTitleKey
+import data.settings.observeResolvedNovelSettings
+import data.settings.resolveReaderSettings
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.PanelCircleIconButton
@@ -142,6 +153,9 @@ data class NovelReaderScreen(
         val navigator = LocalNavigator.currentOrThrow
         val repository: PanelRepository = koinInject()
         val settingsRepository: SettingsRepository = koinInject()
+        val keepScreenOn by settingsRepository.keepScreenOn.collectAsState()
+        core.platform.KeepScreenOnEffect(keepScreenOn)
+        val readerPrefsRepository: ReaderPrefsRepository = koinInject()
         val volumeKeyState = ui.volume.LocalVolumeKeyState.current
 
         androidx.compose.runtime.DisposableEffect(volumeKeyState) {
@@ -149,13 +163,19 @@ data class NovelReaderScreen(
             onDispose { volumeKeyState.isReaderActive.value = false }
         }
 
-        var currentChapterUrl by remember(chapterUrl) { mutableStateOf(chapterUrl) }
-        var currentChapterNumber by remember(chapterNumber) { mutableStateOf(chapterNumber) }
-        var currentChapterTitle by remember(chapterTitle) { mutableStateOf(chapterTitle) }
+        var currentChapterUrl by rememberSaveable(chapterUrl) { mutableStateOf(chapterUrl) }
+        var currentChapterNumber by rememberSaveable(chapterNumber) { mutableStateOf(chapterNumber) }
+        var currentChapterTitle by rememberSaveable(chapterTitle) { mutableStateOf(chapterTitle) }
         var refreshTrigger by remember { mutableStateOf(0) }
 
         val targetMangaUrl = remember(mangaUrl, currentChapterUrl) {
             mangaUrl ?: if (currentChapterUrl.contains("/")) currentChapterUrl.substringBeforeLast("/") else ""
+        }
+        val mangaDetails by remember(targetMangaUrl, sourceId) {
+            repository.getMangaDetails(targetMangaUrl, sourceId)
+        }.collectAsState(initial = null)
+        val resolvedTitleKey = remember(mangaDetails?.title, targetMangaUrl) {
+            canonicalTitleKey(mangaDetails?.title ?: targetMangaUrl, isNovel = true)
         }
         val chapters by repository.getChapters(targetMangaUrl, sourceId).collectAsState(initial = emptyList())
         var isLoading by remember(currentChapterUrl, refreshTrigger) { mutableStateOf(true) }
@@ -203,6 +223,8 @@ data class NovelReaderScreen(
             chapterTitle = currentChapterTitle,
             novelContent = novelContent,
             settingsRepository = settingsRepository,
+            titleKey = resolvedTitleKey,
+            readerPrefsRepository = readerPrefsRepository,
             onBack = { navigator.pop() },
             onPreviousChapter = {
                 if (chapters.isNotEmpty() && currentChapterIndex in 0 until chapters.lastIndex) {
@@ -232,6 +254,7 @@ data class NovelReaderScreen(
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun NovelReaderScreenContent(
     chapterNumber: String,
@@ -239,6 +262,8 @@ fun NovelReaderScreenContent(
     novelContent: NovelContent?,
     onBack: () -> Unit,
     settingsRepository: SettingsRepository? = null,
+    titleKey: String? = null,
+    readerPrefsRepository: ReaderPrefsRepository? = null,
     onPreviousChapter: () -> Unit = {},
     onNextChapter: () -> Unit = {},
     hasPreviousChapter: Boolean = true,
@@ -249,11 +274,36 @@ fun NovelReaderScreenContent(
 ) {
     val glassState = rememberPanelGlassState()
     val repo = settingsRepository ?: remember { FakeSettingsRepository() }
+    val prefsRepo = readerPrefsRepository ?: remember { FakeReaderPrefsRepository(repo) }
+    val uiScope = rememberCoroutineScope()
 
-    val selectedTheme by repo.novelTheme.collectAsState()
-    val novelFont by repo.novelFont.collectAsState()
-    val fontSize by repo.novelFontSize.collectAsState()
-    val lineHeightMultiplier by repo.novelLineHeight.collectAsState()
+    var isSettingsOpen by rememberSaveable { mutableStateOf(false) }
+    var settingsScope by rememberSaveable(titleKey) {
+        mutableStateOf(ReaderSettingsScope.ALL_TITLES)
+    }
+    var hasInitializedScope by rememberSaveable(titleKey) { mutableStateOf(false) }
+
+    LaunchedEffect(titleKey, prefsRepo) {
+        if (!hasInitializedScope && titleKey != null) {
+            val initialPrefs = prefsRepo.getPrefs(titleKey)
+            if (initialPrefs?.hasNovelOverrides == true) {
+                settingsScope = ReaderSettingsScope.THIS_TITLE
+            }
+            hasInitializedScope = true
+        }
+    }
+
+    val resolvedNovel by remember(titleKey, repo, prefsRepo) {
+        val overrideFlow = if (titleKey != null) prefsRepo.observePrefs(titleKey) else flowOf(null)
+        observeResolvedNovelSettings(titleKey ?: "", repo, overrideFlow)
+    }.collectAsState(initial = resolveReaderSettings(titleKey ?: "", repo, null))
+
+    val isTitleScope = titleKey != null && settingsScope == ReaderSettingsScope.THIS_TITLE
+
+    val selectedTheme = resolvedNovel.novelTheme
+    val novelFont = resolvedNovel.novelFont
+    val fontSize = resolvedNovel.novelFontSize
+    val lineHeightMultiplier = resolvedNovel.novelLineHeight
 
     val themeColors = remember(selectedTheme) { selectedTheme.toColors() }
     val fontFamily = remember(novelFont) { novelFont.toFontFamily() }
@@ -265,6 +315,9 @@ fun NovelReaderScreenContent(
     var ttsSpeed by remember { mutableFloatStateOf(1.0f) }
     var isBookmarked by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    var savedScrollIndex by rememberSaveable(chapterTitle) { mutableIntStateOf(0) }
+    var savedScrollOffset by rememberSaveable(chapterTitle) { mutableIntStateOf(0) }
+    var restoredChapterScroll by remember(chapterTitle) { mutableStateOf(false) }
 
     val parsedParagraphs: List<String> = remember(novelContent) {
         novelContent?.plainText
@@ -272,6 +325,29 @@ fun NovelReaderScreenContent(
             ?.map { it.trim() }
             ?.filter { it.isNotEmpty() }
             ?: emptyList()
+    }
+
+    LaunchedEffect(parsedParagraphs.size) {
+        if (!restoredChapterScroll && parsedParagraphs.isNotEmpty()) {
+            restoredChapterScroll = true
+            if (savedScrollIndex > 0) {
+                listState.scrollToItem(
+                    savedScrollIndex.coerceAtMost(parsedParagraphs.size),
+                    savedScrollOffset
+                )
+            }
+        }
+    }
+
+    LaunchedEffect(listState, parsedParagraphs.isNotEmpty()) {
+        if (parsedParagraphs.isNotEmpty()) {
+            snapshotFlow {
+                listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+            }.collect { (index, offset) ->
+                savedScrollIndex = index
+                savedScrollOffset = offset
+            }
+        }
     }
 
     // Auto-scroll to currently spoken paragraph
@@ -528,6 +604,15 @@ fun NovelReaderScreenContent(
                     hasDimming = true,
                     onClick = { isBookmarked = !isBookmarked }
                 )
+                PanelCircleIconButton(
+                    icon = Icons.Default.MoreVert,
+                    size = 40.dp,
+                    iconSize = 20.dp,
+                    tint = themeColors.textColor,
+                    glassState = glassState,
+                    hasDimming = true,
+                    onClick = { isSettingsOpen = true }
+                )
             }
         }
 
@@ -580,7 +665,13 @@ fun NovelReaderScreenContent(
                                     fontSize < 21f -> 22f
                                     else -> 14f
                                 }
-                                repo.setNovelFontSize(nextSize)
+                                if (isTitleScope) {
+                                    uiScope.launch {
+                                        prefsRepo.updatePrefs(titleKey) { it.copy(novelFontSize = nextSize) }
+                                    }
+                                } else {
+                                    repo.setNovelFontSize(nextSize)
+                                }
                             }
                         )
                         .padding(horizontal = 8.dp, vertical = 6.dp),
@@ -618,7 +709,15 @@ fun NovelReaderScreenContent(
                                 .clickable(
                                     interactionSource = dotInteraction,
                                     indication = null,
-                                    onClick = { repo.setNovelTheme(theme) }
+                                    onClick = {
+                                        if (isTitleScope) {
+                                            uiScope.launch {
+                                                prefsRepo.updatePrefs(titleKey) { it.copy(novelTheme = theme) }
+                                            }
+                                        } else {
+                                            repo.setNovelTheme(theme)
+                                        }
+                                    }
                                 )
                         )
                     }
@@ -755,6 +854,20 @@ fun NovelReaderScreenContent(
                     isListening = false
                     tts.stop()
                     currentSpeakingIndex = -1
+                }
+            )
+        }
+
+        if (isSettingsOpen) {
+            NovelSettingsBottomSheet(
+                onDismiss = { isSettingsOpen = false },
+                settingsRepository = repo,
+                titleKey = titleKey,
+                readerPrefsRepository = prefsRepo,
+                scope = settingsScope,
+                onScopeChanged = { chosen ->
+                    settingsScope = chosen
+                    hasInitializedScope = true
                 }
             )
         }

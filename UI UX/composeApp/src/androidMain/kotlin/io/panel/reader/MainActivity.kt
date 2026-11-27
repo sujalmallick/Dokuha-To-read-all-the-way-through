@@ -1,5 +1,6 @@
 package io.panel.reader
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Bundle
 import android.view.KeyEvent
@@ -25,6 +26,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -47,10 +49,11 @@ class MainActivity : ComponentActivity() {
     private val settingsRepository: SettingsRepository by inject()
 
     // Shared mutable state so the reader composable can subscribe to volume key events
-    internal val volumeUpEvents = mutableStateOf(0)
-    internal val volumeDownEvents = mutableStateOf(0)
+    internal val volumeUpEvents = mutableIntStateOf(0)
+    internal val volumeDownEvents = mutableIntStateOf(0)
     internal val isReaderActive = mutableStateOf(false)
 
+    @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.action == KeyEvent.ACTION_DOWN &&
             isReaderActive.value &&
