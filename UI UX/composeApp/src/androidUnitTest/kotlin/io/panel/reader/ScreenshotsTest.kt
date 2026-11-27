@@ -776,4 +776,55 @@ class ScreenshotsTest {
         }
         composeTestRule.onRoot().captureRoboImage("screenshots/25_webtoon_reader_narrow_320dp.png")
     }
+
+    @Test
+    @Config(qualifiers = "w1024dp-h768dp-xhdpi")
+    fun capture_30_reader_rtl_tablet_landscape() {
+        val pages = runBlocking { repository.getPages("").first() }
+        val mangaSettingsRepo = FakeSettingsRepository().apply {
+            setDefaultReadingMode(DefaultReadingMode.RIGHT_TO_LEFT)
+        }
+
+        composeTestRule.setContent {
+            PanelTheme(themeMode = ThemeMode.DARK) {
+                WebtoonReaderScreenContent(
+                    chapterTitle = "Chapter 142: Tablet Dual-Page RTL",
+                    pages = pages,
+                    settingsRepository = mangaSettingsRepo,
+                    hasPreviousChapter = true,
+                    hasNextChapter = true,
+                    onBack = {}
+                )
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/30_reader_rtl_tablet_landscape.png")
+    }
+
+    @Test
+    @Config(qualifiers = "w320dp-h640dp-xhdpi")
+    fun capture_31_reader_minimal_glass_font20() {
+        val pages = runBlocking { repository.getPages("").first() }
+        val mangaSettingsRepo = FakeSettingsRepository().apply {
+            setDefaultReadingMode(DefaultReadingMode.LEFT_TO_RIGHT)
+        }
+
+        composeTestRule.setContent {
+            val baseDensity = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(density = baseDensity.density, fontScale = 2.0f)
+            ) {
+                PanelTheme(themeMode = ThemeMode.DARK) {
+                    WebtoonReaderScreenContent(
+                        chapterTitle = "Chapter 142: The Sovereign of Eternal Shadows",
+                        pages = pages,
+                        settingsRepository = mangaSettingsRepo,
+                        hasPreviousChapter = false,
+                        hasNextChapter = true,
+                        onBack = {}
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/31_reader_minimal_glass_font20.png")
+    }
 }
