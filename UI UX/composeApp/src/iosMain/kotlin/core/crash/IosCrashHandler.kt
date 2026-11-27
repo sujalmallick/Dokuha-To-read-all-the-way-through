@@ -14,7 +14,7 @@ import platform.UIKit.UIApplication
 import platform.UIKit.UIPasteboard
 import platform.UIKit.popoverPresentationController
 import kotlin.experimental.ExperimentalNativeApi
-import kotlin.native.concurrent.ObsoleteWorkersApi
+import kotlin.native.setUnhandledExceptionHook
 
 /**
  * Installs a Kotlin/Native unhandled exception hook that persists crash traces
@@ -26,35 +26,46 @@ object IosCrashHandler {
     private const val CRASH_FILE_NAME = "dokuha_last_crash.txt"
     private val fs = FileSystem.SYSTEM
     private var hookInstalled = false
+    private var cachedCrashPath: Path? = null
 
-    private fun crashFilePath(): Path {
+    private fun resolveCrashFilePath(): Path {
+        cachedCrashPath?.let { return it }
         val docsUrl = NSFileManager.defaultManager.URLsForDirectory(
             NSDocumentDirectory,
             NSUserDomainMask
         ).firstOrNull() as? NSURL
         val basePath = docsUrl?.path ?: "/tmp"
-        return "$basePath/$CRASH_FILE_NAME".toPath()
+        return "$basePath/$CRASH_FILE_NAME".toPath().also { cachedCrashPath = it }
     }
 
     fun install() {
         if (hookInstalled) return
         hookInstalled = true
-        val previousHook = kotlin.native.getUnhandledExceptionHook()
-        setUnhandledExceptionHook { throwable ->
-            runCatching {
-                val trace = buildString {
-                    appendLine("${throwable::class.simpleName ?: "Throwable"}: ${throwable.message ?: ""}")
-                    appendLine(throwable.stackTraceToString())
+        val targetPath = runCatching { resolveCrashFilePath() }.getOrNull()
+        var previousHook: ((Throwable) -> Unit)? = null
+        previousHook = setUnhandledExceptionHook { throwable ->
+            try {
+                if (targetPath != null) {
+                    val trace = buildString {
+                        append(throwable::class.simpleName ?: "Throwable")
+                        append(": ")
+                        appendLine(throwable.message ?: "")
+                        append(throwable.stackTraceToString())
+                    }
+                    fs.write(targetPath) { writeUtf8(trace) }
                 }
-                val path = crashFilePath()
-                fs.write(path) { writeUtf8(trace) }
+            } catch (_: Throwable) {
+                // Swallow all errors inside crash hook
             }
-            previousHook?.invoke(throwable)
+            try {
+                previousHook?.invoke(throwable)
+            } catch (_: Throwable) {
+            }
         }
     }
 
     fun readLastCrash(): String? {
-        val path = crashFilePath()
+        val path = runCatching { resolveCrashFilePath() }.getOrNull() ?: return null
         if (!fs.exists(path)) return null
         return runCatching {
             fs.read(path) { readUtf8() }.takeIf { it.isNotBlank() }
@@ -62,7 +73,7 @@ object IosCrashHandler {
     }
 
     fun clearLastCrash() {
-        val path = crashFilePath()
+        val path = runCatching { resolveCrashFilePath() }.getOrNull() ?: return
         runCatching {
             if (fs.exists(path)) fs.delete(path)
         }

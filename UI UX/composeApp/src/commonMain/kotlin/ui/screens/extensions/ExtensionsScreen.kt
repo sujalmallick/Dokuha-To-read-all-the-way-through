@@ -120,6 +120,7 @@ class ExtensionsScreen : Screen {
         val installedExts by extensionManager.installedExtensions.collectAsState(initial = emptyList())
         val availableCatalog by extensionManager.availableExtensions.collectAsState(initial = emptyList())
         val extensionVariants by extensionManager.extensionVariants.collectAsState(initial = emptyMap())
+        val initError by extensionManager.initError.collectAsState()
         val fallbackMockExtensions by repository.extensions.collectAsState(initial = emptyList())
 
         // Map live ExtensionManager data to upstream ExtensionItem models
@@ -234,6 +235,7 @@ class ExtensionsScreen : Screen {
         ExtensionsScreenContent(
             extensions = effectiveExtensions,
             extensionRepository = repository,
+            initError = initError,
             onInstall = { ext ->
                 val key = "${ext.name.lowercase().trim()}::${ext.lang.lowercase().trim()}"
                 val variants = extensionVariants[key] ?: emptyList()
@@ -315,6 +317,7 @@ class ExtensionsScreen : Screen {
 fun ExtensionsScreenContent(
     extensions: List<ExtensionItem> = emptyList(),
     extensionRepository: ExtensionRepository? = null,
+    initError: String? = null,
     onTabSelected: (PanelTab) -> Unit = {},
     onInstall: (ExtensionItem) -> Unit = {},
     onUpdate: (ExtensionItem) -> Unit = {},
@@ -428,6 +431,23 @@ fun ExtensionsScreenContent(
             // Header Bar
             item {
                 Column(modifier = Modifier.statusBarsPadding()) {
+                    if (!initError.isNullOrBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 10.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFEF4444).copy(alpha = 0.16f))
+                                .border(1.dp, Color(0xFFEF4444).copy(alpha = 0.4f), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = "Extension restore warning: $initError",
+                                color = Color(0xFFFCA5A5),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,

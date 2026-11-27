@@ -108,6 +108,7 @@ class ExtensionManager(
                 seedDefaultsIfEmpty()
             }
         }.onFailure { err ->
+            if (err is kotlinx.coroutines.CancellationException) throw err
             _initError.value = err.message ?: "Failed to restore extensions"
         }
         isInitialized = true
