@@ -35,7 +35,7 @@ actual fun ChallengeWebView(
                 settings.domStorageEnabled = true
                 settings.databaseEnabled = true
                 settings.javaScriptCanOpenWindowsAutomatically = true
-                settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
 
                 val defaultUa = WebSettings.getDefaultUserAgent(context)
                 // On Android, always ensure a mobile Android User-Agent is used to prevent

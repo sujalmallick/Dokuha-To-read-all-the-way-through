@@ -154,6 +154,8 @@ data class WebtoonReaderScreen(
         val navigator = LocalNavigator.currentOrThrow
         val repository: PanelRepository = koinInject()
         val settingsRepository: SettingsRepository = koinInject()
+        val keepScreenOn by settingsRepository.keepScreenOn.collectAsState()
+        core.platform.KeepScreenOnEffect(keepScreenOn)
         val downloadManager: DownloadManager = koinInject()
         val volumeKeyState = ui.volume.LocalVolumeKeyState.current
 
