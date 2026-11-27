@@ -616,7 +616,7 @@ fun BrowseScreenContent(
                     }
                 }
 
-                // Trending Now Section Header (Only if there are trending titles)
+                // Trending Now Section
                 if (trending.isNotEmpty()) {
                     item {
                         Spacer(modifier = Modifier.height(16.dp))
@@ -652,6 +652,32 @@ fun BrowseScreenContent(
                                     modifier = Modifier.weight(1f)
                                 )
                             }
+                        }
+                    }
+                } else if (sources.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Trending Now",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color.White.copy(alpha = 0.05f))
+                                .border(1.dp, GlassBorder, RoundedCornerShape(16.dp))
+                                .padding(20.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No trending titles available from installed sources",
+                                fontSize = 13.sp,
+                                color = TextSecondary
+                            )
                         }
                     }
                 }

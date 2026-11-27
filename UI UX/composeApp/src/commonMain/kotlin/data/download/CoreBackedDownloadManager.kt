@@ -4,10 +4,10 @@ import core.download.DownloadManager as CoreDownloadManager
 import core.download.DownloadStorage
 import core.source.SourceChapter
 import core.source.SourceManga
+import core.source.StorageInfo
 import core.storage.KeyValueStorage
 import core.storage.StorageProvider
 import data.mock.MockDownloadItem
-import data.mock.MockStorageInfo
 import data.mock.PanelRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -52,8 +52,8 @@ class CoreBackedDownloadManager(
     private val _completedDownloads = MutableStateFlow(loadPersistedCompleted())
     override val completedDownloads: StateFlow<List<DownloadJob>> = _completedDownloads.asStateFlow()
 
-    private val _storageInfo = MutableStateFlow(computeStorageInfo())
-    override val storageInfo: StateFlow<MockStorageInfo> = _storageInfo.asStateFlow()
+    private val _storageInfo = MutableStateFlow(StorageInfo())
+    override val storageInfo: StateFlow<StorageInfo> = _storageInfo.asStateFlow()
 
     override val queue: StateFlow<List<DownloadJob>> = coreDownloadManager.queue
         .map { items ->
@@ -62,6 +62,7 @@ class CoreBackedDownloadManager(
         .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     init {
+        refreshStorageInfo()
         scope.launch {
             var previousItems = emptyMap<String, core.download.DownloadJob>()
             coreDownloadManager.queue.collect { currentItems ->
@@ -156,6 +157,7 @@ class CoreBackedDownloadManager(
     override fun clearCompleted() {
         _completedDownloads.value = emptyList()
         persistCompleted(emptyList())
+        refreshStorageInfo()
     }
 
     override fun deleteDownloadedChapter(mangaUrl: String, chapterUrl: String) {
@@ -184,7 +186,9 @@ class CoreBackedDownloadManager(
     }
 
     fun refreshStorageInfo() {
-        _storageInfo.value = computeStorageInfo()
+        scope.launch {
+            _storageInfo.value = computeStorageInfo()
+        }
     }
 
     private fun loadPersistedCompleted(): List<DownloadJob> {
@@ -222,25 +226,40 @@ class CoreBackedDownloadManager(
         }
     }
 
-    private fun computeStorageInfo(): MockStorageInfo {
+    private fun computeStorageInfo(): StorageInfo {
         val stats = storageProvider?.getStorageStats()
         if (stats != null && stats.totalBytes > 0L) {
             val bytesPerGb = 1024f * 1024f * 1024f
             val bytesPerMb = 1024f * 1024f
+            val totalUsedBytes = (stats.totalBytes - stats.freeBytes).coerceAtLeast(0L)
             val totalGb = stats.totalBytes / bytesPerGb
-            val usedGb = (stats.totalBytes - stats.freeBytes).coerceAtLeast(0L) / bytesPerGb
+            val usedGb = totalUsedBytes / bytesPerGb
             val appMb = stats.appDownloadsBytes / bytesPerMb
-            return MockStorageInfo(
+            val otherUsedMb = ((totalUsedBytes - stats.appDownloadsBytes).coerceAtLeast(0L)) / bytesPerMb
+
+            val completed = _completedDownloads.value
+            val novelTrackedBytes = completed.filter { it.manga.isNovel }.sumOf { it.totalBytes.coerceAtLeast(0L) }
+            val mangaTrackedBytes = completed.filter { !it.manga.isNovel }.sumOf { it.totalBytes.coerceAtLeast(0L) }
+            val trackedTotal = novelTrackedBytes + mangaTrackedBytes
+
+            val (mangaMb, novelsMb) = if (trackedTotal > 0L) {
+                val mangaRatio = mangaTrackedBytes.toFloat() / trackedTotal.toFloat()
+                (appMb * mangaRatio) to (appMb * (1f - mangaRatio))
+            } else {
+                appMb to 0f
+            }
+
+            return StorageInfo(
                 totalGb = totalGb,
                 usedGb = usedGb,
-                mangaMb = appMb * 0.8f,
+                mangaMb = mangaMb,
                 manhwaMb = 0f,
-                novelsMb = appMb * 0.2f,
-                othersMb = 0f
+                novelsMb = novelsMb,
+                othersMb = otherUsedMb
             )
         }
         val breakdown = downloadStorage.getStorageBreakdown()
-        return MockStorageInfo(
+        return StorageInfo(
             totalGb = breakdown.totalGb,
             usedGb = breakdown.usedGb,
             mangaMb = breakdown.mangaMb,

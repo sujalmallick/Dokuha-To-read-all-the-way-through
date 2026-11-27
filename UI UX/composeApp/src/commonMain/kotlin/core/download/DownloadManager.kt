@@ -5,7 +5,8 @@ import core.source.ContentSource
 import core.source.NovelSource
 import core.source.SourceChapter
 import core.source.SourceManga
-import data.mock.MockStorageInfo
+import core.source.StorageInfo
+import core.storage.StorageProvider
 import io.ktor.client.HttpClient
 import io.ktor.client.request.headers
 import io.ktor.client.request.request
@@ -53,7 +54,8 @@ class DownloadManager(
     private val downloadStorage: DownloadStorage,
     private val httpClient: HttpClient? = null,
     private val coroutineScope: CoroutineScope = CoroutineScope(Dispatchers.Default),
-    private var sourceProvider: ((SourceManga, SourceChapter) -> ContentSource?)? = null
+    private var sourceProvider: ((SourceManga, SourceChapter) -> ContentSource?)? = null,
+    private val storageProvider: StorageProvider? = null
 ) {
     private val _queue = MutableStateFlow<List<DownloadJob>>(emptyList())
     val queue: StateFlow<List<DownloadJob>> = _queue.asStateFlow()
@@ -61,8 +63,8 @@ class DownloadManager(
     private val _completedDownloads = MutableStateFlow<List<DownloadJob>>(emptyList())
     val completedDownloads: StateFlow<List<DownloadJob>> = _completedDownloads.asStateFlow()
 
-    private val _storageInfo = MutableStateFlow(computeStorageInfo())
-    val storageInfo: StateFlow<MockStorageInfo> = _storageInfo.asStateFlow()
+    private val _storageInfo = MutableStateFlow(StorageInfo())
+    val storageInfo: StateFlow<StorageInfo> = _storageInfo.asStateFlow()
 
     private val taskSources = mutableMapOf<String, ContentSource?>()
     private val mutex = Mutex()
@@ -413,12 +415,29 @@ class DownloadManager(
     }
 
     private fun refreshStorageInfo() {
-        _storageInfo.value = computeStorageInfo()
+        coroutineScope.launch {
+            _storageInfo.value = computeStorageInfo()
+        }
     }
 
-    private fun computeStorageInfo(): MockStorageInfo {
+    private fun computeStorageInfo(): StorageInfo {
+        val stats = storageProvider?.getStorageStats()
+        if (stats != null && stats.totalBytes > 0L) {
+            val bytesPerGb = 1024f * 1024f * 1024f
+            val bytesPerMb = 1024f * 1024f
+            val totalUsedBytes = (stats.totalBytes - stats.freeBytes).coerceAtLeast(0L)
+            val otherUsedBytes = (totalUsedBytes - stats.appDownloadsBytes).coerceAtLeast(0L)
+            return StorageInfo(
+                totalGb = stats.totalBytes / bytesPerGb,
+                usedGb = totalUsedBytes / bytesPerGb,
+                mangaMb = stats.appDownloadsBytes / bytesPerMb,
+                manhwaMb = 0f,
+                novelsMb = 0f,
+                othersMb = otherUsedBytes / bytesPerMb
+            )
+        }
         val breakdown = downloadStorage.getStorageBreakdown()
-        return MockStorageInfo(
+        return StorageInfo(
             totalGb = breakdown.totalGb,
             usedGb = breakdown.usedGb,
             mangaMb = breakdown.mangaMb,

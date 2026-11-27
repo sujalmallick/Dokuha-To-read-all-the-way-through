@@ -45,5 +45,6 @@
 # Keep AndroidManifest components & Koin
 -keep class io.panel.reader.** { *; }
 -keep class core.updates.LibraryUpdateJobService { *; }
+-keep class org.jetbrains.compose.resources.AndroidContextProvider { *; }
 -keep class org.koin.** { *; }
 -dontwarn org.koin.**

@@ -1,0 +1,15 @@
+CREATE TABLE IF NOT EXISTS reader_prefs (
+    title_key TEXT PRIMARY KEY NOT NULL,
+    reading_mode TEXT,
+    color_filter TEXT,
+    side_padding REAL,
+    split_double_spread INTEGER,
+    dual_page_offset INTEGER,
+    novel_theme TEXT,
+    novel_font TEXT,
+    novel_font_size REAL,
+    novel_line_height REAL,
+    updated_at INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS reader_prefs_updated_at_idx ON reader_prefs(updated_at);

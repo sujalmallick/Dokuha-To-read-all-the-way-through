@@ -1,5 +1,10 @@
 package ui.screens.more
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +23,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -32,7 +39,9 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.ViewCarousel
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
@@ -164,12 +173,14 @@ fun MoreScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .glassSource(glassState),
+            horizontalAlignment = Alignment.CenterHorizontally,
             contentPadding = PaddingValues(top = 16.dp, bottom = 124.dp)
         ) {
             // Screen Header Title
             item {
                 Box(
                     modifier = Modifier
+                        .widthIn(max = 680.dp)
                         .fillMaxWidth()
                         .statusBarsPadding()
                         .padding(horizontal = 20.dp, vertical = 12.dp)
@@ -185,7 +196,12 @@ fun MoreScreenContent(
 
             // Profile Header Row (avatar + name + chevron, whole row tappable)
             item {
-                Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
+                Box(
+                    modifier = Modifier
+                        .widthIn(max = 680.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 6.dp)
+                ) {
                     SettingsGroup {
                         Row(
                             modifier = Modifier
@@ -245,37 +261,78 @@ fun MoreScreenContent(
 
             // Experience Settings Group
             item {
-                SectionHeader(text = "Preferences")
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    SettingsGroup {
-                        SettingsRow.Toggle(
-                            title = "Incognito Mode",
-                            subtitle = "Pauses reading history and chapter progress",
-                            checked = isIncognito,
-                            onCheckedChange = onToggleIncognito
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Navigation(
-                            title = "Appearance",
-                            subtitle = "Theme, accent colors, glass & motion",
-                            value = themeModeName,
-                            icon = Icons.Default.Palette,
-                            onClick = onNavigateAppearance
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Navigation(
-                            title = "Reader",
-                            subtitle = "Modes, padding, typography & novel",
-                            icon = Icons.AutoMirrored.Filled.MenuBook,
-                            onClick = onNavigateReader
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Navigation(
-                            title = "Library",
-                            subtitle = "Categories, unread counts & intervals",
-                            icon = Icons.Default.ViewCarousel,
-                            onClick = onNavigateLibrary
-                        )
+                Column(
+                    modifier = Modifier
+                        .widthIn(max = 680.dp)
+                        .fillMaxWidth()
+                ) {
+                    SectionHeader(text = "Preferences")
+                    Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        SettingsGroup {
+                            SettingsRow.Toggle(
+                                title = "Incognito Mode",
+                                subtitle = "Pauses reading history and chapter progress",
+                                checked = isIncognito,
+                                onCheckedChange = onToggleIncognito
+                            )
+                            SettingsSeparator()
+                            SettingsRow.Navigation(
+                                title = "Appearance",
+                                subtitle = "Theme, accent colors, glass & motion",
+                                value = themeModeName,
+                                icon = Icons.Default.Palette,
+                                onClick = onNavigateAppearance
+                            )
+                            SettingsSeparator()
+                            SettingsRow.Navigation(
+                                title = "Reader",
+                                subtitle = "Modes, padding, typography & novel",
+                                icon = Icons.AutoMirrored.Filled.MenuBook,
+                                onClick = onNavigateReader
+                            )
+                            SettingsSeparator()
+                            SettingsRow.Navigation(
+                                title = "Library",
+                                subtitle = "Categories, unread counts & intervals",
+                                icon = Icons.Default.ViewCarousel,
+                                onClick = onNavigateLibrary
+                            )
+                        }
+                    }
+
+                    AnimatedVisibility(
+                        visible = isIncognito,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 20.dp, vertical = 10.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
+                                .border(
+                                    1.dp,
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                                    RoundedCornerShape(14.dp)
+                                )
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VisibilityOff,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Incognito active — history and reading progress are paused.",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = TextPrimary
+                            )
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(18.dp))
@@ -283,37 +340,43 @@ fun MoreScreenContent(
 
             // Content & Storage Group
             item {
-                SectionHeader(text = "Data & Connectivity")
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    SettingsGroup {
-                        SettingsRow.Navigation(
-                            title = "Downloads",
-                            subtitle = "Queue concurrency & storage rules",
-                            icon = Icons.Default.CloudDownload,
-                            onClick = onNavigateDownloads
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Navigation(
-                            title = "Sources & Extensions",
-                            subtitle = "Repositories, languages & filters",
-                            icon = Icons.Default.Extension,
-                            onClick = onNavigateSources
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Navigation(
-                            title = "Backup & Restore",
-                            subtitle = "Import and export reading archives",
-                            icon = Icons.Default.Save,
-                            onClick = onNavigateBackup
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Navigation(
-                            title = "Storage",
-                            subtitle = "Cache cleanup and database management",
-                            value = cacheSize,
-                            icon = Icons.Default.Storage,
-                            onClick = onNavigateStorage
-                        )
+                Column(
+                    modifier = Modifier
+                        .widthIn(max = 680.dp)
+                        .fillMaxWidth()
+                ) {
+                    SectionHeader(text = "Data & Connectivity")
+                    Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        SettingsGroup {
+                            SettingsRow.Navigation(
+                                title = "Downloads",
+                                subtitle = "Queue concurrency & storage rules",
+                                icon = Icons.Default.CloudDownload,
+                                onClick = onNavigateDownloads
+                            )
+                            SettingsSeparator()
+                            SettingsRow.Navigation(
+                                title = "Sources & Extensions",
+                                subtitle = "Repositories, languages & filters",
+                                icon = Icons.Default.Extension,
+                                onClick = onNavigateSources
+                            )
+                            SettingsSeparator()
+                            SettingsRow.Navigation(
+                                title = "Backup & Restore",
+                                subtitle = "Import and export reading archives",
+                                icon = Icons.Default.Save,
+                                onClick = onNavigateBackup
+                            )
+                            SettingsSeparator()
+                            SettingsRow.Navigation(
+                                title = "Storage",
+                                subtitle = "Cache cleanup and database management",
+                                value = cacheSize,
+                                icon = Icons.Default.Storage,
+                                onClick = onNavigateStorage
+                            )
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(18.dp))
@@ -321,23 +384,29 @@ fun MoreScreenContent(
 
             // Application
             item {
-                SectionHeader(text = "About")
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    SettingsGroup {
-                        SettingsRow.Navigation(
-                            title = "About Dokuha",
-                            value = "v1.0.0",
-                            icon = Icons.Default.Info,
-                            onClick = onNavigateAbout
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Navigation(
-                            title = "Liquid Glass Lab",
-                            subtitle = "iOS 26 optical lens parameter tuner",
-                            value = "Debug",
-                            icon = Icons.Default.Science,
-                            onClick = onNavigateGlassLab
-                        )
+                Column(
+                    modifier = Modifier
+                        .widthIn(max = 680.dp)
+                        .fillMaxWidth()
+                ) {
+                    SectionHeader(text = "About")
+                    Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        SettingsGroup {
+                            SettingsRow.Navigation(
+                                title = "About Dokuha",
+                                value = "v1.0.0",
+                                icon = Icons.Default.Info,
+                                onClick = onNavigateAbout
+                            )
+                            SettingsSeparator()
+                            SettingsRow.Navigation(
+                                title = "Liquid Glass Lab",
+                                subtitle = "iOS 26 optical lens parameter tuner",
+                                value = "Debug",
+                                icon = Icons.Default.Science,
+                                onClick = onNavigateGlassLab
+                            )
+                        }
                     }
                 }
             }

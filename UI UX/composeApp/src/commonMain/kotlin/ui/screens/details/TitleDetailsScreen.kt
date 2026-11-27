@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -315,6 +317,7 @@ fun TitleDetailsScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .glassSource(glassState),
+            horizontalAlignment = Alignment.CenterHorizontally,
             contentPadding = PaddingValues(bottom = 48.dp)
         ) {
             // Hero Image Header with Backdrop Gradient
@@ -350,6 +353,7 @@ fun TitleDetailsScreenContent(
             item {
                 Column(
                     modifier = Modifier
+                        .widthIn(max = 820.dp)
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp)
                 ) {
@@ -475,6 +479,58 @@ fun TitleDetailsScreenContent(
                         )
                     }
 
+                    if (chapters.isNotEmpty()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        val firstChapter = chapters.lastOrNull() ?: chapters.first()
+                        val latestChapter = chapters.first()
+                        val primaryColor = MaterialTheme.colorScheme.primary
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(46.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(primaryColor.copy(alpha = 0.14f))
+                                    .border(1.dp, primaryColor.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                                    .clickable { onReadChapter(firstChapter) }
+                                    .padding(horizontal = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "First Chapter",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = primaryColor,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(46.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(primaryColor.copy(alpha = 0.14f))
+                                    .border(1.dp, primaryColor.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
+                                    .clickable { onReadChapter(latestChapter) }
+                                    .padding(horizontal = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Last Chapter",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = primaryColor,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(16.dp))
 
                     // Feature 4: Comic ↔ Novel Adaptation Bridge Card
@@ -596,6 +652,7 @@ fun TitleDetailsScreenContent(
                 item {
                     Row(
                         modifier = Modifier
+                            .widthIn(max = 820.dp)
                             .fillMaxWidth()
                             .padding(horizontal = 20.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -733,7 +790,12 @@ fun TitleDetailsScreenContent(
                     downloadQueue.firstOrNull { it.chapter.url == chapter.url }?.progress
                 }
 
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                Box(
+                    modifier = Modifier
+                        .widthIn(max = 820.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                ) {
                     ChapterRowItem(
                         title = chapter.name,
                         date = dateStr,
@@ -1026,115 +1088,89 @@ fun PreviouslyOnBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = Color(0xF50B0E17),
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        dragHandle = null,
+        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
     ) {
         Column(
             modifier = Modifier
+                .widthIn(max = 560.dp)
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .padding(horizontal = 24.dp, vertical = 18.dp)
                 .navigationBarsPadding()
         ) {
-            // Header Tag
+            Box(
+                modifier = Modifier
+                    .size(width = 36.dp, height = 4.dp)
+                    .clip(CapsuleShape)
+                    .background(Color.White.copy(alpha = 0.25f))
+                    .align(Alignment.CenterHorizontally)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .clip(CapsuleShape)
-                        .background(Color(0xFF10B981).copy(alpha = 0.15f))
-                        .border(1.dp, Color(0xFF10B981).copy(alpha = 0.35f), CapsuleShape)
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "ZERO-SPOILER RECAP",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF10B981),
-                        letterSpacing = 1.sp
-                    )
-                }
+                Text(
+                    text = "RECAP",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = TextSecondary,
+                    letterSpacing = 1.4.sp
+                )
 
                 Text(
                     text = "Close",
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontWeight = FontWeight.Medium,
                     color = TextSecondary,
                     modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
                         .clickable(onClick = onDismiss)
-                        .padding(4.dp)
+                        .padding(horizontal = 6.dp, vertical = 4.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
                 text = "Previously on $mangaTitle",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
+                fontSize = 22.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Color.White,
+                lineHeight = 28.sp
             )
 
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Where you left off: $lastReadChapterTitle",
+                text = "Left off at $lastReadChapterTitle",
                 fontSize = 13.sp,
                 color = TextSecondary
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
-            // Recap Card
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White.copy(alpha = 0.05f))
-                    .border(0.5.dp, GlassBorderStrong, RoundedCornerShape(16.dp))
-                    .padding(16.dp)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(verticalAlignment = Alignment.Top) {
-                        Text(text = "🔹", fontSize = 13.sp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Following the raid on the northern gate, the protagonist successfully defended the core outpost against overwhelming forces.",
-                            fontSize = 13.sp,
-                            color = Color.White.copy(alpha = 0.9f),
-                            lineHeight = 18.sp
-                        )
-                    }
+                    .height(1.dp)
+                    .background(Color.White.copy(alpha = 0.08f))
+            )
 
-                    Row(verticalAlignment = Alignment.Top) {
-                        Text(text = "🔹", fontSize = 13.sp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "New tactical allies were recruited, uncovering traces of a deeper conspiracy inside the imperial alliance.",
-                            fontSize = 13.sp,
-                            color = Color.White.copy(alpha = 0.9f),
-                            lineHeight = 18.sp
-                        )
-                    }
+            Spacer(modifier = Modifier.height(18.dp))
 
-                    Row(verticalAlignment = Alignment.Top) {
-                        Text(text = "⚔️", fontSize = 13.sp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Cliffhanger: An unannounced rift awakened directly beneath the capital district as communications went dark.",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary,
-                            lineHeight = 18.sp
-                        )
-                    }
-                }
-            }
+            Text(
+                text = "Pick up right where you paused in $lastReadChapterTitle. Your reading progress and chapter position are synced so you can jump back into the story immediately.",
+                fontSize = 15.sp,
+                color = Color.White.copy(alpha = 0.85f),
+                lineHeight = 23.sp
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Action: Resume
             PanelButton(
                 text = "Continue Reading",
                 icon = Icons.Default.PlayArrow,
@@ -1212,17 +1248,43 @@ fun TitleHeroArtwork(
     title: String? = null,
     modifier: Modifier = Modifier
 ) {
-    val isRemote = !thumbnailUrl.isNullOrBlank() &&
-        (thumbnailUrl.startsWith("http://", ignoreCase = true) || thumbnailUrl.startsWith("https://", ignoreCase = true))
+    val cleanUrl = thumbnailUrl?.trim()
+    val isRemote = !cleanUrl.isNullOrBlank() &&
+        (cleanUrl.startsWith("http://", ignoreCase = true) || cleanUrl.startsWith("https://", ignoreCase = true))
 
     if (isRemote) {
-        Box(modifier = modifier) {
-            AsyncImage(
-                model = thumbnailUrl,
-                contentDescription = title,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
+        androidx.compose.foundation.layout.BoxWithConstraints(modifier = modifier) {
+            val isWide = maxWidth > 540.dp
+            if (isWide) {
+                // On tablets/iPads, render a dimmed atmospheric fill behind a crisp centered cover
+                AsyncImage(
+                    model = cleanUrl,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xB3070A10))
+                )
+                AsyncImage(
+                    model = cleanUrl,
+                    contentDescription = title,
+                    contentScale = ContentScale.Fit,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .fillMaxHeight()
+                        .padding(top = 48.dp, bottom = 20.dp)
+                )
+            } else {
+                AsyncImage(
+                    model = cleanUrl,
+                    contentDescription = title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
     } else {
         Box(

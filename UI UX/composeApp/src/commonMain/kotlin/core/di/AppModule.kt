@@ -14,7 +14,9 @@ import data.profile.PersistentProfileRepository
 import data.profile.ProfileRepository
 import data.repository.SqlDelightPanelRepository
 import data.settings.PersistentSettingsRepository
+import data.settings.ReaderPrefsRepository
 import data.settings.SettingsRepository
+import data.settings.SqlDelightReaderPrefsRepository
 import data.tracker.ProductionTrackerRepository
 import data.tracker.TrackerRepository
 import core.extensions.ExtensionManager
@@ -56,8 +58,11 @@ val appModule = module {
     }
     single { PanelDatabase(get<DatabaseDriverFactory>().createDriver()) }
     single {
-        val manager = DownloadManager(downloadStorage = get(), httpClient = getOrNull())
-        manager
+        DownloadManager(
+            downloadStorage = get(),
+            httpClient = getOrNull(),
+            storageProvider = getOrNull()
+        )
     }
     single { AntiBotChallengeManager(headlessSolver = getOrNull()) }
     single<AntiBotResolver> { get<AntiBotChallengeManager>() }
@@ -75,7 +80,7 @@ val appModule = module {
         repo
     }
     single<ExtensionManager> {
-        ExtensionManager(
+        val manager = ExtensionManager(
             storage = get(),
             panelRepository = get(),
             httpClient = getOrNull(),
@@ -84,6 +89,11 @@ val appModule = module {
             autoSeedDefaults = false,
             deferInit = true
         )
+        (getOrNull<PanelRepository>() as? SqlDelightPanelRepository)?.bindExtensionFlows(
+            installed = manager.installedExtensions,
+            available = manager.availableExtensions
+        )
+        manager
     }
     single<TrackerRepository> {
         ProductionTrackerRepository(
@@ -93,6 +103,7 @@ val appModule = module {
         )
     }
     single<SettingsRepository> { PersistentSettingsRepository(get()) }
+    single<ReaderPrefsRepository> { SqlDelightReaderPrefsRepository(database = get(), settingsRepository = getOrNull()) }
     single<ProfileRepository> { PersistentProfileRepository(get(), get()) }
     single<DataDownloadManager> {
         CoreBackedDownloadManager(
