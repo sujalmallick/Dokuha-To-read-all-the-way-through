@@ -296,6 +296,20 @@ fun TitleDetailsScreenContent(
         status = MangaStatus.UNKNOWN
     )
 
+    val chronologicalChapters = remember(chapters) { chapters.asReversed() }
+    val lastReadChronoIndex = remember(chronologicalChapters, readChapterUrls) {
+        chronologicalChapters.indexOfLast { it.url in readChapterUrls }
+    }
+    val ctaTargetChapter = remember(chronologicalChapters, lastReadChronoIndex) {
+        if (chronologicalChapters.isEmpty()) null
+        else if (lastReadChronoIndex >= 0) {
+            chronologicalChapters.getOrNull(lastReadChronoIndex + 1)
+                ?: chronologicalChapters[lastReadChronoIndex]
+        } else {
+            chronologicalChapters.first()
+        }
+    }
+
     val displayedChapters = remember(chapters, chapterFilter, sortAscending, readChapterUrls, completedDownloads) {
         val filtered = when (chapterFilter) {
             ChapterFilterMode.ALL -> chapters
@@ -397,19 +411,6 @@ fun TitleDetailsScreenContent(
                     Spacer(modifier = Modifier.height(20.dp))
 
                     // Primary CTA Row: "Start Reading" / "Continue Reading Ch. X" & "Recap"
-                    val chronologicalChapters = remember(chapters) { chapters.asReversed() }
-                    val lastReadChronoIndex = remember(chronologicalChapters, readChapterUrls) {
-                        chronologicalChapters.indexOfLast { it.url in readChapterUrls }
-                    }
-                    val ctaTargetChapter = remember(chronologicalChapters, lastReadChronoIndex) {
-                        if (chronologicalChapters.isEmpty()) null
-                        else if (lastReadChronoIndex >= 0) {
-                            chronologicalChapters.getOrNull(lastReadChronoIndex + 1)
-                                ?: chronologicalChapters[lastReadChronoIndex]
-                        } else {
-                            chronologicalChapters.first()
-                        }
-                    }
                     val ctaLabel = when {
                         ctaTargetChapter == null -> "No Chapters"
                         lastReadChronoIndex >= 0 -> {
@@ -912,15 +913,17 @@ fun TitleDetailsScreenContent(
 
         // LAYER 4: "Previously On..." Smart Catch-up Modal Sheet
         if (showCatchUpSheet) {
+            val lastReadTitle = if (lastReadChronoIndex >= 0) {
+                chronologicalChapters[lastReadChronoIndex].name
+            } else {
+                chronologicalChapters.firstOrNull()?.name ?: "Chapter 1"
+            }
             PreviouslyOnBottomSheet(
                 mangaTitle = displayManga.title,
-                lastReadChapterTitle = chapters.firstOrNull()?.name ?: "Chapter 1",
+                lastReadChapterTitle = lastReadTitle,
                 onDismiss = { showCatchUpSheet = false },
                 onResumeReading = {
-                    if (chapters.isNotEmpty()) {
-                        val firstChapter = chapters.lastOrNull() ?: chapters.first()
-                        onReadChapter(firstChapter)
-                    }
+                    ctaTargetChapter?.let(onReadChapter)
                 }
             )
         }
@@ -956,143 +959,89 @@ fun AdaptationBridgeCard(
     onOpenAdaptation: (SourceManga) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cardShape = RoundedCornerShape(16.dp)
+    val cardShape = RoundedCornerShape(14.dp)
     val buttonInteraction = remember { MutableInteractionSource() }
 
     val isNovel = currentManga.isNovel
-    val targetType = if (isNovel) "Illustrated Comic" else "Original Webnovel"
-    val subtitle = if (isNovel) {
-        "Read the visual manhwa/comic adaptation"
-    } else {
-        "Read ahead in the original light novel"
-    }
+    val targetType = if (isNovel) "Illustrated Comic" else "Original Novel"
+    val subtitle = if (isNovel) "Comic adaptation" else "Original light novel"
 
-    Box(
+    Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(cardShape)
-            .background(
-                brush = Brush.horizontalGradient(
-                    colors = listOf(
-                        Color(0xFF131926).copy(alpha = 0.9f),
-                        Color(0xFF1A1728).copy(alpha = 0.9f)
-                    )
-                )
+            .background(Color.White.copy(alpha = 0.05f))
+            .border(1.dp, GlassBorder, cardShape)
+            .clickable(
+                enabled = adaptationManga != null,
+                interactionSource = buttonInteraction,
+                indication = null,
+                onClick = {
+                    if (adaptationManga != null) {
+                        onOpenAdaptation(adaptationManga)
+                    }
+                }
             )
-            .border(1.dp, GlassBorderStrong, cardShape)
-            .padding(16.dp)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Dual Badge Icon
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                        .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = if (isNovel) Icons.AutoMirrored.Filled.MenuBook else Icons.Default.AutoStories,
-                        contentDescription = "Adaptation",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "ADAPTATION BRIDGE",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            letterSpacing = 1.sp
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(CapsuleShape)
-                                .background(Color.White.copy(alpha = 0.1f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = if (isNovel) "Comic" else "Novel",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    Text(
-                        text = adaptationManga?.title ?: targetType,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    Text(
-                        text = subtitle,
-                        fontSize = 11.sp,
-                        color = TextSecondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            // Switch Action Button
             Box(
                 modifier = Modifier
-                    .clip(CapsuleShape)
-                    .background(MaterialTheme.colorScheme.primary)
-                    .clickable(
-                        interactionSource = buttonInteraction,
-                        indication = null,
-                        onClick = {
-                            if (adaptationManga != null) {
-                                onOpenAdaptation(adaptationManga)
-                            }
-                        }
-                    )
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = if (isNovel) "Read Comic" else "Read Novel",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.Black
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                        contentDescription = null,
-                        tint = Color.Black,
-                        modifier = Modifier.size(13.dp)
-                    )
-                }
+                Icon(
+                    imageVector = if (isNovel) Icons.AutoMirrored.Filled.MenuBook else Icons.Default.AutoStories,
+                    contentDescription = "Adaptation",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
             }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column {
+                Text(
+                    text = adaptationManga?.title ?: targetType,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 11.sp,
+                    color = TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.width(10.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = if (isNovel) "Read Comic" else "Read Novel",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (adaptationManga != null) MaterialTheme.colorScheme.primary else TextSecondary
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                contentDescription = null,
+                tint = if (adaptationManga != null) MaterialTheme.colorScheme.primary else TextSecondary,
+                modifier = Modifier.size(14.dp)
+            )
         }
     }
 }

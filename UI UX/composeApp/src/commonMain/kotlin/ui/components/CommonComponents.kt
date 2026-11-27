@@ -548,7 +548,7 @@ fun ChapterRowItem(
             val primaryColor = MaterialTheme.colorScheme.primary
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.size(42.dp)
+                modifier = Modifier.size(48.dp)
             ) {
                 if (isDownloading) {
                     if (downloadProgress != null && downloadProgress > 0f) {

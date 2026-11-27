@@ -5,14 +5,27 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -25,7 +38,12 @@ import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
 import cafe.adriel.voyager.navigator.currentOrThrow
@@ -33,6 +51,7 @@ import data.library.CategoryRepository
 import data.mock.PanelRepository
 import data.profile.ProfileRepository
 import data.settings.SettingsRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 import ui.components.PanelBottomNavBar
@@ -58,6 +77,9 @@ import ui.screens.settings.SourcesSettingsScreen
 import ui.screens.settings.StorageSettingsScreen
 import ui.screens.updates.UpdatesScreenContent
 import ui.screens.webtoonreader.WebtoonReaderScreen
+import ui.theme.GlassBorderStrong
+import ui.theme.TextPrimary
+import ui.theme.TextSecondary
 import ui.theme.ThemeMode
 
 class MainTabScreen(
@@ -79,9 +101,18 @@ class MainTabScreen(
         val glassState = rememberPanelGlassState()
         val tabStateHolder = rememberSaveableStateHolder()
         var isModalSheetOpen by remember { mutableStateOf(false) }
+        var incognitoSplashState by remember { mutableStateOf<Boolean?>(null) }
+        var incognitoSplashTrigger by remember { mutableStateOf(0) }
 
         LaunchedEffect(currentTab) {
             isModalSheetOpen = false
+        }
+
+        LaunchedEffect(incognitoSplashTrigger) {
+            if (incognitoSplashTrigger > 0) {
+                delay(1500)
+                incognitoSplashState = null
+            }
         }
 
         Box(
@@ -205,7 +236,11 @@ class MainTabScreen(
                             },
                             cacheSize = cacheSize,
                             isIncognito = isIncognito,
-                            onToggleIncognito = { settingsRepository.setIncognitoMode(it) },
+                            onToggleIncognito = { enabled ->
+                                settingsRepository.setIncognitoMode(enabled)
+                                incognitoSplashState = enabled
+                                incognitoSplashTrigger++
+                            },
                             onOpenProfile = { navigator.push(ProfileScreen()) },
                             onNavigateAppearance = { navigator.push(AppearanceSettingsScreen()) },
                             onNavigateReader = { navigator.push(GlobalReaderSettingsScreen()) },
@@ -239,6 +274,56 @@ class MainTabScreen(
                         .navigationBarsPadding()
                         .padding(horizontal = 24.dp, vertical = 12.dp)
                 )
+            }
+
+            // Centered Incognito Mode splash overlay
+            AnimatedVisibility(
+                visible = incognitoSplashState != null,
+                enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.86f, animationSpec = tween(220)),
+                exit = fadeOut(tween(220)) + scaleOut(targetScale = 0.92f, animationSpec = tween(220)),
+                modifier = Modifier.align(Alignment.Center)
+            ) {
+                val enabled = incognitoSplashState == true
+                val accent = if (enabled) MaterialTheme.colorScheme.primary else TextSecondary
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .padding(horizontal = 32.dp)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Color(0xEB0E1320))
+                        .border(1.dp, GlassBorderStrong, RoundedCornerShape(22.dp))
+                        .padding(horizontal = 28.dp, vertical = 22.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(accent.copy(alpha = 0.14f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = if (enabled) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = null,
+                            tint = accent,
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = if (enabled) "Incognito Mode On" else "Incognito Mode Off",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = if (enabled) "Reading history & progress paused" else "Reading history tracking resumed",
+                        fontSize = 12.sp,
+                        color = TextSecondary,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
         }
     }

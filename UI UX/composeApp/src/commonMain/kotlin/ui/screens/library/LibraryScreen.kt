@@ -236,8 +236,8 @@ fun LibraryScreenContent(
     var isBatchMoveSheetVisible by remember { mutableStateOf(false) }
 
     val isAnyModalSheetOpen = isFilterSheetVisible || isCategoryEditSheetVisible || isBatchMoveSheetVisible
-    LaunchedEffect(isAnyModalSheetOpen) {
-        onModalSheetVisibilityChanged(isAnyModalSheetOpen)
+    LaunchedEffect(isAnyModalSheetOpen, isSelectionMode) {
+        onModalSheetVisibilityChanged(isAnyModalSheetOpen || isSelectionMode)
     }
 
     Box(
