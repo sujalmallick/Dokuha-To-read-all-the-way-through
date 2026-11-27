@@ -54,6 +54,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import core.platform.PlatformTts
@@ -152,6 +153,8 @@ data class NovelReaderScreen(
         val navigator = LocalNavigator.currentOrThrow
         val repository: PanelRepository = koinInject()
         val settingsRepository: SettingsRepository = koinInject()
+        val keepScreenOn by settingsRepository.keepScreenOn.collectAsState()
+        core.platform.KeepScreenOnEffect(keepScreenOn)
         val readerPrefsRepository: ReaderPrefsRepository = koinInject()
         val volumeKeyState = ui.volume.LocalVolumeKeyState.current
 
@@ -160,9 +163,9 @@ data class NovelReaderScreen(
             onDispose { volumeKeyState.isReaderActive.value = false }
         }
 
-        var currentChapterUrl by remember(chapterUrl) { mutableStateOf(chapterUrl) }
-        var currentChapterNumber by remember(chapterNumber) { mutableStateOf(chapterNumber) }
-        var currentChapterTitle by remember(chapterTitle) { mutableStateOf(chapterTitle) }
+        var currentChapterUrl by rememberSaveable(chapterUrl) { mutableStateOf(chapterUrl) }
+        var currentChapterNumber by rememberSaveable(chapterNumber) { mutableStateOf(chapterNumber) }
+        var currentChapterTitle by rememberSaveable(chapterTitle) { mutableStateOf(chapterTitle) }
         var refreshTrigger by remember { mutableStateOf(0) }
 
         val targetMangaUrl = remember(mangaUrl, currentChapterUrl) {
@@ -312,6 +315,9 @@ fun NovelReaderScreenContent(
     var ttsSpeed by remember { mutableFloatStateOf(1.0f) }
     var isBookmarked by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    var savedScrollIndex by rememberSaveable(chapterTitle) { mutableIntStateOf(0) }
+    var savedScrollOffset by rememberSaveable(chapterTitle) { mutableIntStateOf(0) }
+    var restoredChapterScroll by remember(chapterTitle) { mutableStateOf(false) }
 
     val parsedParagraphs: List<String> = remember(novelContent) {
         novelContent?.plainText
@@ -319,6 +325,29 @@ fun NovelReaderScreenContent(
             ?.map { it.trim() }
             ?.filter { it.isNotEmpty() }
             ?: emptyList()
+    }
+
+    LaunchedEffect(parsedParagraphs.size) {
+        if (!restoredChapterScroll && parsedParagraphs.isNotEmpty()) {
+            restoredChapterScroll = true
+            if (savedScrollIndex > 0) {
+                listState.scrollToItem(
+                    savedScrollIndex.coerceAtMost(parsedParagraphs.size),
+                    savedScrollOffset
+                )
+            }
+        }
+    }
+
+    LaunchedEffect(listState, parsedParagraphs.isNotEmpty()) {
+        if (parsedParagraphs.isNotEmpty()) {
+            snapshotFlow {
+                listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+            }.collect { (index, offset) ->
+                savedScrollIndex = index
+                savedScrollOffset = offset
+            }
+        }
     }
 
     // Auto-scroll to currently spoken paragraph

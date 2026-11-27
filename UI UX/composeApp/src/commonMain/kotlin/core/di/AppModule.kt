@@ -24,18 +24,36 @@ import core.extensions.js.AntiBotChallengeManager
 import core.extensions.js.AntiBotResolver
 import io.panel.reader.db.PanelDatabase
 import io.ktor.client.HttpClient
+import io.ktor.client.HttpClientConfig
+import io.ktor.client.plugins.HttpRequestRetry
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.header
 import io.ktor.http.HttpHeaders
 import org.koin.dsl.module
 
+internal fun HttpClientConfig<*>.configureAppHttpClient() {
+    install(HttpTimeout) {
+        connectTimeoutMillis = 15_000L
+        requestTimeoutMillis = 30_000L
+        socketTimeoutMillis = 30_000L
+    }
+    install(HttpRequestRetry) {
+        maxRetries = 2
+        retryOnServerErrors(maxRetries = 2)
+        retryOnException(maxRetries = 2, retryOnTimeout = true)
+        exponentialDelay(base = 2.0, maxDelayMs = 4_000L)
+    }
+    defaultRequest {
+        header(HttpHeaders.UserAgent, "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
+    }
+}
+
 val appModule = module {
     includes(platformStorageModule)
     single<HttpClient> {
         HttpClient {
-            defaultRequest {
-                header(HttpHeaders.UserAgent, "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36")
-            }
+            configureAppHttpClient()
         }
     }
     single { PanelDatabase(get<DatabaseDriverFactory>().createDriver()) }
