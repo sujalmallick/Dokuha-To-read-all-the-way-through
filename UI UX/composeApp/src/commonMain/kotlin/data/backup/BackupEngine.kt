@@ -155,15 +155,33 @@ object BackupEngine {
             }
 
             if (categoryRepository != null) {
-                val existingNames = categoryRepository.categories.value.map { it.name }.toSet()
+                val oldToNewCatId = mutableMapOf<String, String>()
+                val existingByName = categoryRepository.categories.value
+                    .associateBy { it.name.trim().lowercase() }
+                    .toMutableMap()
+
                 dokuhaBackup.categories.forEach { cat ->
-                    if (cat.name !in existingNames) {
-                        categoryRepository.addCategory(cat.name)
+                    val normalizedName = cat.name.trim().lowercase()
+                    val existing = existingByName[normalizedName]
+                    if (existing != null) {
+                        oldToNewCatId[cat.id] = existing.id
+                    } else {
+                        val created = categoryRepository.addCategory(cat.name).getOrNull()
+                        if (created != null) {
+                            oldToNewCatId[cat.id] = created.id
+                            existingByName[normalizedName] = created
+                        }
                     }
                 }
+
+                val validCurrentIds = categoryRepository.categories.value.map { it.id }.toSet()
+
                 dokuhaBackup.categoryMappings.forEach { (mangaUrl, catIds) ->
-                    if (catIds.isNotEmpty()) {
-                        categoryRepository.setMangaCategories(mangaUrl, catIds.toSet())
+                    val remappedIds = catIds.mapNotNull { oldId ->
+                        oldToNewCatId[oldId] ?: oldId.takeIf { it in validCurrentIds }
+                    }.toSet()
+                    if (remappedIds.isNotEmpty()) {
+                        categoryRepository.setMangaCategories(mangaUrl, remappedIds)
                     }
                 }
             }
