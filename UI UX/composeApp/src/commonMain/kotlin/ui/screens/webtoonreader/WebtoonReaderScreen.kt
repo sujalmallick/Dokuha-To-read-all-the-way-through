@@ -380,6 +380,7 @@ fun WebtoonReaderScreenContent(
 ) {
     val glassState = rememberPanelGlassState()
     val listState = rememberLazyListState()
+    ui.glass.BindGlassScrollState(glassState, listState)
     val coroutineScope = rememberCoroutineScope()
 
     val repo = settingsRepository ?: remember { FakeSettingsRepository() }

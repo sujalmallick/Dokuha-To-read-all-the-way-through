@@ -72,11 +72,13 @@ fun Modifier.glassSurface(
             this
                 .clip(shape)
                 .liquid(state.liquidState) {
-                    this.frost = effectiveTuning.frost
+                    val simplifyForMotion = state.quality == GlassQuality.REDUCED ||
+                        (state.quality == GlassQuality.BALANCED && state.isScrolling)
+                    this.frost = if (simplifyForMotion) 0.dp else effectiveTuning.frost
                     this.refraction = effectiveTuning.refraction
                     this.curve = effectiveTuning.curve
-                    this.edge = effectiveTuning.edge
-                    this.dispersion = effectiveTuning.dispersion
+                    this.edge = if (simplifyForMotion) 0f else effectiveTuning.edge
+                    this.dispersion = if (simplifyForMotion) 0f else effectiveTuning.dispersion
                     this.saturation = effectiveTuning.saturation
                     this.contrast = effectiveTuning.contrast
                     this.tint = effectiveTuning.tint
