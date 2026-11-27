@@ -388,7 +388,7 @@ fun SplashScreenContent(
 
         // 4. Auto-transition after cycling through formats
         if (autoFinish) {
-            delay(2750)
+            delay(1100)
             safeFinish()
         }
     }

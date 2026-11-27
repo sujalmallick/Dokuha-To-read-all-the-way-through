@@ -397,7 +397,10 @@ fun UpdatesScreenContent(
                             Spacer(modifier = Modifier.height(10.dp))
                         }
 
-                        itemsIndexed(group.items) { itemIndex, item ->
+                        itemsIndexed(
+                            items = group.items,
+                            key = { _, item -> "${item.manga.url}_${item.chapter.url}" }
+                        ) { itemIndex, item ->
                             val gradientIdx = (groupIndex * 3) + itemIndex
                             UpdateItemCard(
                                 title = item.manga.title,

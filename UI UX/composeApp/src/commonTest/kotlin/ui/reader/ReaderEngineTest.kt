@@ -1,5 +1,6 @@
 package ui.reader
 
+import coil3.size.Size
 import data.settings.DefaultReadingMode
 import data.settings.FakeSettingsRepository
 import data.settings.NovelFont
@@ -9,7 +10,9 @@ import ui.screens.novelreader.toFontFamily
 import ui.screens.webtoonreader.ReaderTapZone
 import ui.screens.webtoonreader.ReaderTapZones
 import ui.screens.webtoonreader.TapAction
+import ui.screens.webtoonreader.computeReaderDecodeSize
 import ui.screens.webtoonreader.computeWebtoonScrollbarMetrics
+import ui.screens.webtoonreader.formatImageLoadError
 import ui.screens.webtoonreader.shouldAutoAdvanceOnBottomScroll
 import ui.screens.webtoonreader.shouldResetReaderScroll
 import kotlin.test.Test
@@ -310,6 +313,36 @@ class ReaderEngineTest {
         assertFalse(shouldResetReaderScroll(previousChapterUrl = "ch-210", currentChapterUrl = "ch-210"))
         // Navigated to another chapter -> reset scroll to top
         assertTrue(shouldResetReaderScroll(previousChapterUrl = "ch-210", currentChapterUrl = "ch-211"))
+    }
+
+    @Test
+    fun testComputeReaderDecodeSize_clampsBounds() {
+        val defaultSize = computeReaderDecodeSize()
+        assertEquals(Size(1440, 2880), defaultSize)
+
+        val clampedLow = computeReaderDecodeSize(maxWidthPx = 100, maxHeightPx = 100)
+        assertEquals(Size(320, 480), clampedLow)
+
+        val clampedHigh = computeReaderDecodeSize(maxWidthPx = 8000, maxHeightPx = 12000)
+        assertEquals(Size(2048, 4096), clampedHigh)
+    }
+
+    @Test
+    fun testFormatImageLoadError_surfacesCleartextAndFallbacks() {
+        val cleartextMsg = formatImageLoadError(
+            url = "http://example.com/page1.jpg",
+            throwableMessage = "Cleartext HTTP traffic to example.com not permitted"
+        )
+        assertTrue(cleartextMsg.contains("HTTPS required"))
+
+        val genericMsg = formatImageLoadError(
+            url = "https://example.com/page1.jpg",
+            throwableMessage = "HTTP 404"
+        )
+        assertEquals("HTTP 404", genericMsg)
+
+        val emptyMsg = formatImageLoadError(url = null, throwableMessage = null)
+        assertEquals("Image could not be retrieved", emptyMsg)
     }
 
     private fun assertNotNull(value: Any?) {
