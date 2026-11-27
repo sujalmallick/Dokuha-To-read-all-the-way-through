@@ -616,7 +616,7 @@ fun ExtensionsScreenContent(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(vertical = 2.dp)
                     ) {
-                        items(languages) { lang ->
+                        items(languages, key = { it }) { lang ->
                             val isSelected = selectedLang == lang
                             Box(
                                 modifier = Modifier

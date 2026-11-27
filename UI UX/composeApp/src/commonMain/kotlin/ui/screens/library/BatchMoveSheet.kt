@@ -162,7 +162,7 @@ fun BatchMoveSheet(
                                 .fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(categories) { cat ->
+                            items(categories, key = { it.id }) { cat ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
