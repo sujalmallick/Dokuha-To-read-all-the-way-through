@@ -218,7 +218,15 @@ data class WebtoonReaderScreen(
                 nextPages.take(3).forEach { p ->
                     val url = p.imageUrl ?: p.url
                     if (url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)) {
-                        imageLoader.enqueue(buildReaderImageRequest(preloadContext, url, p.headers, preloadUa))
+                        imageLoader.enqueue(
+                            buildReaderImageRequest(
+                                context = preloadContext,
+                                imageUrl = url,
+                                headers = p.headers,
+                                defaultUserAgent = preloadUa,
+                                memoryCachePolicy = coil3.request.CachePolicy.DISABLED
+                            )
+                        )
                     }
                 }
             }
@@ -228,7 +236,15 @@ data class WebtoonReaderScreen(
                 prevPages.takeLast(3).forEach { p ->
                     val url = p.imageUrl ?: p.url
                     if (url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)) {
-                        imageLoader.enqueue(buildReaderImageRequest(preloadContext, url, p.headers, preloadUa))
+                        imageLoader.enqueue(
+                            buildReaderImageRequest(
+                                context = preloadContext,
+                                imageUrl = url,
+                                headers = p.headers,
+                                defaultUserAgent = preloadUa,
+                                memoryCachePolicy = coil3.request.CachePolicy.DISABLED
+                            )
+                        )
                     }
                 }
             }
@@ -642,15 +658,20 @@ fun WebtoonReaderScreenContent(
             onProgressChange(currentPageIndex, isAtEndOfChapter)
         }
 
-        // Smart Background Preloader: Proactively buffers ahead next pages into cache
+        // Smart Background Preloader: Proactively buffers ahead next pages into cache without re-enqueuing seen pages
         val platformContext = LocalPlatformContext.current
         val defaultReaderUa = remember { CloudflareChallengeHeuristics.defaultReaderUserAgent() }
+        var lastPreloadedEnd by remember(displayPages, readerPreloadPages) { mutableIntStateOf(0) }
         LaunchedEffect(currentPageIndex, displayPages, readerPreloadPages, defaultReaderUa) {
             if (displayPages.isEmpty() || readerPreloadPages <= 0) return@LaunchedEffect
             val imageLoader = coil3.SingletonImageLoader.get(platformContext)
-            val start = currentPageIndex.coerceAtLeast(0)
-            val end = (start + readerPreloadPages).coerceAtMost(displayPages.size)
-            for (i in start until end) {
+            val window = computePreloadIndices(
+                currentPageIndex = currentPageIndex,
+                preloadCount = readerPreloadPages,
+                totalPages = displayPages.size,
+                alreadyPreloadedEnd = lastPreloadedEnd
+            )
+            for (i in window) {
                 val p = displayPages[i]
                 val url = p.imageUrl ?: p.url
                 if (!url.isNullOrBlank() && (url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true))) {
@@ -662,6 +683,9 @@ fun WebtoonReaderScreenContent(
                     )
                     imageLoader.enqueue(request)
                 }
+            }
+            if (!window.isEmpty()) {
+                lastPreloadedEnd = window.last + 1
             }
         }
 
