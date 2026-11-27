@@ -116,7 +116,15 @@ class UpdatesScreen : Screen {
                     isRefreshingUpdates = true
                     coroutineScope.launch {
                         try {
-                            repository.refreshLibraryUpdates()
+                            val newChapters = repository.refreshLibraryUpdates()
+                            val msg = if (newChapters > 0) {
+                                "Found $newChapters new chapter${if (newChapters == 1) "" else "s"}"
+                            } else {
+                                "All caught up — no new updates"
+                            }
+                            snackbarHostState.showSnackbar(msg)
+                        } catch (_: Throwable) {
+                            snackbarHostState.showSnackbar("Failed to refresh updates")
                         } finally {
                             isRefreshingUpdates = false
                         }

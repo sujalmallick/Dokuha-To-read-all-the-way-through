@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -478,6 +479,7 @@ fun WebtoonReaderScreenContent(
         // Guard so downward/upward over-scroll at chapter edges only triggers once per chapter
         var hasTriggeredAutoNext by remember(chapterUrl) { mutableStateOf(false) }
         var hasTriggeredAutoPrev by remember(chapterUrl) { mutableStateOf(false) }
+        var pullUpOverscrollPx by remember(chapterUrl) { mutableFloatStateOf(0f) }
         val autoNextNestedScroll = remember(chapterUrl, hasNextChapter, hasPreviousChapter, displayPages.size) {
             object : NestedScrollConnection {
                 override fun onPostScroll(
@@ -496,19 +498,26 @@ fun WebtoonReaderScreenContent(
                         hasTriggeredAutoNext = true
                         onNextChapter()
                     } else if (
+                        source == NestedScrollSource.UserInput &&
                         hasPreviousChapter &&
                         !hasTriggeredAutoPrev &&
                         displayPages.isNotEmpty() &&
                         !listState.canScrollBackward &&
-                        available.y > 48f
+                        available.y > 0f
                     ) {
-                        hasTriggeredAutoPrev = true
-                        onPreviousChapter()
+                        pullUpOverscrollPx += available.y
+                        if (pullUpOverscrollPx > 160f) {
+                            hasTriggeredAutoPrev = true
+                            onPreviousChapter()
+                        }
+                    } else if (listState.canScrollBackward || available.y < 0f) {
+                        pullUpOverscrollPx = 0f
                     }
                     return Offset.Zero
                 }
 
                 override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                    pullUpOverscrollPx = 0f
                     if (shouldAutoAdvanceOnBottomScroll(
                             hasNextChapter = hasNextChapter,
                             alreadyTriggered = hasTriggeredAutoNext,
@@ -1142,179 +1151,84 @@ fun WebtoonReaderScreenContent(
         ) {
             Box(
                 modifier = Modifier
+                    .widthIn(max = 520.dp)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(26.dp))
-                    .background(Color(0xF50F1219))
-                    .border(1.dp, GlassBorderStrong, RoundedCornerShape(26.dp))
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Color(0xEE0F1219))
+                    .border(0.75.dp, GlassBorderStrong, RoundedCornerShape(22.dp))
             ) {
-                Column(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Row 1: Direction-aware page indicator and step buttons
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    // Previous Chapter button
+                    PanelCircleIconButton(
+                        icon = Icons.AutoMirrored.Filled.NavigateBefore,
+                        contentDescription = stringResource(Res.string.reader_previous_chapter),
+                        size = 44.dp,
+                        iconSize = 22.dp,
+                        glassState = null,
+                        backgroundColor = Color.White.copy(alpha = 0.08f),
+                        borderColor = Color.White.copy(alpha = 0.12f),
+                        tint = if (hasPreviousChapter) TextPrimary else TextPrimary.copy(alpha = 0.3f),
+                        onClick = { if (hasPreviousChapter) onPreviousChapter() }
+                    )
+
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.weight(1f)
                     ) {
-                        if (readingMode == DefaultReadingMode.WEBTOON) {
-                            // Autoscroll toggle button
-                            val primaryAccent = MaterialTheme.colorScheme.primary
-                            Row(
-                                modifier = Modifier
-                                    .clip(CapsuleShape)
-                                    .background(if (isAutoscrollActive) primaryAccent.copy(alpha = 0.25f) else Color.White.copy(alpha = 0.08f))
-                                    .border(0.5.dp, if (isAutoscrollActive) primaryAccent else Color.White.copy(alpha = 0.15f), CapsuleShape)
-                                    .clickable {
-                                        isAutoscrollActive = !isAutoscrollActive
-                                        isAutoscrollPausedByTouch = false
-                                    }
-                                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = if (isAutoscrollActive && !isAutoscrollPausedByTouch) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                    contentDescription = "Auto Scroll",
-                                    tint = if (isAutoscrollActive) primaryAccent else Color.White,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = if (isAutoscrollActive) (if (isAutoscrollPausedByTouch) "Paused" else "Auto-Scroll") else "Auto-Scroll",
-                                    fontSize = 11.sp,
-                                    color = if (isAutoscrollActive) primaryAccent else Color.White,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
+                        val indicatorText = if (readingMode == DefaultReadingMode.WEBTOON) {
+                            if (displayPages.isNotEmpty()) "${(currentProgress * 100).toInt()}% · ${displayPages.size} panels"
+                            else "0%"
+                        } else if (isDualSpreadActive) {
+                            currentDisplayPageLabel
                         } else {
-                            // Step previous page
-                            Row(
-                                modifier = Modifier
-                                    .clip(CapsuleShape)
-                                    .clickable { handlePrevious() }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.NavigateBefore,
-                                    contentDescription = "Previous Page",
-                                    tint = Color.White.copy(alpha = 0.85f),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Text("Prev", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Medium)
-                            }
+                            val curPage = (pagerState.currentPage + 1).coerceAtMost(displayPages.size)
+                            "$curPage / ${displayPages.size}"
                         }
-
-                        // Page Indicator Badge
-                        Box(
-                            modifier = Modifier
-                                .clip(CapsuleShape)
-                                .background(Color.White.copy(alpha = 0.16f))
-                                .border(0.5.dp, GlassBorderStrong, CapsuleShape)
-                                .padding(horizontal = 14.dp, vertical = 4.dp)
-                        ) {
-                            val pageText = if (readingMode == DefaultReadingMode.WEBTOON) {
-                                "${(currentProgress * 100).toInt()}% • Continuous"
-                            } else if (isDualSpreadActive) {
-                                "$currentDisplayPageLabel • Dual Spread"
-                            } else {
-                                val curPage = (pagerState.currentPage + 1).coerceAtMost(displayPages.size)
-                                "Page $curPage / ${displayPages.size} • ${if (isRtl) "RTL Manga" else "LTR Comic"}"
-                            }
-                            Text(
-                                text = pageText,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                        }
-
-                        if (readingMode == DefaultReadingMode.WEBTOON) {
-                            // Quick Speed Stepper Pill
-                            Row(
-                                modifier = Modifier
-                                    .clip(CapsuleShape)
-                                    .background(Color.White.copy(alpha = 0.08f))
-                                    .border(0.5.dp, Color.White.copy(alpha = 0.15f), CapsuleShape)
-                                    .clickable {
-                                        autoscrollSpeed = when {
-                                            autoscrollSpeed <= 1.2f -> 2f
-                                            autoscrollSpeed <= 2.2f -> 3f
-                                            else -> 1f
-                                        }
-                                    }
-                                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Speed: ${if (autoscrollSpeed <= 1.2f) "1x" else if (autoscrollSpeed <= 2.2f) "2x" else "3x"}",
-                                    fontSize = 11.sp,
-                                    color = Color.White.copy(alpha = 0.9f),
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-                        } else {
-                            // Step next page
-                            Row(
-                                modifier = Modifier
-                                    .clip(CapsuleShape)
-                                    .clickable { handleNext() }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("Next", fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.Medium)
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.NavigateNext,
-                                    contentDescription = "Next Page",
-                                    tint = Color.White.copy(alpha = 0.85f),
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // Row 2: Chapter Prev | Page Indicator | Chapter Next (no horizontal scrollbar)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        // Previous Chapter button
-                        PanelCircleIconButton(
-                            icon = Icons.AutoMirrored.Filled.NavigateBefore,
-                            contentDescription = stringResource(Res.string.reader_previous_chapter),
-                            size = 44.dp,
-                            iconSize = 22.dp,
-                            glassState = null,
-                            backgroundColor = Color.White.copy(alpha = 0.08f),
-                            borderColor = Color.White.copy(alpha = 0.12f),
-                            tint = if (hasPreviousChapter) TextPrimary else TextPrimary.copy(alpha = 0.3f),
-                            onClick = { if (hasPreviousChapter) onPreviousChapter() }
-                        )
-
                         Text(
-                            text = if (displayPages.isNotEmpty()) "$currentDisplayPageLabel / ${displayPages.size}" else currentDisplayPageLabel,
-                            color = TextPrimary.copy(alpha = 0.85f),
+                            text = indicatorText,
+                            color = Color.White,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold
                         )
-
-                        // Next Chapter button
-                        PanelCircleIconButton(
-                            icon = Icons.AutoMirrored.Filled.NavigateNext,
-                            contentDescription = stringResource(Res.string.reader_next_chapter),
-                            size = 44.dp,
-                            iconSize = 22.dp,
-                            glassState = null,
-                            backgroundColor = Color.White.copy(alpha = 0.08f),
-                            borderColor = Color.White.copy(alpha = 0.12f),
-                            tint = if (hasNextChapter) TextPrimary else TextPrimary.copy(alpha = 0.3f),
-                            onClick = { if (hasNextChapter) onNextChapter() }
-                        )
+                        if (readingMode == DefaultReadingMode.WEBTOON) {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (isAutoscrollActive) "Auto-scroll ${if (autoscrollSpeed <= 1.2f) "1x" else if (autoscrollSpeed <= 2.2f) "2x" else "3x"} · Tap to pause" else "Tap for auto-scroll",
+                                color = if (isAutoscrollActive) MaterialTheme.colorScheme.primary else TextSecondary,
+                                fontSize = 11.sp,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable {
+                                        if (!isAutoscrollActive) {
+                                            isAutoscrollActive = true
+                                            isAutoscrollPausedByTouch = false
+                                        } else {
+                                            isAutoscrollActive = false
+                                        }
+                                    }
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
+
+                    // Next Chapter button
+                    PanelCircleIconButton(
+                        icon = Icons.AutoMirrored.Filled.NavigateNext,
+                        contentDescription = stringResource(Res.string.reader_next_chapter),
+                        size = 44.dp,
+                        iconSize = 22.dp,
+                        glassState = null,
+                        backgroundColor = Color.White.copy(alpha = 0.08f),
+                        borderColor = Color.White.copy(alpha = 0.12f),
+                        tint = if (hasNextChapter) TextPrimary else TextPrimary.copy(alpha = 0.3f),
+                        onClick = { if (hasNextChapter) onNextChapter() }
+                    )
                 }
             }
         }
@@ -1368,45 +1282,37 @@ private fun ReaderModeSwitcher(
     isDualSpread: Boolean = false
 ) {
     val modes = listOf(
-        Triple(
-            DefaultReadingMode.RIGHT_TO_LEFT,
-            if (isDualSpread) "◂ RTL (Dual)" else "◂ RTL Manga",
-            "Japanese Right-to-Left paging"
-        ),
-        Triple(
-            DefaultReadingMode.LEFT_TO_RIGHT,
-            if (isDualSpread) "LTR (Dual) ▸" else "LTR Comic ▸",
-            "Western Left-to-Right paging"
-        ),
-        Triple(DefaultReadingMode.WEBTOON, "▾ Webtoon", "Continuous vertical infinite scroll")
+        Triple(DefaultReadingMode.RIGHT_TO_LEFT, if (isDualSpread) "RTL (2P)" else "RTL", "Japanese Right-to-Left"),
+        Triple(DefaultReadingMode.LEFT_TO_RIGHT, if (isDualSpread) "LTR (2P)" else "LTR", "Western Left-to-Right"),
+        Triple(DefaultReadingMode.WEBTOON, "Webtoon", "Continuous vertical scroll")
     )
 
     Box(
         modifier = modifier
-            .clip(CapsuleShape)
-            .background(Color(0xEE0F1219))
-            .border(1.dp, GlassBorderStrong, CapsuleShape)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xE60F1219))
+            .border(0.75.dp, GlassBorderStrong, RoundedCornerShape(12.dp))
             .padding(3.dp)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             modes.forEach { (mode, label, _) ->
                 val isSelected = currentMode == mode
                 Box(
                     modifier = Modifier
-                        .clip(CapsuleShape)
-                        .background(if (isSelected) Color.White else Color.Transparent)
+                        .clip(RoundedCornerShape(9.dp))
+                        .background(if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.24f) else Color.Transparent)
                         .clickable { onSelectMode(mode) }
                         .padding(horizontal = 12.dp, vertical = 6.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = label,
-                        fontSize = 11.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSelected) Color(0xFF090D15) else Color.White.copy(alpha = 0.75f)
+                        fontSize = 12.sp,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.72f)
                     )
                 }
             }
@@ -1873,6 +1779,7 @@ fun WebtoonPanelSlice(
                 )
             }
         } else {
+            var isImageLoaded by remember(imageUrl, retryKey) { mutableStateOf(false) }
             val imageRequest = remember(imageUrl, page?.headers, retryKey, defaultUa) {
                 buildReaderImageRequest(
                     context = platformContext,
@@ -1886,13 +1793,17 @@ fun WebtoonPanelSlice(
                 contentDescription = "Slice ${sliceIndex + 1}",
                 contentScale = ContentScale.FillWidth,
                 colorFilter = appliedFilter,
-                modifier = modifier.fillMaxWidth(),
+                modifier = modifier
+                    .fillMaxWidth()
+                    .then(if (!isImageLoaded) Modifier.heightIn(min = 260.dp) else Modifier),
                 onState = { state ->
                     when (state) {
                         is coil3.compose.AsyncImagePainter.State.Error -> {
+                            isImageLoaded = false
                             loadError = formatImageLoadError(imageUrl, state.result.throwable.message)
                         }
                         is coil3.compose.AsyncImagePainter.State.Success -> {
+                            isImageLoaded = true
                             loadError = null
                         }
                         else -> {}

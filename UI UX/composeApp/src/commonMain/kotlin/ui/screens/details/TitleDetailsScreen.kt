@@ -483,6 +483,7 @@ fun TitleDetailsScreenContent(
                         Spacer(modifier = Modifier.height(10.dp))
                         val firstChapter = chapters.lastOrNull() ?: chapters.first()
                         val latestChapter = chapters.first()
+                        val primaryColor = MaterialTheme.colorScheme.primary
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -490,10 +491,10 @@ fun TitleDetailsScreenContent(
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(44.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Color.White.copy(alpha = 0.06f))
-                                    .border(0.5.dp, GlassBorder, RoundedCornerShape(10.dp))
+                                    .height(46.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(primaryColor.copy(alpha = 0.14f))
+                                    .border(1.dp, primaryColor.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
                                     .clickable { onReadChapter(firstChapter) }
                                     .padding(horizontal = 12.dp),
                                 contentAlignment = Alignment.Center
@@ -501,8 +502,8 @@ fun TitleDetailsScreenContent(
                                 Text(
                                     text = "First Chapter",
                                     fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = TextPrimary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = primaryColor,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -510,10 +511,10 @@ fun TitleDetailsScreenContent(
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(44.dp)
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(Color.White.copy(alpha = 0.06f))
-                                    .border(0.5.dp, GlassBorder, RoundedCornerShape(10.dp))
+                                    .height(46.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(primaryColor.copy(alpha = 0.14f))
+                                    .border(1.dp, primaryColor.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
                                     .clickable { onReadChapter(latestChapter) }
                                     .padding(horizontal = 12.dp),
                                 contentAlignment = Alignment.Center
@@ -521,8 +522,8 @@ fun TitleDetailsScreenContent(
                                 Text(
                                     text = "Last Chapter",
                                     fontSize = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = TextPrimary,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = primaryColor,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )

@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -766,41 +767,46 @@ private fun BatchActionBar(
 
     Box(
         modifier = modifier
+            .widthIn(max = 560.dp)
             .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(Color(0xF0111522))
-            .border(1.dp, GlassBorderStrong, RoundedCornerShape(22.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color(0xF5111522))
+            .border(1.dp, GlassBorderStrong, RoundedCornerShape(20.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceAround,
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
             BatchActionButton(
                 icon = Icons.AutoMirrored.Filled.DriveFileMove,
                 label = "Move",
                 enabled = hasSelection,
-                onClick = onMove
+                onClick = onMove,
+                modifier = Modifier.weight(1f)
             )
             BatchActionButton(
                 icon = Icons.Default.DoneAll,
                 label = "Mark Read",
                 enabled = hasSelection,
-                onClick = onMarkRead
+                onClick = onMarkRead,
+                modifier = Modifier.weight(1f)
             )
             BatchActionButton(
                 icon = Icons.Default.Download,
                 label = "Download",
                 enabled = hasSelection,
-                onClick = onDownload
+                onClick = onDownload,
+                modifier = Modifier.weight(1f)
             )
             BatchActionButton(
                 icon = Icons.Default.Delete,
                 label = "Remove",
                 enabled = hasSelection,
                 contentColor = Color(0xFFEF4444),
-                onClick = onRemove
+                onClick = onRemove,
+                modifier = Modifier.weight(1f)
             )
         }
     }
@@ -812,16 +818,17 @@ private fun BatchActionButton(
     label: String,
     enabled: Boolean,
     contentColor: Color = Color.White,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val color = if (enabled) contentColor else Color.White.copy(alpha = 0.25f)
+    val color = if (enabled) contentColor else Color.White.copy(alpha = 0.35f)
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .clip(RoundedCornerShape(12.dp))
             .clickable(enabled = enabled, interactionSource = interaction, indication = null, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 4.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Icon(
@@ -830,12 +837,14 @@ private fun BatchActionButton(
             tint = color,
             modifier = Modifier.size(20.dp)
         )
-        Spacer(modifier = Modifier.height(3.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = label,
             color = color,
             fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
     }
 }
