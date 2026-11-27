@@ -188,3 +188,11 @@ sqldelight {
         }
     }
 }
+
+composeCompiler {
+    if (project.findProperty("composeCompilerReports") == "true") {
+        val reportsDir = layout.buildDirectory.dir("compose_compiler")
+        reportsDestination.set(reportsDir)
+        metricsDestination.set(reportsDir)
+    }
+}
