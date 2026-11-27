@@ -130,6 +130,7 @@ import data.settings.SettingsRepository
 import data.settings.canonicalTitleKey
 import data.settings.observeResolvedMangaSettings
 import data.settings.resolveReaderSettings
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -177,6 +178,7 @@ data class WebtoonReaderScreen(
 
         var currentChapterUrl by rememberSaveable(chapterUrl) { mutableStateOf(chapterUrl) }
         var currentChapterTitle by rememberSaveable(chapterTitle) { mutableStateOf(chapterTitle) }
+        var startAtEndOnLoad by rememberSaveable(chapterUrl) { mutableStateOf(false) }
         var pagesRefreshTrigger by remember { mutableIntStateOf(0) }
 
         val mangaDetails by remember(mangaUrl, sourceId) {
@@ -201,6 +203,34 @@ data class WebtoonReaderScreen(
         val nextTitle = if (chapters.isNotEmpty() && currentChapterIndex > 0) {
             chapters[currentChapterIndex - 1].name
         } else ""
+
+        // Seamlessly preload next & previous chapter pages so chapter transitions don't stall
+        val preloadContext = coil3.compose.LocalPlatformContext.current
+        val preloadUa = remember { CloudflareChallengeHeuristics.defaultReaderUserAgent() }
+        LaunchedEffect(currentChapterUrl, chapters.size) {
+            if (chapters.isEmpty() || currentChapterIndex < 0) return@LaunchedEffect
+            val imageLoader = coil3.SingletonImageLoader.get(preloadContext)
+            if (currentChapterIndex > 0) {
+                val nextCh = chapters[currentChapterIndex - 1]
+                val nextPages = runCatching { repository.getPages(nextCh.url, sourceId).firstOrNull() }.getOrNull().orEmpty()
+                nextPages.take(3).forEach { p ->
+                    val url = p.imageUrl ?: p.url
+                    if (url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)) {
+                        imageLoader.enqueue(buildReaderImageRequest(preloadContext, url, p.headers, preloadUa))
+                    }
+                }
+            }
+            if (currentChapterIndex < chapters.lastIndex) {
+                val prevCh = chapters[currentChapterIndex + 1]
+                val prevPages = runCatching { repository.getPages(prevCh.url, sourceId).firstOrNull() }.getOrNull().orEmpty()
+                prevPages.takeLast(3).forEach { p ->
+                    val url = p.imageUrl ?: p.url
+                    if (url.startsWith("http://", ignoreCase = true) || url.startsWith("https://", ignoreCase = true)) {
+                        imageLoader.enqueue(buildReaderImageRequest(preloadContext, url, p.headers, preloadUa))
+                    }
+                }
+            }
+        }
 
         val coroutineScope = rememberCoroutineScope { AppCoroutineExceptionHandler }
         val snackbarHostState = remember { SnackbarHostState() }
@@ -271,6 +301,7 @@ data class WebtoonReaderScreen(
                 onPreviousChapter = {
                     if (chapters.isNotEmpty() && currentChapterIndex in 0 until chapters.lastIndex) {
                         val prevChapter = chapters[currentChapterIndex + 1]
+                        startAtEndOnLoad = true
                         currentChapterUrl = prevChapter.url
                         currentChapterTitle = prevChapter.name
                     }
@@ -278,10 +309,12 @@ data class WebtoonReaderScreen(
                 onNextChapter = {
                     if (chapters.isNotEmpty() && currentChapterIndex > 0) {
                         val nextChapter = chapters[currentChapterIndex - 1]
+                        startAtEndOnLoad = false
                         currentChapterUrl = nextChapter.url
                         currentChapterTitle = nextChapter.name
                     }
                 },
+                startAtEndOnLoad = startAtEndOnLoad,
                 hasPreviousChapter = hasPrevious,
                 hasNextChapter = hasNext,
                 nextChapterTitle = nextTitle
@@ -324,6 +357,7 @@ fun WebtoonReaderScreenContent(
     hasPreviousChapter: Boolean = true,
     hasNextChapter: Boolean = true,
     nextChapterTitle: String = "",
+    startAtEndOnLoad: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val glassState = rememberPanelGlassState()
@@ -450,12 +484,17 @@ fun WebtoonReaderScreenContent(
 
         LaunchedEffect(chapterUrl, displayPages.size) {
             if (shouldResetReaderScroll(previousChapterUrl, chapterUrl)) {
-                previousChapterUrl = chapterUrl
-                savedPageIndex = 0
-                savedScrollOffset = 0
-                hasRestoredSavedPosition = true
-                listState.scrollToItem(0)
-                pagerState.scrollToPage(0)
+                if (displayPages.isNotEmpty()) {
+                    previousChapterUrl = chapterUrl
+                    val targetIdx = if (startAtEndOnLoad) displayPages.lastIndex else 0
+                    savedPageIndex = targetIdx
+                    savedScrollOffset = 0
+                    hasRestoredSavedPosition = true
+                    listState.scrollToItem(targetIdx)
+                    pagerState.scrollToPage(
+                        if (isDualSpreadActive && startAtEndOnLoad) (spreads.size - 1).coerceAtLeast(0) else targetIdx
+                    )
+                }
             } else if (!hasRestoredSavedPosition && displayPages.isNotEmpty()) {
                 val targetIndex = savedPageIndex.coerceIn(0, displayPages.lastIndex)
                 if (targetIndex > 0 || savedScrollOffset > 0) {
@@ -520,7 +559,7 @@ fun WebtoonReaderScreenContent(
 
                     if (!listState.canScrollBackward && available.y > 0f && hasPreviousChapter && !hasTriggeredAutoPrev && !isChapterTransitioning && displayPages.isNotEmpty()) {
                         pullUpOverscrollPx += available.y
-                        if (pullUpOverscrollPx > 160f) {
+                        if (pullUpOverscrollPx > 60f) {
                             hasTriggeredAutoPrev = true
                             pullUpOverscrollPx = 0f
                             safePreviousChapter()
@@ -808,16 +847,14 @@ fun WebtoonReaderScreenContent(
                             state = listState,
                             verticalArrangement = Arrangement.spacedBy(0.dp),
                             modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .widthIn(max = 760.dp)
                                 .fillMaxSize()
                                 .nestedScroll(autoNextNestedScroll)
                                 .readerTapHandler(
                                     isRtl = false,
-                                    tapZonesEnabled = tapZonesEnabled,
-                                    onPrevious = handlePrevious,
+                                    tapZonesEnabled = false,
+                                    onPrevious = handleToggleControls,
                                     onToggleControls = handleToggleControls,
-                                    onNext = handleNext
+                                    onNext = handleToggleControls
                                 )
                         ) {
                             itemsIndexed(
@@ -873,7 +910,11 @@ fun WebtoonReaderScreenContent(
                                 .fillMaxHeight()
                                 .statusBarsPadding()
                                 .navigationBarsPadding()
-                                .padding(end = 4.dp, top = 12.dp, bottom = 12.dp)
+                                .padding(
+                                    end = 4.dp,
+                                    top = if (areControlsVisible) 88.dp else 12.dp,
+                                    bottom = if (areControlsVisible) 88.dp else 12.dp
+                                )
                         )
                     }
                 }
@@ -1054,29 +1095,6 @@ fun WebtoonReaderScreenContent(
             )
         }
 
-        // Floating Page Indicator Pill (hidden when bottom controls are visible to avoid duplicate badges)
-        if (!isAtEndOfChapter && !areControlsVisible) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = if (areControlsVisible) 96.dp else 24.dp)
-                    .glassDimming(alpha = 0.35f, shape = CapsuleShape)
-                    .glassSurface(
-                        state = glassState,
-                        variant = GlassVariant.Clear,
-                        shape = CapsuleShape
-                    )
-                    .padding(horizontal = 14.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = currentDisplayPageLabel,
-                    color = TextPrimary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-        }
-
         // LAYER 2: Minimal Glass Top Control Bar (Back, 1-line Title, Settings)
         AnimatedVisibility(
             visible = areControlsVisible,
@@ -1201,26 +1219,23 @@ fun WebtoonReaderScreenContent(
                             .weight(1f)
                             .padding(horizontal = 4.dp)
                     ) {
-                        PanelSlider(
-                            value = sliderValue,
-                            onValueChange = { rawFraction ->
-                                val logicalFraction = mapReaderSliderFraction(rawFraction, isRtl = isRtl)
-                                coroutineScope.launch {
-                                    if (readingMode == DefaultReadingMode.WEBTOON) {
-                                        val maxIdx = (displayPages.size - 1).coerceAtLeast(0)
-                                        listState.scrollToItem((logicalFraction * maxIdx).toInt().coerceIn(0, maxIdx))
-                                    } else {
+                        if (readingMode != DefaultReadingMode.WEBTOON) {
+                            PanelSlider(
+                                value = sliderValue,
+                                onValueChange = { rawFraction ->
+                                    val logicalFraction = mapReaderSliderFraction(rawFraction, isRtl = isRtl)
+                                    coroutineScope.launch {
                                         val maxIdx = if (isDualSpreadActive) (spreads.size - 1).coerceAtLeast(0) else (displayPages.size - 1).coerceAtLeast(0)
                                         pagerState.scrollToPage((logicalFraction * maxIdx).toInt().coerceIn(0, maxIdx))
                                     }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                         Text(
                             text = currentDisplayPageLabel,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 11.sp,
+                            fontSize = if (readingMode == DefaultReadingMode.WEBTOON) 13.sp else 11.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1
                         )
@@ -1349,104 +1364,32 @@ fun WebtoonChapterTransitionGap(
     glassState: PanelGlassState,
     modifier: Modifier = Modifier
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-
-    Box(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 24.dp, horizontal = 16.dp),
-        contentAlignment = Alignment.Center
+            .clickable { onContinueToNextChapter() }
+            .padding(vertical = 36.dp, horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF0F131D).copy(alpha = 0.85f))
-                .border(1.dp, GlassBorderStrong, RoundedCornerShape(20.dp))
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = onContinueToNextChapter
-                )
-                .padding(vertical = 20.dp, horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            // Subtle glowing divider line
-            val primaryAccent = MaterialTheme.colorScheme.primary
-            Box(
-                modifier = Modifier
-                    .width(48.dp)
-                    .height(3.dp)
-                    .clip(CapsuleShape)
-                    .background(
-                        Brush.horizontalGradient(
-                            listOf(
-                                Color.Transparent,
-                                primaryAccent,
-                                Color.Transparent
-                            )
-                        )
-                    )
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Finished chapter label
-            Text(
-                text = "$currentChapterTitle Complete",
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = TextSecondary
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            // Next chapter banner badge
-            Row(
-                modifier = Modifier
-                    .clip(CapsuleShape)
-                    .background(primaryAccent.copy(alpha = 0.15f))
-                    .border(1.dp, primaryAccent.copy(alpha = 0.35f), CapsuleShape)
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = "NEXT: $nextChapterTitle",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = primaryAccent
-                )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Action / scroll prompt
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = "Tap or scroll to continue",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Normal,
-                    color = Color.White.copy(alpha = 0.65f)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.NavigateNext,
-                    contentDescription = null,
-                    tint = primaryAccent,
-                    modifier = Modifier.size(14.dp)
-                )
-            }
-        }
+        Text(
+            text = "$currentChapterTitle finished",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+            color = TextSecondary
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "Loading next: $nextChapterTitle",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary
+        )
     }
 }
 
 /**
- * End-of-series milestone card presented when all chapters have been read.
+ * Minimal end-of-series footer presented when all chapters have been read.
  */
 @Composable
 fun WebtoonEndOfSeriesCard(
@@ -1455,82 +1398,38 @@ fun WebtoonEndOfSeriesCard(
     glassState: PanelGlassState,
     modifier: Modifier = Modifier
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-
-    Box(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 32.dp, horizontal = 20.dp),
-        contentAlignment = Alignment.Center
+            .padding(vertical = 40.dp, horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        Column(
+        Text(
+            text = "$chapterTitle finished",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = TextPrimary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "All available chapters read",
+            fontSize = 13.sp,
+            color = TextSecondary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = "Back to series",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary,
             modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF0F131D).copy(alpha = 0.90f))
-                .border(1.dp, GlassBorderStrong, RoundedCornerShape(24.dp))
-                .padding(28.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .clip(CapsuleShape)
-                    .background(Color(0xFF10B981).copy(alpha = 0.15f))
-                    .border(1.dp, Color(0xFF10B981).copy(alpha = 0.35f), CapsuleShape)
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = "SERIES CAUGHT UP",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF10B981),
-                    letterSpacing = 1.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Text(
-                text = "$chapterTitle Finished",
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = "You've read all available chapters for this title.",
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Normal,
-                color = TextSecondary,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Box(
-                modifier = Modifier
-                    .clip(CapsuleShape)
-                    .background(Color.White.copy(alpha = 0.10f))
-                    .border(1.dp, GlassBorderStrong, CapsuleShape)
-                    .clickable(
-                        interactionSource = interactionSource,
-                        indication = null,
-                        onClick = onBack
-                    )
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "Return to Title Details",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White
-                )
-            }
-        }
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onBack)
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+        )
     }
 }
 
@@ -1974,7 +1873,7 @@ internal fun shouldAutoAdvanceOnBottomScroll(
         !alreadyTriggered &&
         !isEmptyPages &&
         !canScrollForward &&
-        downwardScrollDeltaY <= -160f
+        downwardScrollDeltaY <= -60f
 }
 
 internal data class WebtoonScrollbarMetrics(

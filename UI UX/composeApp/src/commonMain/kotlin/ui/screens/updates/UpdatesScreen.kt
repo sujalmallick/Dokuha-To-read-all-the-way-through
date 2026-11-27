@@ -1,6 +1,12 @@
 package ui.screens.updates
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -58,6 +64,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -330,12 +337,25 @@ fun UpdatesScreenContent(
                         )
 
                         if (selectedTab == "Updates") {
+                            val infiniteTransition = rememberInfiniteTransition(label = "updates_refresh_spin")
+                            val spinAngle by infiniteTransition.animateFloat(
+                                initialValue = 0f,
+                                targetValue = 360f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(durationMillis = 850, easing = LinearEasing),
+                                    repeatMode = RepeatMode.Restart
+                                ),
+                                label = "refresh_rotation"
+                            )
                             ui.components.PanelCircleIconButton(
                                 icon = Icons.Default.Refresh,
                                 contentDescription = "Refresh updates",
                                 size = 38.dp,
                                 iconSize = 19.dp,
                                 glassState = glassState,
+                                modifier = Modifier.graphicsLayer {
+                                    rotationZ = if (isRefreshingUpdates) spinAngle else 0f
+                                },
                                 onClick = onRefreshUpdates
                             )
                         } else if (selectedTab == "History" && historyGroups.isNotEmpty()) {

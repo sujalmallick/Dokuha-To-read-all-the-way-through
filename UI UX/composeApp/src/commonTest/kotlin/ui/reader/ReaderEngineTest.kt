@@ -203,13 +203,13 @@ class ReaderEngineTest {
 
     @Test
     fun testShouldAutoAdvanceOnBottomScroll_guardsAndTriggers() {
-        // Triggers only at bottom (!canScrollForward), with deliberate downward overscroll (y <= -160)
+        // Triggers only at bottom (!canScrollForward), with deliberate downward overscroll (y <= -60)
         assertTrue(
             shouldAutoAdvanceOnBottomScroll(
                 hasNextChapter = true,
                 alreadyTriggered = false,
                 canScrollForward = false,
-                downwardScrollDeltaY = -180f,
+                downwardScrollDeltaY = -80f,
                 isEmptyPages = false
             )
         )

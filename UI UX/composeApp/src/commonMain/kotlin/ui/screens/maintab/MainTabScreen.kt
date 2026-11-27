@@ -194,6 +194,7 @@ class MainTabScreen(
                         val profile by profileRepository.profile.collectAsState()
                         val themeMode by settingsRepository.themeMode.collectAsState()
                         val cacheSize by settingsRepository.cacheSize.collectAsState()
+                        val isIncognito by settingsRepository.incognitoMode.collectAsState()
 
                         MoreScreenContent(
                             profile = profile,
@@ -203,6 +204,8 @@ class MainTabScreen(
                                 ThemeMode.OLED_BLACK -> "OLED Black"
                             },
                             cacheSize = cacheSize,
+                            isIncognito = isIncognito,
+                            onToggleIncognito = { settingsRepository.setIncognitoMode(it) },
                             onOpenProfile = { navigator.push(ProfileScreen()) },
                             onNavigateAppearance = { navigator.push(AppearanceSettingsScreen()) },
                             onNavigateReader = { navigator.push(GlobalReaderSettingsScreen()) },
