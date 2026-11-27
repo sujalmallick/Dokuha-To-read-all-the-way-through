@@ -11,6 +11,7 @@ import data.settings.ReaderColorFilter
 import data.settings.TitleReaderPrefs
 import data.settings.canonicalTitleKey
 import data.settings.observeResolvedMangaSettings
+import data.settings.observeResolvedNovelSettings
 import data.settings.resolveReaderSettings
 import data.settings.safeEnumValueOf
 import data.settings.sanitized
@@ -203,5 +204,40 @@ class ReaderPrefsRepositoryTest {
         val long2 = canonicalTitleKey("${prefix}two", isNovel = true)
         assertTrue(long1.length <= 190)
         assertNotEquals(long1, long2)
+    }
+
+    @Test
+    fun testNovelScopeBehavior_resolvesAndUpdatesPerTitleVsGlobal() = runTest {
+        val global = FakeSettingsRepository().apply {
+            setNovelTheme(NovelReaderTheme.DARK)
+            setNovelFont(NovelFont.SYSTEM)
+            setNovelFontSize(16f)
+            setNovelLineHeight(1.5f)
+        }
+        val prefsRepo = FakeReaderPrefsRepository(global)
+        val novelKey = canonicalTitleKey("The Beginning After The End", isNovel = true)
+
+        prefsRepo.updatePrefs(novelKey) {
+            it.copy(
+                novelTheme = NovelReaderTheme.SEPIA,
+                novelFontSize = 20f
+            )
+        }
+
+        val resolved = observeResolvedNovelSettings(novelKey, global, prefsRepo.observePrefs(novelKey)).first()
+        assertEquals(NovelReaderTheme.SEPIA, resolved.novelTheme)
+        assertEquals(NovelFont.SYSTEM, resolved.novelFont)
+        assertEquals(20f, resolved.novelFontSize)
+        assertEquals(1.5f, resolved.novelLineHeight)
+        assertTrue(resolved.isNovelThemeCustom)
+        assertFalse(resolved.isNovelFontCustom)
+        assertTrue(resolved.isNovelFontSizeCustom)
+        assertTrue(resolved.hasNovelOverrides)
+
+        // Updating global font affects novel because novelFont override is null
+        global.setNovelFont(NovelFont.SERIF)
+        val afterGlobalChange = observeResolvedNovelSettings(novelKey, global, prefsRepo.observePrefs(novelKey)).first()
+        assertEquals(NovelFont.SERIF, afterGlobalChange.novelFont)
+        assertEquals(NovelReaderTheme.SEPIA, afterGlobalChange.novelTheme)
     }
 }

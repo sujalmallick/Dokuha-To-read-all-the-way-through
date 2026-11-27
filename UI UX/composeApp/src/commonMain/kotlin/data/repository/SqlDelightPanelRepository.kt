@@ -693,10 +693,10 @@ class SqlDelightPanelRepository(
     // ── Backup / Restore ────────────────────────────────────────────────────
 
     override suspend fun exportLibraryJson(): String =
-        BackupEngine.exportJson(this, nowMs = currentTimeMillis())
+        BackupEngine.exportJson(this, nowMs = currentTimeMillis(), readerPrefsRepository = data.settings.SqlDelightReaderPrefsRepository(database, settingsRepository))
 
     override suspend fun importLibraryJson(json: String): Int =
-        BackupEngine.importJson(json, this)
+        BackupEngine.importJson(json, this, readerPrefsRepository = data.settings.SqlDelightReaderPrefsRepository(database, settingsRepository))
 
     override fun searchManga(
         query: String,

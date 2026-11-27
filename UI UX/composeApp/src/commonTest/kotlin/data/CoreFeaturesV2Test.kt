@@ -42,7 +42,7 @@ class CoreFeaturesV2Test {
     fun testBackupEngineImportsTachiyomiJsonAndDokuhaV2() = runTest {
         val repo = FakePanelRepository()
         val json = BackupEngine.exportJson(repo, nowMs = 123456L)
-        assertTrue(json.contains("\"schema_version\":2"))
+        assertTrue(json.contains("\"schema_version\":3"))
 
         val tachibkJson = """
             {

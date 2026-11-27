@@ -60,6 +60,7 @@ import ui.screens.library.CategoryEditSheet
 import ui.screens.library.LibraryScreenContent
 import ui.screens.more.MoreScreenContent
 import ui.screens.novelreader.NovelReaderScreenContent
+import ui.screens.novelreader.NovelSettingsSheetContent
 import ui.screens.profile.ProfileScreenContent
 import ui.screens.settings.AppLogoSettingsScreenContent
 import ui.screens.settings.AppearanceSettingsScreenContent
@@ -690,5 +691,67 @@ class ScreenshotsTest {
             }
         }
         composeTestRule.onRoot().captureRoboImage("screenshots/27_reader_settings_per_title_dark_font20.png")
+    }
+
+    private fun createNovelPerTitlePreviewRepos(): Pair<FakeSettingsRepository, FakeReaderPrefsRepository> {
+        val settingsRepo = FakeSettingsRepository().apply {
+            setIncognitoMode(true)
+        }
+        val prefsRepo = FakeReaderPrefsRepository(FakeSettingsRepository())
+        val titleKey = canonicalTitleKey("Omniscient Reader", isNovel = true)
+        runBlocking {
+            prefsRepo.upsertPrefs(
+                TitleReaderPrefs(
+                    titleKey = titleKey,
+                    novelTheme = NovelReaderTheme.SEPIA,
+                    novelFont = NovelFont.SERIF,
+                    novelFontSize = 20f
+                )
+            )
+        }
+        return settingsRepo to prefsRepo
+    }
+
+    @Test
+    fun capture_28_novel_settings_dark_320dp() {
+        val (settingsRepo, prefsRepo) = createNovelPerTitlePreviewRepos()
+        val titleKey = canonicalTitleKey("Omniscient Reader", isNovel = true)
+
+        composeTestRule.setContent {
+            PanelTheme(themeMode = ThemeMode.DARK) {
+                Box(modifier = Modifier.width(320.dp)) {
+                    NovelSettingsSheetContent(
+                        settingsRepository = settingsRepo,
+                        titleKey = titleKey,
+                        readerPrefsRepository = prefsRepo
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/28_novel_settings_dark_320dp.png")
+    }
+
+    @Test
+    fun capture_29_novel_settings_dark_font20() {
+        val (settingsRepo, prefsRepo) = createNovelPerTitlePreviewRepos()
+        val titleKey = canonicalTitleKey("Omniscient Reader", isNovel = true)
+
+        composeTestRule.setContent {
+            val baseDensity = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(density = baseDensity.density, fontScale = 2.0f)
+            ) {
+                PanelTheme(themeMode = ThemeMode.DARK) {
+                    Box(modifier = Modifier.width(320.dp)) {
+                        NovelSettingsSheetContent(
+                            settingsRepository = settingsRepo,
+                            titleKey = titleKey,
+                            readerPrefsRepository = prefsRepo
+                        )
+                    }
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/29_novel_settings_dark_font20.png")
     }
 }
