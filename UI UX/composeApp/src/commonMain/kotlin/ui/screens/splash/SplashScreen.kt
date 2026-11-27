@@ -222,14 +222,14 @@ fun SplashScreenContent(
 
     // Logo entrance animatables
     val logoAlpha = remember { Animatable(if (reduceMotion) 1f else 0f) }
-    val logoScale = remember { Animatable(if (reduceMotion) 1f else 0.90f) }
+    val logoScale = remember { Animatable(if (reduceMotion) 1f else 0.78f) }
     val glowIntensity = remember { Animatable(if (reduceMotion) 0.35f else 0f) }
-    val glowScale = remember { Animatable(1.0f) }
+    val glowScale = remember { Animatable(if (reduceMotion) 1.0f else 0.72f) }
 
     // Typography animatables
     val wordmarkAlpha = remember { Animatable(if (reduceMotion) 1f else 0f) }
-    val wordmarkOffsetY = remember { Animatable(if (reduceMotion) 0f else 8f) }
-    val wordmarkSpacing = remember { Animatable(if (reduceMotion) 11f else 6f) }
+    val wordmarkOffsetY = remember { Animatable(if (reduceMotion) 0f else 22f) }
+    val wordmarkSpacing = remember { Animatable(if (reduceMotion) 11f else 4f) }
     val kanjiAlpha = remember { Animatable(if (reduceMotion) 1f else 0f) }
     val formatAlpha = remember { Animatable(if (reduceMotion) 1f else 0f) }
     var formatIndex by rememberSaveable { mutableIntStateOf(0) }
@@ -312,44 +312,48 @@ fun SplashScreenContent(
             logoAlpha.snapTo(1f)
             logoScale.snapTo(1f)
             glowIntensity.snapTo(0.35f)
+            glowScale.snapTo(1f)
             wordmarkAlpha.snapTo(1f)
             wordmarkOffsetY.snapTo(0f)
             wordmarkSpacing.snapTo(11f)
             kanjiAlpha.snapTo(1f)
             formatAlpha.snapTo(1f)
             if (autoFinish) {
-                while (formatIndex < SplashFormats.lastIndex && !hasFinished) {
-                    delay(50L)
-                }
-                delay(700L)
+                delay(900)
                 safeFinish()
             }
             return@LaunchedEffect
         }
 
+        // Brief pause so entrance plays visibly after iOS native launch fade
+        delay(80)
+
         // 1. Logo entrance with smooth scale settle
         launch {
-            logoAlpha.animateTo(1f, animationSpec = tween(650, easing = FastOutSlowInEasing))
+            logoAlpha.animateTo(1f, animationSpec = tween(700, easing = FastOutSlowInEasing))
         }
         launch {
-            logoScale.animateTo(1f, animationSpec = tween(820, easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)))
+            logoScale.animateTo(1f, animationSpec = tween(950, easing = CubicBezierEasing(0.16f, 1f, 0.3f, 1f)))
         }
 
         when (initialMotion) {
             SplashMotionStyle.LUNAR_SILVER_GLOW -> {
-                // Concept 5: Lunar Silver Glow with smooth soft dissipation into resting aura
+                // Concept 5: Lunar Silver Glow with expanding bloom then soft resting aura
                 launch {
-                    glowIntensity.animateTo(1f, animationSpec = tween(720, easing = FastOutSlowInEasing))
-                    delay(520)
+                    launch {
+                        glowIntensity.animateTo(1f, animationSpec = tween(750, easing = FastOutSlowInEasing))
+                    }
+                    glowScale.animateTo(1.12f, animationSpec = tween(800, easing = FastOutSlowInEasing))
+                    delay(350)
                     launch {
                         glowIntensity.animateTo(
-                            0.24f,
+                            0.28f,
                             animationSpec = tween(900, easing = CubicBezierEasing(0.4f, 0.0f, 0.2f, 1.0f))
                         )
                     }
                     launch {
                         glowScale.animateTo(
-                            0.84f,
+                            0.88f,
                             animationSpec = tween(900, easing = CubicBezierEasing(0.4f, 0.0f, 0.2f, 1.0f))
                         )
                     }
@@ -434,7 +438,7 @@ fun SplashScreenContent(
             while (formatIndex < SplashFormats.lastIndex && !hasFinished) {
                 delay(50L)
             }
-            delay(750L)
+            delay(450L)
             safeFinish()
         }
     }
