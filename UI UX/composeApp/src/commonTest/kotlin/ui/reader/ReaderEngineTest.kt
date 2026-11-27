@@ -13,6 +13,8 @@ import ui.screens.webtoonreader.TapAction
 import ui.screens.webtoonreader.computeReaderDecodeSize
 import ui.screens.webtoonreader.computeWebtoonScrollbarMetrics
 import ui.screens.webtoonreader.formatImageLoadError
+import ui.screens.webtoonreader.mapReaderSliderFraction
+import ui.screens.webtoonreader.resolveReaderBottomNav
 import ui.screens.webtoonreader.shouldAutoAdvanceOnBottomScroll
 import ui.screens.webtoonreader.shouldResetReaderScroll
 import kotlin.test.Test
@@ -201,8 +203,19 @@ class ReaderEngineTest {
 
     @Test
     fun testShouldAutoAdvanceOnBottomScroll_guardsAndTriggers() {
-        // Triggers only at bottom (!canScrollForward), with downward scroll (y < -4), next chapter available, not yet triggered
+        // Triggers only at bottom (!canScrollForward), with deliberate downward overscroll (y <= -160)
         assertTrue(
+            shouldAutoAdvanceOnBottomScroll(
+                hasNextChapter = true,
+                alreadyTriggered = false,
+                canScrollForward = false,
+                downwardScrollDeltaY = -180f,
+                isEmptyPages = false
+            )
+        )
+
+        // Does not trigger on light/accidental scroll at bottom (e.g. -12f)
+        assertFalse(
             shouldAutoAdvanceOnBottomScroll(
                 hasNextChapter = true,
                 alreadyTriggered = false,
@@ -218,7 +231,7 @@ class ReaderEngineTest {
                 hasNextChapter = true,
                 alreadyTriggered = false,
                 canScrollForward = true,
-                downwardScrollDeltaY = -20f,
+                downwardScrollDeltaY = -200f,
                 isEmptyPages = false
             )
         )
@@ -249,7 +262,7 @@ class ReaderEngineTest {
                 hasNextChapter = true,
                 alreadyTriggered = true,
                 canScrollForward = false,
-                downwardScrollDeltaY = -20f,
+                downwardScrollDeltaY = -200f,
                 isEmptyPages = false
             )
         )
@@ -258,7 +271,7 @@ class ReaderEngineTest {
                 hasNextChapter = false,
                 alreadyTriggered = false,
                 canScrollForward = false,
-                downwardScrollDeltaY = -20f,
+                downwardScrollDeltaY = -200f,
                 isEmptyPages = false
             )
         )
@@ -267,10 +280,28 @@ class ReaderEngineTest {
                 hasNextChapter = true,
                 alreadyTriggered = false,
                 canScrollForward = false,
-                downwardScrollDeltaY = -20f,
+                downwardScrollDeltaY = -200f,
                 isEmptyPages = true
             )
         )
+    }
+
+    @Test
+    fun testReaderRtlVsLtrBottomNavAndSliderMapping() {
+        val rtlNav = resolveReaderBottomNav(isRtl = true, hasPreviousChapter = true, hasNextChapter = false)
+        assertTrue(rtlNav.leftIsNext)
+        assertFalse(rtlNav.leftEnabled)
+        assertFalse(rtlNav.rightIsNext)
+        assertTrue(rtlNav.rightEnabled)
+
+        val ltrNav = resolveReaderBottomNav(isRtl = false, hasPreviousChapter = true, hasNextChapter = false)
+        assertFalse(ltrNav.leftIsNext)
+        assertTrue(ltrNav.leftEnabled)
+        assertTrue(ltrNav.rightIsNext)
+        assertFalse(ltrNav.rightEnabled)
+
+        assertEquals(0.75f, mapReaderSliderFraction(0.25f, isRtl = true), 0.001f)
+        assertEquals(0.25f, mapReaderSliderFraction(0.25f, isRtl = false), 0.001f)
     }
 
     @Test
@@ -318,7 +349,7 @@ class ReaderEngineTest {
     @Test
     fun testComputeReaderDecodeSize_clampsBounds() {
         val defaultSize = computeReaderDecodeSize()
-        assertEquals(Size(1440, 2880), defaultSize)
+        assertEquals(Size(2048, 4096), defaultSize)
 
         val clampedLow = computeReaderDecodeSize(maxWidthPx = 100, maxHeightPx = 100)
         assertEquals(Size(320, 480), clampedLow)
