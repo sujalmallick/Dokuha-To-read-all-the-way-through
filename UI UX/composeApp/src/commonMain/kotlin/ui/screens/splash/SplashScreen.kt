@@ -57,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -67,6 +68,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -93,6 +95,8 @@ import ui.screens.maintab.MainTabScreen
 import ui.screens.welcome.WelcomeScreen
 import ui.theme.GlassBorder
 import ui.theme.LocalReduceMotion
+import ui.theme.TextPrimaryStatic
+import ui.theme.TextSecondaryStatic
 
 private val SplashBackground = Color(0xFF080808)
 private val WordmarkColor = Color(0xFFEBE6E2)
@@ -261,13 +265,16 @@ fun SplashScreenContent(
     )
 
     // Rotate manhua -> manhwa -> manga -> comic -> novel (~550ms per word, ends on novel)
-    LaunchedEffect(activeMotion, autoFinish, reduceMotion) {
+    LaunchedEffect(activeMotion, autoFinish) {
         if (autoFinish) {
             while (formatIndex < SplashFormats.lastIndex && !hasFinished) {
                 delay(550L)
                 if (!hasFinished && formatIndex < SplashFormats.lastIndex) {
                     formatIndex++
                 }
+            }
+            if (hasFinished && formatIndex != SplashFormats.lastIndex) {
+                formatIndex = SplashFormats.lastIndex
             }
         } else {
             while (true) {
@@ -887,14 +894,26 @@ fun SplashScreenContent(
             fontWeight = FontWeight.Bold,
             letterSpacing = if (isCompact) 0.8.sp else 1.4.sp
         )
+        val silverWordBrush = remember {
+            Brush.linearGradient(
+                colors = listOf(
+                    TextPrimaryStatic,
+                    WordmarkColor,
+                    TextSecondaryStatic.copy(alpha = 0.92f)
+                )
+            )
+        }
         val maxWordWidthDp = remember(textMeasurer, rotatingWordStyle, density) {
             val maxPx = SplashFormats.maxOf { word ->
                 textMeasurer.measure(text = word, style = rotatingWordStyle).size.width
             }
             with(density) { maxPx.toDp() }
         }
-        val slideOffsetPx = remember(density) {
-            with(density) { 10.dp.roundToPx() }
+        val slotHeightPx = remember(textMeasurer, rotatingWordStyle) {
+            textMeasurer.measure(text = SplashFormats.first(), style = rotatingWordStyle).size.height
+        }
+        val slotHeightDp = remember(slotHeightPx, density) {
+            with(density) { slotHeightPx.toDp() }
         }
 
         Row(
@@ -915,37 +934,109 @@ fun SplashScreenContent(
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(modifier = Modifier.width(if (isCompact) 5.dp else 7.dp))
-            Box(
-                modifier = Modifier.width(maxWordWidthDp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                AnimatedContent(
-                    targetState = formatIndex,
-                    transitionSpec = {
-                        if (reduceMotion) {
-                            fadeIn(tween(120)) togetherWith fadeOut(tween(120))
-                        } else {
-                            (slideInVertically(tween(240, easing = FastOutSlowInEasing)) { slideOffsetPx } +
-                                fadeIn(tween(220, easing = FastOutSlowInEasing)))
-                                .togetherWith(
-                                    slideOutVertically(tween(220, easing = FastOutSlowInEasing)) { -slideOffsetPx } +
-                                        fadeOut(tween(180, easing = FastOutSlowInEasing))
-                                )
-                                .using(SizeTransform(clip = false))
-                        }
-                    },
-                    contentAlignment = Alignment.CenterStart,
-                    label = "SplashFormatRotation"
-                ) { idx ->
-                    val formatWord = SplashFormats[idx.coerceIn(0, SplashFormats.lastIndex)]
-                    Text(
-                        text = formatWord,
-                        style = rotatingWordStyle,
-                        color = WordmarkColor.copy(alpha = 0.96f),
-                        maxLines = 1
-                    )
+            SplashTickerWordSlot(
+                formatIndex = formatIndex,
+                reduceMotion = reduceMotion,
+                stopImmediately = hasFinished,
+                slotWidth = maxWordWidthDp,
+                slotHeight = slotHeightDp,
+                slotHeightPx = slotHeightPx.toFloat(),
+                wordStyle = rotatingWordStyle.copy(brush = silverWordBrush)
+            )
+        }
+    }
+}
+
+private val TickerEaseOut = CubicBezierEasing(0.22f, 1f, 0.36f, 1f)
+
+@Composable
+internal fun SplashTickerWordSlot(
+    formatIndex: Int,
+    reduceMotion: Boolean,
+    stopImmediately: Boolean,
+    slotWidth: androidx.compose.ui.unit.Dp,
+    slotHeight: androidx.compose.ui.unit.Dp,
+    slotHeightPx: Float,
+    wordStyle: TextStyle
+) {
+    val clampedTarget = formatIndex.coerceIn(0, SplashFormats.lastIndex)
+    var displayedIndex by rememberSaveable { mutableIntStateOf(clampedTarget) }
+    var exitingIndex by remember { mutableIntStateOf(clampedTarget) }
+    val progress = remember { Animatable(1f) }
+
+    LaunchedEffect(clampedTarget, reduceMotion, stopImmediately) {
+        if (stopImmediately) {
+            exitingIndex = clampedTarget
+            displayedIndex = clampedTarget
+            progress.snapTo(1f)
+            return@LaunchedEffect
+        }
+        if (displayedIndex != clampedTarget) {
+            exitingIndex = displayedIndex
+            displayedIndex = clampedTarget
+            progress.snapTo(0f)
+            val durationMs = if (reduceMotion) 180 else 440
+            progress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = durationMs, easing = LinearEasing)
+            )
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .testTag("splash_ticker_slot")
+            .width(slotWidth)
+            .height(slotHeight)
+            .clipToBounds(),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        if (progress.value < 1f && exitingIndex != displayedIndex) {
+            Text(
+                text = SplashFormats[exitingIndex],
+                style = wordStyle,
+                maxLines = 1,
+                modifier = Modifier.graphicsLayer {
+                    val p = progress.value
+                    if (reduceMotion) {
+                        alpha = (1f - p).coerceIn(0f, 1f)
+                        translationY = 0f
+                        scaleX = 1f
+                        scaleY = 1f
+                    } else {
+                        // Exit completes in ~220ms of the 440ms window
+                        val exitT = TickerEaseOut.transform((p / 0.50f).coerceIn(0f, 1f))
+                        translationY = -slotHeightPx * 0.72f * exitT
+                        alpha = (1f - exitT).coerceIn(0f, 1f)
+                        val s = 1f - 0.04f * exitT
+                        scaleX = s
+                        scaleY = s
+                    }
+                }
+            )
+        }
+
+        Text(
+            text = SplashFormats[displayedIndex],
+            style = wordStyle,
+            maxLines = 1,
+            modifier = Modifier.graphicsLayer {
+                val p = progress.value
+                if (reduceMotion) {
+                    alpha = p.coerceIn(0f, 1f)
+                    translationY = 0f
+                    scaleX = 1f
+                    scaleY = 1f
+                } else {
+                    // Enter starts after ~60ms overlap and runs ~380ms
+                    val enterT = TickerEaseOut.transform(((p - 0.136f) / 0.864f).coerceIn(0f, 1f))
+                    translationY = slotHeightPx * 0.72f * (1f - enterT)
+                    alpha = enterT.coerceIn(0f, 1f)
+                    val s = 0.96f + 0.04f * enterT
+                    scaleX = s
+                    scaleY = s
                 }
             }
-        }
+        )
     }
 }
