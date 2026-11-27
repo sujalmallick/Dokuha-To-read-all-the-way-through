@@ -1,4 +1,15 @@
 <resources>
+    <string name="reader_settings_title">Reading Settings</string>
+    <string name="reader_scope_this_title">This title</string>
+    <string name="reader_scope_all_titles">All titles</string>
+    <string name="reader_custom_override_badge">Custom</string>
+    <string name="reader_reset_to_defaults">Reset to defaults</string>
+    <string name="reader_confirm_reset">Confirm reset</string>
+    <string name="reader_cancel">Cancel</string>
+    <string name="reader_incognito_temp_notice">Incognito mode: per-title changes are temporary and won\u2019t be saved.</string>
+    <string name="reader_custom_setting_a11y">%1$s, custom override active</string>
+    <string name="reader_global_settings_section">Global settings (all titles)</string>
+    <string name="novel_settings_title">Novel Settings</string>
     <string name="reader_previous_chapter">Previous Chapter</string>
     <string name="reader_next_chapter">Next Chapter</string>
     <string name="reader_tap_to_retry">Tap to Retry</string>

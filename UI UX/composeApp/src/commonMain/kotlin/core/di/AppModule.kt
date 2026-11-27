@@ -14,7 +14,9 @@ import data.profile.PersistentProfileRepository
 import data.profile.ProfileRepository
 import data.repository.SqlDelightPanelRepository
 import data.settings.PersistentSettingsRepository
+import data.settings.ReaderPrefsRepository
 import data.settings.SettingsRepository
+import data.settings.SqlDelightReaderPrefsRepository
 import data.tracker.ProductionTrackerRepository
 import data.tracker.TrackerRepository
 import core.extensions.ExtensionManager
@@ -75,6 +77,7 @@ val appModule = module {
         )
     }
     single<SettingsRepository> { PersistentSettingsRepository(get()) }
+    single<ReaderPrefsRepository> { SqlDelightReaderPrefsRepository(database = get(), settingsRepository = getOrNull()) }
     single<ProfileRepository> { PersistentProfileRepository(get(), get()) }
     single<DataDownloadManager> {
         CoreBackedDownloadManager(

@@ -1,7 +1,14 @@
 package io.panel.reader
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.dp
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.github.takahirom.roborazzi.captureRoboImage
 import core.download.DownloadJob
@@ -26,9 +33,13 @@ import data.profile.TrackerService
 import data.profile.UserProfile
 import data.settings.AppLogoStyle
 import data.settings.DefaultReadingMode
+import data.settings.FakeReaderPrefsRepository
 import data.settings.FakeSettingsRepository
 import data.settings.NovelFont
 import data.settings.NovelReaderTheme
+import data.settings.ReaderColorFilter
+import data.settings.TitleReaderPrefs
+import data.settings.canonicalTitleKey
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -49,6 +60,7 @@ import ui.screens.library.CategoryEditSheet
 import ui.screens.library.LibraryScreenContent
 import ui.screens.more.MoreScreenContent
 import ui.screens.novelreader.NovelReaderScreenContent
+import ui.screens.novelreader.NovelSettingsSheetContent
 import ui.screens.profile.ProfileScreenContent
 import ui.screens.settings.AppLogoSettingsScreenContent
 import ui.screens.settings.AppearanceSettingsScreenContent
@@ -590,6 +602,157 @@ class ScreenshotsTest {
             }
         }
         composeTestRule.onRoot().captureRoboImage("screenshots/24_repo_manager_dialog.png")
+    }
+
+    private fun createPerTitlePreviewRepos(): Pair<FakeSettingsRepository, FakeReaderPrefsRepository> {
+        val settingsRepo = FakeSettingsRepository().apply {
+            setIncognitoMode(true)
+        }
+        val prefsRepo = FakeReaderPrefsRepository(FakeSettingsRepository())
+        val titleKey = canonicalTitleKey("Solo Leveling", isNovel = false)
+        runBlocking {
+            prefsRepo.upsertPrefs(
+                TitleReaderPrefs(
+                    titleKey = titleKey,
+                    readingMode = DefaultReadingMode.RIGHT_TO_LEFT,
+                    colorFilter = ReaderColorFilter.SEPIA,
+                    sidePadding = 0.16f
+                )
+            )
+        }
+        return settingsRepo to prefsRepo
+    }
+
+    @Test
+    fun capture_25_reader_settings_per_title_dark_narrow_320dp() {
+        val (settingsRepo, prefsRepo) = createPerTitlePreviewRepos()
+        val titleKey = canonicalTitleKey("Solo Leveling", isNovel = false)
+
+        composeTestRule.setContent {
+            PanelTheme(themeMode = ThemeMode.DARK) {
+                Box(modifier = Modifier.width(320.dp)) {
+                    ReaderSettingsScreenContent(
+                        settingsRepository = settingsRepo,
+                        titleKey = titleKey,
+                        readerPrefsRepository = prefsRepo,
+                        onDismiss = {}
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/25_reader_settings_per_title_dark_320dp.png")
+    }
+
+    @Test
+    fun capture_26_reader_settings_per_title_light_font13() {
+        val (settingsRepo, prefsRepo) = createPerTitlePreviewRepos()
+        val titleKey = canonicalTitleKey("Solo Leveling", isNovel = false)
+
+        composeTestRule.setContent {
+            val baseDensity = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(density = baseDensity.density, fontScale = 1.3f)
+            ) {
+                PanelTheme(darkTheme = false) {
+                    Box(modifier = Modifier.width(340.dp)) {
+                        ReaderSettingsScreenContent(
+                            settingsRepository = settingsRepo,
+                            titleKey = titleKey,
+                            readerPrefsRepository = prefsRepo,
+                            onDismiss = {}
+                        )
+                    }
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/26_reader_settings_per_title_light_font13.png")
+    }
+
+    @Test
+    fun capture_27_reader_settings_per_title_dark_font20() {
+        val (settingsRepo, prefsRepo) = createPerTitlePreviewRepos()
+        val titleKey = canonicalTitleKey("Solo Leveling", isNovel = false)
+
+        composeTestRule.setContent {
+            val baseDensity = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(density = baseDensity.density, fontScale = 2.0f)
+            ) {
+                PanelTheme(themeMode = ThemeMode.DARK) {
+                    Box(modifier = Modifier.width(320.dp)) {
+                        ReaderSettingsScreenContent(
+                            settingsRepository = settingsRepo,
+                            titleKey = titleKey,
+                            readerPrefsRepository = prefsRepo,
+                            onDismiss = {}
+                        )
+                    }
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/27_reader_settings_per_title_dark_font20.png")
+    }
+
+    private fun createNovelPerTitlePreviewRepos(): Pair<FakeSettingsRepository, FakeReaderPrefsRepository> {
+        val settingsRepo = FakeSettingsRepository().apply {
+            setIncognitoMode(true)
+        }
+        val prefsRepo = FakeReaderPrefsRepository(FakeSettingsRepository())
+        val titleKey = canonicalTitleKey("Omniscient Reader", isNovel = true)
+        runBlocking {
+            prefsRepo.upsertPrefs(
+                TitleReaderPrefs(
+                    titleKey = titleKey,
+                    novelTheme = NovelReaderTheme.SEPIA,
+                    novelFont = NovelFont.SERIF,
+                    novelFontSize = 20f
+                )
+            )
+        }
+        return settingsRepo to prefsRepo
+    }
+
+    @Test
+    fun capture_28_novel_settings_dark_320dp() {
+        val (settingsRepo, prefsRepo) = createNovelPerTitlePreviewRepos()
+        val titleKey = canonicalTitleKey("Omniscient Reader", isNovel = true)
+
+        composeTestRule.setContent {
+            PanelTheme(themeMode = ThemeMode.DARK) {
+                Box(modifier = Modifier.width(320.dp)) {
+                    NovelSettingsSheetContent(
+                        settingsRepository = settingsRepo,
+                        titleKey = titleKey,
+                        readerPrefsRepository = prefsRepo
+                    )
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/28_novel_settings_dark_320dp.png")
+    }
+
+    @Test
+    fun capture_29_novel_settings_dark_font20() {
+        val (settingsRepo, prefsRepo) = createNovelPerTitlePreviewRepos()
+        val titleKey = canonicalTitleKey("Omniscient Reader", isNovel = true)
+
+        composeTestRule.setContent {
+            val baseDensity = LocalDensity.current
+            CompositionLocalProvider(
+                LocalDensity provides Density(density = baseDensity.density, fontScale = 2.0f)
+            ) {
+                PanelTheme(themeMode = ThemeMode.DARK) {
+                    Box(modifier = Modifier.width(320.dp)) {
+                        NovelSettingsSheetContent(
+                            settingsRepository = settingsRepo,
+                            titleKey = titleKey,
+                            readerPrefsRepository = prefsRepo
+                        )
+                    }
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/29_novel_settings_dark_font20.png")
     }
 
     @Test

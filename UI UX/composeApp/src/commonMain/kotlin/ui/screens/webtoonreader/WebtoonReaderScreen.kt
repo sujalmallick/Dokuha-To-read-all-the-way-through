@@ -117,9 +117,15 @@ import data.reader.DualPageEngine
 import data.reader.DualPageSpread
 import data.reader.ReaderColorFilters
 import data.settings.DefaultReadingMode
+import data.settings.FakeReaderPrefsRepository
 import data.settings.FakeSettingsRepository
 import data.settings.ReaderColorFilter
+import data.settings.ReaderPrefsRepository
 import data.settings.SettingsRepository
+import data.settings.canonicalTitleKey
+import data.settings.observeResolvedMangaSettings
+import data.settings.resolveReaderSettings
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
@@ -154,6 +160,7 @@ data class WebtoonReaderScreen(
         val navigator = LocalNavigator.currentOrThrow
         val repository: PanelRepository = koinInject()
         val settingsRepository: SettingsRepository = koinInject()
+        val readerPrefsRepository: ReaderPrefsRepository = koinInject()
         val downloadManager: DownloadManager = koinInject()
         val volumeKeyState = ui.volume.LocalVolumeKeyState.current
 
@@ -203,7 +210,10 @@ data class WebtoonReaderScreen(
             }
         }
 
-        var isSettingsOpen by remember { mutableStateOf(false) }
+        var isSettingsOpen by rememberSaveable { mutableStateOf(false) }
+        val resolvedTitleKey = remember(mangaDetails?.title, mangaUrl) {
+            canonicalTitleKey(mangaDetails?.title ?: mangaUrl, isNovel = false)
+        }
 
         Box(modifier = Modifier.fillMaxSize()) {
             WebtoonReaderScreenContent(
@@ -212,6 +222,8 @@ data class WebtoonReaderScreen(
                 pages = pages,
                 onBack = { navigator.pop() },
                 settingsRepository = settingsRepository,
+                titleKey = resolvedTitleKey,
+                readerPrefsRepository = readerPrefsRepository,
                 onOpenSettings = { isSettingsOpen = true },
                 isOfflineCached = isDownloaded,
                 onProgressChange = { page, isCompleted ->
@@ -281,7 +293,9 @@ data class WebtoonReaderScreen(
         if (isSettingsOpen) {
             ReaderSettingsBottomSheet(
                 onDismiss = { isSettingsOpen = false },
-                settingsRepository = settingsRepository
+                settingsRepository = settingsRepository,
+                titleKey = resolvedTitleKey,
+                readerPrefsRepository = readerPrefsRepository
             )
         }
     }
@@ -294,6 +308,8 @@ fun WebtoonReaderScreenContent(
     pages: List<SourcePage>,
     onBack: () -> Unit,
     settingsRepository: SettingsRepository? = null,
+    titleKey: String? = null,
+    readerPrefsRepository: ReaderPrefsRepository? = null,
     onOpenSettings: () -> Unit = {},
     isOfflineCached: Boolean = false,
     onProgressChange: (page: Int, isCompleted: Boolean) -> Unit = { _, _ -> },
@@ -309,15 +325,21 @@ fun WebtoonReaderScreenContent(
     val coroutineScope = rememberCoroutineScope()
 
     val repo = settingsRepository ?: remember { FakeSettingsRepository() }
-    val readingMode by repo.defaultReadingMode.collectAsState()
-    val sidePadding by repo.sidePadding.collectAsState()
-    val brightness by repo.brightness.collectAsState()
+    val prefsRepo = readerPrefsRepository ?: remember { FakeReaderPrefsRepository(repo) }
+    val resolvedSettings by remember(titleKey, repo, prefsRepo) {
+        val overrideFlow = if (titleKey != null) prefsRepo.observePrefs(titleKey) else flowOf(null)
+        observeResolvedMangaSettings(titleKey ?: "", repo, overrideFlow)
+    }.collectAsState(initial = resolveReaderSettings(titleKey ?: "", repo, null))
+
+    val readingMode = resolvedSettings.readingMode
+    val sidePadding = resolvedSettings.sidePadding
+    val brightness = resolvedSettings.brightness
     val cropBorders by repo.cropBorders.collectAsState()
-    val splitDoubleSpread by repo.splitDoubleSpread.collectAsState()
-    val dualPageOffset by repo.dualPageOffset.collectAsState()
-    val volumeKeyNavEnabled by repo.volumeKeyNavigation.collectAsState()
-    val readerColorFilter by repo.readerColorFilter.collectAsState()
-    val readerPreloadPages by repo.readerPreloadPages.collectAsState()
+    val splitDoubleSpread = resolvedSettings.splitDoubleSpread
+    val dualPageOffset = resolvedSettings.dualPageOffset
+    val volumeKeyNavEnabled = resolvedSettings.volumeKeyNavigation
+    val readerColorFilter = resolvedSettings.colorFilter
+    val readerPreloadPages = resolvedSettings.readerPreloadPages
     val tapZonesEnabled by repo.readerTapZonesEnabled.collectAsState()
     val cutoutPadding by repo.readerCutoutPadding.collectAsState()
 
