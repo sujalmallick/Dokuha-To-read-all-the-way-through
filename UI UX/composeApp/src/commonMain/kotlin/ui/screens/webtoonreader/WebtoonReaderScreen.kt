@@ -10,7 +10,10 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -28,6 +31,7 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -471,9 +475,10 @@ fun WebtoonReaderScreenContent(
             }
         }
 
-        // Guard so downward over-scroll at end of chapter only triggers next chapter once per chapter
+        // Guard so downward/upward over-scroll at chapter edges only triggers once per chapter
         var hasTriggeredAutoNext by remember(chapterUrl) { mutableStateOf(false) }
-        val autoNextNestedScroll = remember(chapterUrl, hasNextChapter, displayPages.size) {
+        var hasTriggeredAutoPrev by remember(chapterUrl) { mutableStateOf(false) }
+        val autoNextNestedScroll = remember(chapterUrl, hasNextChapter, hasPreviousChapter, displayPages.size) {
             object : NestedScrollConnection {
                 override fun onPostScroll(
                     consumed: Offset,
@@ -490,6 +495,15 @@ fun WebtoonReaderScreenContent(
                     ) {
                         hasTriggeredAutoNext = true
                         onNextChapter()
+                    } else if (
+                        hasPreviousChapter &&
+                        !hasTriggeredAutoPrev &&
+                        displayPages.isNotEmpty() &&
+                        !listState.canScrollBackward &&
+                        available.y > 48f
+                    ) {
+                        hasTriggeredAutoPrev = true
+                        onPreviousChapter()
                     }
                     return Offset.Zero
                 }
@@ -746,6 +760,8 @@ fun WebtoonReaderScreenContent(
                             state = listState,
                             verticalArrangement = Arrangement.spacedBy(0.dp),
                             modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .widthIn(max = 760.dp)
                                 .fillMaxSize()
                                 .nestedScroll(autoNextNestedScroll)
                                 .readerTapHandler(
@@ -1260,7 +1276,7 @@ fun WebtoonReaderScreenContent(
 
                     Spacer(modifier = Modifier.height(6.dp))
 
-                    // Row 2: Chapter Prev | Scrubber Slider | Chapter Next
+                    // Row 2: Chapter Prev | Page Indicator | Chapter Next (no horizontal scrollbar)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -1270,8 +1286,8 @@ fun WebtoonReaderScreenContent(
                         PanelCircleIconButton(
                             icon = Icons.AutoMirrored.Filled.NavigateBefore,
                             contentDescription = stringResource(Res.string.reader_previous_chapter),
-                            size = 36.dp,
-                            iconSize = 20.dp,
+                            size = 44.dp,
+                            iconSize = 22.dp,
                             glassState = null,
                             backgroundColor = Color.White.copy(alpha = 0.08f),
                             borderColor = Color.White.copy(alpha = 0.12f),
@@ -1279,33 +1295,19 @@ fun WebtoonReaderScreenContent(
                             onClick = { if (hasPreviousChapter) onPreviousChapter() }
                         )
 
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        // Reading progress slider
-                        PanelSlider(
-                            value = currentProgress,
-                            onValueChange = { targetFraction ->
-                                coroutineScope.launch {
-                                    if (readingMode == DefaultReadingMode.WEBTOON) {
-                                        val targetIndex = (targetFraction * (displayPages.size - 1)).toInt().coerceIn(0, displayPages.size - 1)
-                                        listState.scrollToItem(targetIndex)
-                                    } else {
-                                        val targetPage = (targetFraction * (displayPages.size - 1)).toInt().coerceIn(0, displayPages.size - 1)
-                                        pagerState.scrollToPage(targetPage)
-                                    }
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
+                        Text(
+                            text = if (displayPages.isNotEmpty()) "$currentDisplayPageLabel / ${displayPages.size}" else currentDisplayPageLabel,
+                            color = TextPrimary.copy(alpha = 0.85f),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
-
-                        Spacer(modifier = Modifier.width(8.dp))
 
                         // Next Chapter button
                         PanelCircleIconButton(
                             icon = Icons.AutoMirrored.Filled.NavigateNext,
                             contentDescription = stringResource(Res.string.reader_next_chapter),
-                            size = 36.dp,
-                            iconSize = 20.dp,
+                            size = 44.dp,
+                            iconSize = 22.dp,
                             glassState = null,
                             backgroundColor = Color.White.copy(alpha = 0.08f),
                             borderColor = Color.White.copy(alpha = 0.12f),
@@ -2067,27 +2069,27 @@ private fun WebtoonVerticalScrollbar(
 
     if (metrics.thumbSizeFraction >= 0.99f) return
 
-    val isScrolling = listState.isScrollInProgress
+    var isDraggingBar by remember { mutableStateOf(false) }
+    val isScrolling = listState.isScrollInProgress || isDraggingBar
     val alpha by animateFloatAsState(
-        targetValue = if (isScrolling || isControlsVisible) 0.95f else 0.35f
+        targetValue = if (isScrolling || isControlsVisible) 0.95f else 0.45f
     )
     val thumbColor = if (isScrolling) {
         MaterialTheme.colorScheme.primary
     } else {
-        Color.White.copy(alpha = 0.75f)
+        Color.White.copy(alpha = 0.78f)
     }
     val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
 
     BoxWithConstraints(
         modifier = modifier
-            .width(5.dp)
+            .width(28.dp)
             .graphicsLayer { this.alpha = alpha }
-            .clip(CapsuleShape)
-            .background(Color.White.copy(alpha = 0.12f))
     ) {
         val trackHeightPx = with(density) { maxHeight.toPx() }.coerceAtLeast(1f)
-        val thumbHeightPx = (trackHeightPx * metrics.thumbSizeFraction).coerceAtLeast(with(density) { 28.dp.toPx() })
-        val maxOffsetPx = (trackHeightPx - thumbHeightPx).coerceAtLeast(0f)
+        val thumbHeightPx = (trackHeightPx * metrics.thumbSizeFraction).coerceAtLeast(with(density) { 36.dp.toPx() })
+        val maxOffsetPx = (trackHeightPx - thumbHeightPx).coerceAtLeast(1f)
         val normalizedProgress = if (1f - metrics.thumbSizeFraction > 0f) {
             (metrics.thumbOffsetFraction / (1f - metrics.thumbSizeFraction)).coerceIn(0f, 1f)
         } else {
@@ -2095,14 +2097,57 @@ private fun WebtoonVerticalScrollbar(
         }
         val thumbOffsetPx = (maxOffsetPx * normalizedProgress).roundToInt()
 
+        fun scrollToTrackY(yPx: Float) {
+            val total = listState.layoutInfo.totalItemsCount
+            if (total <= 0) return
+            val fraction = ((yPx - thumbHeightPx / 2f) / maxOffsetPx).coerceIn(0f, 1f)
+            val targetIdx = (fraction * (total - 1)).roundToInt().coerceIn(0, total - 1)
+            scope.launch {
+                listState.scrollToItem(targetIdx)
+            }
+        }
+
         Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .offset { IntOffset(0, thumbOffsetPx) }
-                .height(with(density) { thumbHeightPx.toDp() })
-                .clip(CapsuleShape)
-                .background(thumbColor)
-        )
+                .fillMaxSize()
+                .pointerInput(trackHeightPx, maxOffsetPx) {
+                    detectTapGestures(
+                        onTap = { offset -> scrollToTrackY(offset.y) }
+                    )
+                }
+                .pointerInput(trackHeightPx, maxOffsetPx) {
+                    detectVerticalDragGestures(
+                        onDragStart = { offset ->
+                            isDraggingBar = true
+                            scrollToTrackY(offset.y)
+                        },
+                        onDragEnd = { isDraggingBar = false },
+                        onDragCancel = { isDraggingBar = false },
+                        onVerticalDrag = { change, _ ->
+                            change.consume()
+                            scrollToTrackY(change.position.y)
+                        }
+                    )
+                },
+            contentAlignment = Alignment.TopEnd
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(6.dp)
+                    .fillMaxHeight()
+                    .clip(CapsuleShape)
+                    .background(Color.White.copy(alpha = 0.14f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .offset { IntOffset(0, thumbOffsetPx) }
+                        .height(with(density) { thumbHeightPx.toDp() })
+                        .clip(CapsuleShape)
+                        .background(thumbColor)
+                )
+            }
+        }
     }
 }
 

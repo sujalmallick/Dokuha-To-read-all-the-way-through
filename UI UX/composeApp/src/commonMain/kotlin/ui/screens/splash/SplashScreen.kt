@@ -265,7 +265,7 @@ fun SplashScreenContent(
     )
 
     // Rotate manhua -> manhwa -> manga -> comic -> novel (~550ms per word, ends on novel)
-    LaunchedEffect(activeMotion, autoFinish) {
+    LaunchedEffect(autoFinish) {
         if (autoFinish) {
             while (formatIndex < SplashFormats.lastIndex && !hasFinished) {
                 delay(550L)
@@ -285,7 +285,9 @@ fun SplashScreenContent(
     }
 
     // Choreograph the active concept timeline
-    LaunchedEffect(activeMotion, reduceMotion) {
+    val initialMotion = remember { activeMotion }
+    val initialReduceMotion = remember { reduceMotion }
+    LaunchedEffect(Unit) {
         if (hasStartedTimeline) {
             logoAlpha.snapTo(1f)
             logoScale.snapTo(1f)
@@ -296,15 +298,17 @@ fun SplashScreenContent(
             kanjiAlpha.snapTo(1f)
             formatAlpha.snapTo(1f)
             if (autoFinish && !hasFinished) {
-                val remaining = ((SplashFormats.size - formatIndex) * 550L).coerceIn(300L, 1200L)
-                delay(remaining)
+                while (formatIndex < SplashFormats.lastIndex && !hasFinished) {
+                    delay(50L)
+                }
+                delay(700L)
                 safeFinish()
             }
             return@LaunchedEffect
         }
         hasStartedTimeline = true
 
-        if (reduceMotion) {
+        if (initialReduceMotion) {
             logoAlpha.snapTo(1f)
             logoScale.snapTo(1f)
             glowIntensity.snapTo(0.35f)
@@ -314,7 +318,10 @@ fun SplashScreenContent(
             kanjiAlpha.snapTo(1f)
             formatAlpha.snapTo(1f)
             if (autoFinish) {
-                delay(900)
+                while (formatIndex < SplashFormats.lastIndex && !hasFinished) {
+                    delay(50L)
+                }
+                delay(700L)
                 safeFinish()
             }
             return@LaunchedEffect
@@ -328,7 +335,7 @@ fun SplashScreenContent(
             logoScale.animateTo(1f, animationSpec = tween(820, easing = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)))
         }
 
-        when (activeMotion) {
+        when (initialMotion) {
             SplashMotionStyle.LUNAR_SILVER_GLOW -> {
                 // Concept 5: Lunar Silver Glow with smooth soft dissipation into resting aura
                 launch {
@@ -422,9 +429,12 @@ fun SplashScreenContent(
             formatAlpha.animateTo(1f, animationSpec = tween(280, easing = FastOutSlowInEasing))
         }
 
-        // 4. Auto-transition after all 5 words complete (~2.75s total)
+        // 4. Auto-transition only after all 5 words complete and settle
         if (autoFinish) {
-            delay(2750)
+            while (formatIndex < SplashFormats.lastIndex && !hasFinished) {
+                delay(50L)
+            }
+            delay(750L)
             safeFinish()
         }
     }
