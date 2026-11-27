@@ -51,6 +51,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,7 +66,11 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cafe.adriel.voyager.core.screen.Screen
@@ -97,6 +102,7 @@ internal val SplashFormats = listOf(
     "manhua",
     "manhwa",
     "manga",
+    "comic",
     "novel"
 )
 
@@ -200,7 +206,7 @@ fun SplashScreenContent(
     val activeMotion = motionStyle ?: currentSelectedMotion
     val reduceMotion = LocalReduceMotion.current
 
-    var hasFinished by remember { mutableStateOf(false) }
+    var hasFinished by rememberSaveable { mutableStateOf(false) }
     val safeFinish: () -> Unit = remember(onFinished) {
         {
             if (!hasFinished) {
@@ -222,7 +228,8 @@ fun SplashScreenContent(
     val wordmarkSpacing = remember { Animatable(if (reduceMotion) 11f else 6f) }
     val kanjiAlpha = remember { Animatable(if (reduceMotion) 1f else 0f) }
     val formatAlpha = remember { Animatable(if (reduceMotion) 1f else 0f) }
-    var formatIndex by remember { mutableIntStateOf(0) }
+    var formatIndex by rememberSaveable { mutableIntStateOf(0) }
+    var hasStartedTimeline by rememberSaveable { mutableStateOf(false) }
 
     // Specialized motion animatables
     val sliceProgress = remember { Animatable(if (reduceMotion) 1f else 0f) }
@@ -253,20 +260,43 @@ fun SplashScreenContent(
         label = "logo_pulse"
     )
 
-    // Rotate manhua -> manhwa -> manga -> novel seamlessly along the bottom editorial line
+    // Rotate manhua -> manhwa -> manga -> comic -> novel (~550ms per word, ends on novel)
     LaunchedEffect(activeMotion, autoFinish, reduceMotion) {
-        formatIndex = 0
-        if (reduceMotion) return@LaunchedEffect
-        delay(550)
-        val stepMs = if (autoFinish) 520L else 950L
-        while (true) {
-            delay(stepMs)
-            formatIndex = (formatIndex + 1) % SplashFormats.size
+        if (autoFinish) {
+            while (formatIndex < SplashFormats.lastIndex && !hasFinished) {
+                delay(550L)
+                if (!hasFinished && formatIndex < SplashFormats.lastIndex) {
+                    formatIndex++
+                }
+            }
+        } else {
+            while (true) {
+                delay(750L)
+                formatIndex = (formatIndex + 1) % SplashFormats.size
+            }
         }
     }
 
     // Choreograph the active concept timeline
     LaunchedEffect(activeMotion, reduceMotion) {
+        if (hasStartedTimeline) {
+            logoAlpha.snapTo(1f)
+            logoScale.snapTo(1f)
+            glowIntensity.snapTo(0.28f)
+            wordmarkAlpha.snapTo(1f)
+            wordmarkOffsetY.snapTo(0f)
+            wordmarkSpacing.snapTo(11f)
+            kanjiAlpha.snapTo(1f)
+            formatAlpha.snapTo(1f)
+            if (autoFinish && !hasFinished) {
+                val remaining = ((SplashFormats.size - formatIndex) * 550L).coerceIn(300L, 1200L)
+                delay(remaining)
+                safeFinish()
+            }
+            return@LaunchedEffect
+        }
+        hasStartedTimeline = true
+
         if (reduceMotion) {
             logoAlpha.snapTo(1f)
             logoScale.snapTo(1f)
@@ -376,19 +406,18 @@ fun SplashScreenContent(
             }
         }
 
-        // 3. Kanji + rotating format label reveal
+        // 3. Kanji + rotating format label reveal (format label visible immediately for all 5 words)
         launch {
             delay(700)
             kanjiAlpha.animateTo(1f, animationSpec = tween(550, easing = FastOutSlowInEasing))
         }
         launch {
-            delay(780)
-            formatAlpha.animateTo(1f, animationSpec = tween(550, easing = FastOutSlowInEasing))
+            formatAlpha.animateTo(1f, animationSpec = tween(280, easing = FastOutSlowInEasing))
         }
 
-        // 4. Auto-transition after cycling through formats
+        // 4. Auto-transition after all 5 words complete (~2.75s total)
         if (autoFinish) {
-            delay(1100)
+            delay(2750)
             safeFinish()
         }
     }
@@ -844,45 +873,78 @@ fun SplashScreenContent(
             )
         }
 
-        // Clean editorial kinetic tagline anchored at the bottom (no pill, no border, no dot)
+        // Clean editorial kinetic tagline anchored at the bottom (fixed widest-word slot prevents horizontal jump)
+        val density = LocalDensity.current
+        val textMeasurer = rememberTextMeasurer()
+        val taglineFontSize = if (isCompact) 10.sp else 13.sp
+        val staticTaglineStyle = TextStyle(
+            fontSize = taglineFontSize,
+            fontWeight = FontWeight.Light,
+            letterSpacing = if (isCompact) 0.5.sp else 1.0.sp
+        )
+        val rotatingWordStyle = TextStyle(
+            fontSize = taglineFontSize,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = if (isCompact) 0.8.sp else 1.4.sp
+        )
+        val maxWordWidthDp = remember(textMeasurer, rotatingWordStyle, density) {
+            val maxPx = SplashFormats.maxOf { word ->
+                textMeasurer.measure(text = word, style = rotatingWordStyle).size.width
+            }
+            with(density) { maxPx.toDp() }
+        }
+        val slideOffsetPx = remember(density) {
+            with(density) { 10.dp.roundToPx() }
+        }
+
         Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .then(if (isCompact) Modifier else Modifier.navigationBarsPadding())
+                .padding(horizontal = 20.dp)
                 .padding(bottom = if (isCompact) 14.dp else 34.dp)
                 .alpha(formatAlpha.value),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
             Text(
-                text = "not a single weak ",
-                fontSize = if (isCompact) 10.sp else 13.sp,
-                fontWeight = FontWeight.Light,
+                text = "not a single weak",
+                style = staticTaglineStyle,
                 color = WordmarkColor.copy(alpha = 0.56f),
-                letterSpacing = if (isCompact) 0.5.sp else 1.0.sp
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            AnimatedContent(
-                targetState = formatIndex,
-                transitionSpec = {
-                    (slideInVertically(tween(340, easing = FastOutSlowInEasing)) { height -> height } +
-                        fadeIn(tween(300)))
-                        .togetherWith(
-                            slideOutVertically(tween(300, easing = FastOutSlowInEasing)) { height -> -height } +
-                                fadeOut(tween(240))
-                        )
-                        .using(SizeTransform(clip = false))
-                },
-                contentAlignment = Alignment.CenterStart,
-                label = "SplashFormatRotation"
-            ) { idx ->
-                val formatWord = SplashFormats[idx % SplashFormats.size]
-                Text(
-                    text = formatWord,
-                    fontSize = if (isCompact) 10.sp else 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = WordmarkColor.copy(alpha = 0.94f),
-                    letterSpacing = if (isCompact) 0.8.sp else 1.4.sp
-                )
+            Spacer(modifier = Modifier.width(if (isCompact) 5.dp else 7.dp))
+            Box(
+                modifier = Modifier.width(maxWordWidthDp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                AnimatedContent(
+                    targetState = formatIndex,
+                    transitionSpec = {
+                        if (reduceMotion) {
+                            fadeIn(tween(120)) togetherWith fadeOut(tween(120))
+                        } else {
+                            (slideInVertically(tween(240, easing = FastOutSlowInEasing)) { slideOffsetPx } +
+                                fadeIn(tween(220, easing = FastOutSlowInEasing)))
+                                .togetherWith(
+                                    slideOutVertically(tween(220, easing = FastOutSlowInEasing)) { -slideOffsetPx } +
+                                        fadeOut(tween(180, easing = FastOutSlowInEasing))
+                                )
+                                .using(SizeTransform(clip = false))
+                        }
+                    },
+                    contentAlignment = Alignment.CenterStart,
+                    label = "SplashFormatRotation"
+                ) { idx ->
+                    val formatWord = SplashFormats[idx.coerceIn(0, SplashFormats.lastIndex)]
+                    Text(
+                        text = formatWord,
+                        style = rotatingWordStyle,
+                        color = WordmarkColor.copy(alpha = 0.96f),
+                        maxLines = 1
+                    )
+                }
             }
         }
     }
