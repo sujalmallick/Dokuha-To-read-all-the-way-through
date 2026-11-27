@@ -591,4 +591,26 @@ class ScreenshotsTest {
         }
         composeTestRule.onRoot().captureRoboImage("screenshots/24_repo_manager_dialog.png")
     }
+
+    @Test
+    @Config(qualifiers = "w320dp-h640dp-xhdpi")
+    fun capture_25_webtoon_reader_narrow_320dp() {
+        val pages = runBlocking { repository.getPages("").first() }
+        val mangaSettingsRepo = FakeSettingsRepository().apply {
+            setDefaultReadingMode(DefaultReadingMode.WEBTOON)
+        }
+
+        composeTestRule.setContent {
+            PanelTheme {
+                WebtoonReaderScreenContent(
+                    chapterTitle = "Chapter 142: The Sovereign of Eternal Shadows and Crimson Stars",
+                    pages = pages,
+                    settingsRepository = mangaSettingsRepo,
+                    isOfflineCached = true,
+                    onBack = {}
+                )
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/25_webtoon_reader_narrow_320dp.png")
+    }
 }

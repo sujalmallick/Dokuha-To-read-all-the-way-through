@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,7 +42,15 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import org.jetbrains.compose.resources.stringResource
+import panelreader.composeapp.generated.resources.Res
+import panelreader.composeapp.generated.resources.reader_tap_to_retry
+import ui.theme.GlassBorderStrong
+import ui.theme.PanelSurface
+import ui.theme.PanelSurfaceSubtle
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -273,8 +282,8 @@ internal fun MangaPageErrorCard(
         verticalArrangement = Arrangement.Center,
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(16.dp))
+            .background(PanelSurface.copy(alpha = 0.94f))
+            .border(1.dp, GlassBorderStrong, RoundedCornerShape(16.dp))
             .padding(24.dp)
     ) {
         if (onRetry != null) {
@@ -290,29 +299,34 @@ internal fun MangaPageErrorCard(
             text = "Failed to load page $pageNumber",
             style = MaterialTheme.typography.bodyMedium,
             color = TextPrimary,
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = errorMessage ?: "Image could not be retrieved",
             style = MaterialTheme.typography.bodySmall,
-            color = TextSecondary
+            color = TextSecondary,
+            textAlign = TextAlign.Center
         )
         if (onRetry != null) {
             Spacer(modifier = Modifier.height(16.dp))
+            val retryLabel = stringResource(Res.string.reader_tap_to_retry)
             Box(
+                contentAlignment = Alignment.Center,
                 modifier = Modifier
+                    .heightIn(min = 44.dp)
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White.copy(alpha = 0.12f))
-                    .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(10.dp))
-                    .clickable { onRetry() }
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .background(PanelSurfaceSubtle)
+                    .border(1.dp, GlassBorderStrong, RoundedCornerShape(10.dp))
+                    .clickable(role = Role.Button) { onRetry() }
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
                 Text(
-                    text = "Tap to Retry",
+                    text = retryLabel,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White
+                    color = TextPrimary
                 )
             }
         }
