@@ -115,18 +115,66 @@ fun ReaderScopeToggle(
     val thisTitleLabel = stringResource(Res.string.reader_scope_this_title)
     val allTitlesLabel = stringResource(Res.string.reader_scope_all_titles)
 
-    AdaptiveReaderOptionSelector(
-        items = scopeOptions,
-        selectedIndex = scopeOptions.indexOf(scope).coerceAtLeast(0),
-        onItemSelected = { onScopeSelected(scopeOptions[it]) },
-        labelProvider = { item ->
-            when (item) {
-                ReaderSettingsScope.THIS_TITLE -> thisTitleLabel
-                ReaderSettingsScope.ALL_TITLES -> allTitlesLabel
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            scopeOptions.forEach { item ->
+                val isSelected = item == scope
+                val label = when (item) {
+                    ReaderSettingsScope.THIS_TITLE -> thisTitleLabel
+                    ReaderSettingsScope.ALL_TITLES -> allTitlesLabel
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 48.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable(role = Role.Tab) { onScopeSelected(item) }
+                        .semantics { selected = isSelected },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f, fill = false)
+                            .heightIn(min = 45.dp)
+                            .padding(horizontal = 8.dp, vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            color = if (isSelected) {
+                                MaterialTheme.colorScheme.onSurface
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(2.dp)
+                            .background(
+                                if (isSelected) MaterialTheme.colorScheme.primary
+                                else Color.Transparent
+                            )
+                    )
+                }
             }
-        },
-        modifier = modifier
-    )
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+        )
+    }
 }
 
 /**
@@ -232,12 +280,12 @@ fun <T> AdaptiveReaderOptionSelector(
                             modifier = Modifier
                                 .weight(1f)
                                 .heightIn(min = 48.dp)
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(RoundedCornerShape(10.dp))
                                 .background(pillBackground)
                                 .border(
                                     width = if (isSelected) 1.dp else 0.5.dp,
                                     color = pillBorderColor,
-                                    shape = RoundedCornerShape(14.dp)
+                                    shape = RoundedCornerShape(10.dp)
                                 )
                                 .clickable(role = Role.RadioButton) { onItemSelected(index) }
                                 .semantics { selected = isSelected }
@@ -286,43 +334,14 @@ fun SettingLabelWithCustomBadge(
             fontWeight = FontWeight.Medium
         )
         if (isCustom) {
-            Spacer(modifier = Modifier.width(8.dp))
-            val isLightSurface = MaterialTheme.colorScheme.surface.luminance() > 0.5f
-            val badgeBg = if (isLightSurface) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
-            }
-            val badgeText = if (isLightSurface) {
-                MaterialTheme.colorScheme.onPrimaryContainer
-            } else {
-                MaterialTheme.colorScheme.primary
-            }
-            Box(
-                modifier = Modifier
-                    .clip(CapsuleShape)
-                    .background(badgeBg)
-                    .then(
-                        if (!isLightSurface) {
-                            Modifier.border(
-                                width = 0.5.dp,
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
-                                shape = CapsuleShape
-                            )
-                        } else {
-                            Modifier
-                        }
-                    )
-                    .padding(horizontal = 7.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = customLabel,
-                    color = badgeText,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "· $customLabel",
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.labelSmall,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
