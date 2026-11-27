@@ -10,4 +10,7 @@
     <string name="reader_custom_setting_a11y">%1$s, custom override active</string>
     <string name="reader_global_settings_section">Global settings (all titles)</string>
     <string name="novel_settings_title">Novel Settings</string>
+    <string name="reader_previous_chapter">Previous Chapter</string>
+    <string name="reader_next_chapter">Next Chapter</string>
+    <string name="reader_tap_to_retry">Tap to Retry</string>
 </resources>

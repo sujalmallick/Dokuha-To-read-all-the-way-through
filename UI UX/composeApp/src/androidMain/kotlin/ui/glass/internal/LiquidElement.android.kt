@@ -9,6 +9,7 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isUnspecified
+import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.layout.LayoutCoordinates
@@ -35,6 +36,11 @@ internal actual fun liquidElement(
 }
 
 internal actual fun LayoutCoordinates.liquidPositionOnScreen(): Offset = positionOnScreen()
+
+internal actual fun LayoutCoordinates.liquidPopulateScreenTransform(matrix: Matrix): Boolean {
+  transformToScreen(matrix)
+  return true
+}
 
 @RequiresApi(33)
 internal class LiquidElement(

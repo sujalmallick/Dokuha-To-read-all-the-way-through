@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -94,10 +95,15 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import org.jetbrains.compose.resources.stringResource
+import panelreader.composeapp.generated.resources.Res
+import panelreader.composeapp.generated.resources.reader_next_chapter
+import panelreader.composeapp.generated.resources.reader_previous_chapter
 import kotlin.math.roundToInt
 import cafe.adriel.voyager.core.screen.Screen
 import cafe.adriel.voyager.navigator.LocalNavigator
@@ -1021,24 +1027,26 @@ fun WebtoonReaderScreenContent(
                 // Top Row: Back button, Chapter Title, Bookmark & Settings
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Back Button
                     PanelCircleIconButton(
                         icon = Icons.AutoMirrored.Filled.ArrowBack,
-                        size = 42.dp,
+                        contentDescription = "Back",
+                        size = 48.dp,
                         iconSize = 20.dp,
                         glassState = null,
                         backgroundColor = Color(0xF50F1219),
                         borderColor = GlassBorderStrong,
+                        modifier = Modifier.requiredSize(48.dp),
                         onClick = onBack
                     )
 
-                    // Chapter Title Capsule
+                    // Chapter Title Capsule (truncates on narrow widths without squeezing 48dp touch targets)
                     Box(
                         modifier = Modifier
-                            .padding(horizontal = 8.dp)
+                            .weight(1f, fill = false)
                             .clip(CapsuleShape)
                             .background(Color(0xF50F1219))
                             .border(1.dp, GlassBorderStrong, CapsuleShape),
@@ -1049,38 +1057,46 @@ fun WebtoonReaderScreenContent(
                             color = Color.White,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 9.dp)
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)
                         )
                     }
 
-                    // Bookmark & Settings Buttons
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Settings, Bookmark & More Buttons
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         PanelCircleIconButton(
                             icon = Icons.Default.Tune,
-                            size = 42.dp,
+                            contentDescription = "Reader Settings",
+                            size = 48.dp,
                             iconSize = 20.dp,
                             glassState = null,
                             backgroundColor = Color(0xF50F1219),
                             borderColor = GlassBorderStrong,
+                            modifier = Modifier.requiredSize(48.dp),
                             onClick = onOpenSettings
                         )
                         PanelCircleIconButton(
                             icon = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                            size = 42.dp,
+                            contentDescription = "Bookmark",
+                            size = 48.dp,
                             iconSize = 20.dp,
                             tint = if (isBookmarked) MaterialTheme.colorScheme.primary else Color.White,
                             glassState = null,
                             backgroundColor = Color(0xF50F1219),
                             borderColor = GlassBorderStrong,
+                            modifier = Modifier.requiredSize(48.dp),
                             onClick = { isBookmarked = !isBookmarked }
                         )
                         PanelCircleIconButton(
                             icon = Icons.Default.MoreVert,
-                            size = 42.dp,
+                            contentDescription = "More options",
+                            size = 48.dp,
                             iconSize = 20.dp,
                             glassState = null,
                             backgroundColor = Color(0xF50F1219),
                             borderColor = GlassBorderStrong,
+                            modifier = Modifier.requiredSize(48.dp),
                             onClick = { /* Menu */ }
                         )
                     }
@@ -1253,6 +1269,7 @@ fun WebtoonReaderScreenContent(
                         // Previous Chapter button
                         PanelCircleIconButton(
                             icon = Icons.AutoMirrored.Filled.NavigateBefore,
+                            contentDescription = stringResource(Res.string.reader_previous_chapter),
                             size = 36.dp,
                             iconSize = 20.dp,
                             glassState = null,
@@ -1286,6 +1303,7 @@ fun WebtoonReaderScreenContent(
                         // Next Chapter button
                         PanelCircleIconButton(
                             icon = Icons.AutoMirrored.Filled.NavigateNext,
+                            contentDescription = stringResource(Res.string.reader_next_chapter),
                             size = 36.dp,
                             iconSize = 20.dp,
                             glassState = null,

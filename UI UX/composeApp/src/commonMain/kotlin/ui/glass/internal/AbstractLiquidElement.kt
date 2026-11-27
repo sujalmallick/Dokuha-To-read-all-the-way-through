@@ -45,6 +45,8 @@ internal expect fun liquidElement(
 
 internal expect fun LayoutCoordinates.liquidPositionOnScreen(): Offset
 
+internal expect fun LayoutCoordinates.liquidPopulateScreenTransform(matrix: Matrix): Boolean
+
 internal abstract class AbstractLiquidElement<N : AbstractLiquidNode>(
   protected val liquidState: LiquidState,
   protected val block: LiquidScope.() -> Unit,
@@ -152,18 +154,23 @@ internal abstract class AbstractLiquidNode(
     if (!isAttached) return
 
     matrix.reset()
-    coordinates.transformToScreen(matrix)
-    val scaleX = matrix.values[Matrix.ScaleX]
-    val scaleY = matrix.values[Matrix.ScaleY]
-    val skewX = matrix.values[Matrix.SkewX]
-    val skewY = matrix.values[Matrix.SkewY]
-    val scaleXMagnitude = sqrt(scaleX * scaleX + skewY * skewY)
-    val scaleYMagnitude = sqrt(skewX * skewX + scaleY * scaleY)
+    if (coordinates.liquidPopulateScreenTransform(matrix)) {
+      val scaleX = matrix.values[Matrix.ScaleX]
+      val scaleY = matrix.values[Matrix.ScaleY]
+      val skewX = matrix.values[Matrix.SkewX]
+      val skewY = matrix.values[Matrix.SkewY]
+      val scaleXMagnitude = sqrt(scaleX * scaleX + skewY * skewY)
+      val scaleYMagnitude = sqrt(skewX * skewX + scaleY * scaleY)
+      reusableScope.inverseScaleX = if (scaleXMagnitude > 0f) 1f / scaleXMagnitude else 0f
+      reusableScope.inverseScaleY = if (scaleYMagnitude > 0f) 1f / scaleYMagnitude else 0f
+      reusableScope.inverseRotationZ = -RadiansToDegrees * atan2(skewY, scaleX)
+    } else {
+      reusableScope.inverseScaleX = 1f
+      reusableScope.inverseScaleY = 1f
+      reusableScope.inverseRotationZ = 0f
+    }
     reusableScope.positionOnScreen = coordinates.liquidPositionOnScreen()
     reusableScope.size = coordinates.size.toSize()
-    reusableScope.inverseScaleX = if (scaleXMagnitude > 0f) 1f / scaleXMagnitude else 0f
-    reusableScope.inverseScaleY = if (scaleYMagnitude > 0f) 1f / scaleYMagnitude else 0f
-    reusableScope.inverseRotationZ = -RadiansToDegrees * atan2(skewY, scaleX)
     reusableScope.boundsInRoot = coordinates.boundsInRoot()
 
     invalidateDrawIfNeeded()

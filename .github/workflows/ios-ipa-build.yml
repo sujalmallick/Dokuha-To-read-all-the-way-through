@@ -69,8 +69,29 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
-            DEBUG_INFORMATION_FORMAT=dwarf \
+            DEBUG_INFORMATION_FORMAT=dwarf-with-dsym \
             archive
+
+      - name: Package dSYMs
+        run: |
+          mkdir -p build/dsym-bundle
+          if [ -d "build/Dokuha.xcarchive/dSYMs" ]; then
+            cp -R build/Dokuha.xcarchive/dSYMs/* build/dsym-bundle/ 2>/dev/null || true
+          fi
+          find "UI UX/composeApp/build/bin/iosArm64" -maxdepth 2 -name "*.dSYM" -exec cp -R {} build/dsym-bundle/ \; 2>/dev/null || true
+          if [ "$(ls -A build/dsym-bundle)" ]; then
+            cd build/dsym-bundle
+            zip -qr "../Dokuha-${{ inputs.configuration }}-dSYMs.zip" .
+            ls -lh "../Dokuha-${{ inputs.configuration }}-dSYMs.zip"
+          fi
+
+      - name: Upload dSYM Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dokuha-iOS-${{ inputs.configuration }}-dSYMs
+          path: build/Dokuha-${{ inputs.configuration }}-dSYMs.zip
+          if-no-files-found: warn
+          retention-days: 14
 
       - name: Package IPA
         run: |
