@@ -53,7 +53,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
+import coil3.PlatformContext
 import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
+import coil3.size.Precision
+import coil3.size.Size
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import core.download.DownloadStatus
@@ -91,6 +96,58 @@ import ui.theme.TextMuted
 import ui.theme.TextPrimary
 import ui.theme.TextSecondary
 import ui.theme.TextTertiary
+
+internal const val MIN_COVER_DIMENSION_PX = 64
+internal const val MAX_COVER_DIMENSION_PX = 1440
+internal const val DEFAULT_COVER_WIDTH_PX = 360
+internal const val DEFAULT_COVER_HEIGHT_PX = 540
+internal val DEFAULT_COVER_PRECISION = Precision.INEXACT
+
+/**
+ * Computes a bounded decode [Size] for cover thumbnails so high-resolution
+ * source images are downsampled instead of decoded at full resolution.
+ */
+internal fun computeCoverDecodeSize(
+    widthPx: Int = DEFAULT_COVER_WIDTH_PX,
+    heightPx: Int = DEFAULT_COVER_HEIGHT_PX
+): Size {
+    val safeWidth = widthPx.coerceIn(MIN_COVER_DIMENSION_PX, MAX_COVER_DIMENSION_PX)
+    val safeHeight = heightPx.coerceIn(MIN_COVER_DIMENSION_PX, MAX_COVER_DIMENSION_PX)
+    return Size(safeWidth, safeHeight)
+}
+
+/**
+ * Builds a Coil [ImageRequest] with [Precision.INEXACT] downsampling for cover art.
+ */
+internal fun buildCoverImageRequest(
+    context: PlatformContext,
+    imageUrl: String,
+    widthPx: Int = DEFAULT_COVER_WIDTH_PX,
+    heightPx: Int = DEFAULT_COVER_HEIGHT_PX
+): ImageRequest {
+    return ImageRequest.Builder(context)
+        .data(imageUrl)
+        .size(computeCoverDecodeSize(widthPx = widthPx, heightPx = heightPx))
+        .precision(DEFAULT_COVER_PRECISION)
+        .build()
+}
+
+@Composable
+internal fun rememberCoverImageRequest(
+    imageUrl: String,
+    widthPx: Int = DEFAULT_COVER_WIDTH_PX,
+    heightPx: Int = DEFAULT_COVER_HEIGHT_PX
+): ImageRequest {
+    val context = LocalPlatformContext.current
+    return remember(context, imageUrl, widthPx, heightPx) {
+        buildCoverImageRequest(
+            context = context,
+            imageUrl = imageUrl,
+            widthPx = widthPx,
+            heightPx = heightPx
+        )
+    }
+}
 
 @Composable
 fun PlaceholderCover(
@@ -347,7 +404,7 @@ fun MangaCoverCard(
 
             if (isRemoteImage) {
                 AsyncImage(
-                    model = thumbnailUrl,
+                    model = rememberCoverImageRequest(thumbnailUrl!!),
                     contentDescription = title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -1264,7 +1321,7 @@ fun UpdateItemCard(
 
                 if (isRemoteImage) {
                     AsyncImage(
-                        model = thumbnailUrl,
+                        model = rememberCoverImageRequest(thumbnailUrl!!, widthPx = 240, heightPx = 360),
                         contentDescription = title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
@@ -1438,7 +1495,7 @@ fun HistoryItemCard(
 
                 if (isRemoteImage) {
                     AsyncImage(
-                        model = thumbnailUrl,
+                        model = rememberCoverImageRequest(thumbnailUrl!!, widthPx = 240, heightPx = 360),
                         contentDescription = title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
@@ -1567,7 +1624,7 @@ fun ContinueReadingCompactCard(
                 val imageUrl = manga.thumbnailUrl
                 if (!imageUrl.isNullOrBlank() && (imageUrl.startsWith("http://", ignoreCase = true) || imageUrl.startsWith("https://", ignoreCase = true))) {
                     AsyncImage(
-                        model = imageUrl,
+                        model = rememberCoverImageRequest(imageUrl, widthPx = 360, heightPx = 300),
                         contentDescription = manga.title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()

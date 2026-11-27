@@ -52,6 +52,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import core.logging.AppCoroutineExceptionHandler
 import core.logging.launchSafe
 import kotlinx.coroutines.flow.flowOf
+import ui.components.rememberCoverImageRequest
 import ui.theme.GlassBorder
 import ui.theme.GlassBorderStrong
 import androidx.compose.runtime.Composable
@@ -1283,7 +1284,7 @@ fun TitleHeroArtwork(
             if (isWide) {
                 // On tablets/iPads, render a dimmed atmospheric fill behind a crisp centered cover
                 AsyncImage(
-                    model = cleanUrl,
+                    model = rememberCoverImageRequest(cleanUrl, widthPx = 480, heightPx = 720),
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -1294,7 +1295,7 @@ fun TitleHeroArtwork(
                         .background(Color(0xB3070A10))
                 )
                 AsyncImage(
-                    model = cleanUrl,
+                    model = rememberCoverImageRequest(cleanUrl, widthPx = 720, heightPx = 1080),
                     contentDescription = title,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
@@ -1304,7 +1305,7 @@ fun TitleHeroArtwork(
                 )
             } else {
                 AsyncImage(
-                    model = cleanUrl,
+                    model = rememberCoverImageRequest(cleanUrl, widthPx = 720, heightPx = 1080),
                     contentDescription = title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
