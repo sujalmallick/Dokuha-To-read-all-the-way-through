@@ -8,6 +8,7 @@ import core.extensions.mangayomi.MangayomiSourceAdapter
 import core.extensions.model.ExtensionEcosystem
 import core.extensions.paperback.PaperbackManifest
 import core.extensions.paperback.PaperbackSourceAdapter
+import core.logging.AppLogger
 import core.source.ContentSource
 import core.storage.KeyValueStorage
 import data.mock.PanelRepository
@@ -185,7 +186,7 @@ class ExtensionManager(
                             if (body.isNotBlank()) {
                                 val parsed = catalogParser.parseCatalog(body, repoUrl)
                                 if (parsed.isNotEmpty()) {
-                                    println("[ExtensionManager] Discovered ${parsed.size} extensions from $fullUrl")
+                                    AppLogger.d("ExtensionManager", "Discovered ${parsed.size} extensions from repo endpoint")
                                     items.addAll(parsed)
                                 }
                             }
@@ -221,7 +222,7 @@ class ExtensionManager(
                     _repoUrls.value.firstOrNull() ?: ""
                 }
                 coroutineScope.launch {
-                    println("[ExtensionManager] Auto-updating ${installed.name} from v${installed.version} to v${catalogMatch.version}")
+                    AppLogger.i("ExtensionManager", "Auto-updating ${installed.name} from v${installed.version} to v${catalogMatch.version}")
                     installExtension(catalogMatch, repoBase)
                 }
             }
@@ -454,7 +455,7 @@ class ExtensionManager(
                 }
             }
         } catch (e: Exception) {
-            println("[ExtensionManager] Failed to initialize source ${manifest.id}: ${e.message}")
+            AppLogger.w("ExtensionManager", "Failed to initialize source ${manifest.id}: ${e::class.simpleName}")
         }
     }
 
@@ -472,7 +473,7 @@ class ExtensionManager(
                         registerAndActivateSource(manifest)
                     }
                 } catch (e: Exception) {
-                    println("[ExtensionManager] Failed to restore extension $id: ${e.message}")
+                    AppLogger.w("ExtensionManager", "Failed to restore extension $id: ${e::class.simpleName}")
                 }
             }
         }

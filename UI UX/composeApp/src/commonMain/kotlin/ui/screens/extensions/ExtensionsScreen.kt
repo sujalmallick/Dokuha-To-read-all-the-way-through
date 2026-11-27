@@ -1,5 +1,6 @@
 package ui.screens.extensions
 
+import core.logging.AppLogger
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -225,7 +226,7 @@ class ExtensionsScreen : Screen {
                     pendingInstallItem = null
                     coroutineScope.launch {
                         val success = extensionManager.installExtension(chosen, chosen.repoBaseUrl)
-                        println("[ExtensionsScreen] Install from repo picker result: $success")
+                        AppLogger.d("ExtensionsScreen", "Install from repo picker result: $success")
                     }
                 },
                 onDismiss = { pendingInstallItem = null }

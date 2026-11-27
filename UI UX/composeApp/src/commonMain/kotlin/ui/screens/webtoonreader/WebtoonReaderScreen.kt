@@ -1075,7 +1075,7 @@ fun WebtoonReaderScreenContent(
                             backgroundColor = Color(0xF50F1219),
                             borderColor = GlassBorderStrong,
                             modifier = Modifier.requiredSize(48.dp),
-                            onClick = { /* Menu */ }
+                            onClick = onOpenSettings
                         )
                     }
                 }

@@ -255,9 +255,15 @@ fun BatchDownloadSheet(
 
                             PresetSelectionRow(
                                 title = "Next 5 Chapters",
-                                subtitle = if (undownloadedChapters.size >= 5) {
-                                    "${undownloadedChapters.first().name} - ${undownloadedChapters[4].name}"
-                                } else "${undownloadedChapters.size} remaining",
+                                subtitle = run {
+                                    val first = undownloadedChapters.firstOrNull()
+                                    val fifth = undownloadedChapters.getOrNull(4)
+                                    if (first != null && fifth != null) {
+                                        "${first.name} - ${fifth.name}"
+                                    } else {
+                                        "${undownloadedChapters.size} remaining"
+                                    }
+                                },
                                 sizeEstimate = "~${(undownloadedChapters.take(5).size * 24)} MB",
                                 isSelected = selectedPreset == DownloadPreset.NEXT_5,
                                 enabled = undownloadedChapters.isNotEmpty(),
@@ -266,9 +272,15 @@ fun BatchDownloadSheet(
 
                             PresetSelectionRow(
                                 title = "Next 10 Chapters",
-                                subtitle = if (undownloadedChapters.size >= 10) {
-                                    "${undownloadedChapters.first().name} - ${undownloadedChapters[9].name}"
-                                } else "${undownloadedChapters.size} remaining",
+                                subtitle = run {
+                                    val first = undownloadedChapters.firstOrNull()
+                                    val tenth = undownloadedChapters.getOrNull(9)
+                                    if (first != null && tenth != null) {
+                                        "${first.name} - ${tenth.name}"
+                                    } else {
+                                        "${undownloadedChapters.size} remaining"
+                                    }
+                                },
                                 sizeEstimate = "~${(undownloadedChapters.take(10).size * 24)} MB",
                                 isSelected = selectedPreset == DownloadPreset.NEXT_10,
                                 enabled = undownloadedChapters.isNotEmpty(),

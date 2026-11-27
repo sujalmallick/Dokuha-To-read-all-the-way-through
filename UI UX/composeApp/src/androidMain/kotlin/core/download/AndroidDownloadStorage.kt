@@ -20,6 +20,38 @@ private data class AndroidNovelSavedData(
     val content: String
 )
 
+internal fun detectImageExtension(data: ByteArray): String {
+    if (data.size >= 4 &&
+        data[0] == 0x89.toByte() &&
+        data[1] == 0x50.toByte() &&
+        data[2] == 0x4E.toByte() &&
+        data[3] == 0x47.toByte()
+    ) {
+        return "png"
+    }
+    if (data.size >= 4 &&
+        data[0] == 0x47.toByte() &&
+        data[1] == 0x49.toByte() &&
+        data[2] == 0x46.toByte() &&
+        data[3] == 0x38.toByte()
+    ) {
+        return "gif"
+    }
+    if (data.size >= 12 &&
+        data[0] == 0x52.toByte() && // R
+        data[1] == 0x49.toByte() && // I
+        data[2] == 0x46.toByte() && // F
+        data[3] == 0x46.toByte() && // F
+        data[8] == 0x57.toByte() && // W
+        data[9] == 0x45.toByte() && // E
+        data[10] == 0x42.toByte() && // B
+        data[11] == 0x50.toByte()   // P
+    ) {
+        return "webp"
+    }
+    return "jpg"
+}
+
 class AndroidDownloadStorage(context: Context) : DownloadStorage {
     private val root = File(context.filesDir, "downloads").apply { mkdirs() }
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
@@ -31,8 +63,9 @@ class AndroidDownloadStorage(context: Context) : DownloadStorage {
     }
 
     override fun savePageImage(chapterUrl: String, pageIndex: Int, data: ByteArray): String {
+        require(data.isNotEmpty()) { "Cannot save empty page image for $chapterUrl page $pageIndex" }
         val dir = getChapterDir(chapterUrl).apply { mkdirs() }
-        val ext = "jpg"
+        val ext = detectImageExtension(data)
         val fileName = "$pageIndex.$ext"
         val file = File(dir, fileName)
         file.writeBytes(data)
@@ -68,15 +101,19 @@ class AndroidDownloadStorage(context: Context) : DownloadStorage {
         if (!manifestFile.exists()) return null
         return try {
             val manifest = json.decodeFromString<AndroidDownloadManifest>(manifestFile.readText())
-            manifest.fileNames.mapIndexed { index, fileName ->
+            val validPages = manifest.fileNames.mapNotNull { fileName ->
                 val file = File(dir, fileName)
+                if (!file.exists() || file.length() <= 0L) return@mapNotNull null
                 val fileUri = "file://${file.absolutePath}"
                 SourcePage(
-                    index = index + 1,
+                    index = 0,
                     url = fileUri,
                     imageUrl = fileUri
                 )
+            }.mapIndexed { index, page ->
+                page.copy(index = index + 1)
             }
+            validPages.takeIf { it.isNotEmpty() }
         } catch (_: Exception) {
             null
         }
