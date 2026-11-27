@@ -1,5 +1,6 @@
 package data.mock
 
+import core.extensions.model.InstalledExtensionInfo
 import core.source.MangaStatus
 import core.source.NovelContent
 import core.source.SourceChapter
@@ -8,15 +9,16 @@ import core.source.SourcePage
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 
-data class MockExtension(
-    val id: String,
-    val name: String,
-    val version: String,
-    val lang: String,
-    val isInstalled: Boolean,
-    val hasUpdate: Boolean,
-    val iconUrl: String? = null
+/**
+ * Backward-compatibility alias for [InstalledExtensionInfo].
+ * Retained so existing UI, repository, and test references to `MockExtension` continue to compile
+ * without breaking callers while production code migrates to [InstalledExtensionInfo].
+ */
+@Deprecated(
+    message = "Use core.extensions.model.InstalledExtensionInfo directly",
+    replaceWith = ReplaceWith("InstalledExtensionInfo", "core.extensions.model.InstalledExtensionInfo")
 )
+typealias MockExtension = InstalledExtensionInfo
 
 data class MockUpdateItem(
     val manga: SourceManga,
@@ -69,6 +71,16 @@ data class MockDownloadItem(
 )
 
 typealias StorageInfo = core.source.StorageInfo
+
+/**
+ * Backward-compatibility alias for [core.source.StorageInfo].
+ * Retained so existing UI, repository, and screenshot tests continue to compile
+ * while production code migrates to [core.source.StorageInfo].
+ */
+@Deprecated(
+    message = "Use core.source.StorageInfo directly",
+    replaceWith = ReplaceWith("StorageInfo", "core.source.StorageInfo")
+)
 typealias MockStorageInfo = core.source.StorageInfo
 typealias BrowseSortOrder = core.source.BrowseSortOrder
 typealias BrowseFilters = core.source.BrowseFilters
@@ -85,14 +97,14 @@ interface PanelRepository {
     fun resolveSource(sourceId: String?, mangaUrl: String? = null, chapterUrl: String? = null): core.source.ContentSource? = null
     fun getTrending(): Flow<List<SourceManga>>
     fun getSources(): Flow<List<MockSourceInfo>>
-    fun getExtensions(): Flow<List<MockExtension>>
+    fun getExtensions(): Flow<List<InstalledExtensionInfo>>
     fun getUpdates(): Flow<List<MockUpdateGroup>>
     fun getHistory(): Flow<List<HistoryGroup>> = flowOf(emptyList())
     fun getRecentlyReadManga(limit: Long = 10L): Flow<List<HistoryItem>> = flowOf(emptyList())
     suspend fun deleteHistoryItem(historyId: Long) {}
     suspend fun clearAllHistory() {}
     fun getDownloads(): Flow<List<MockDownloadItem>>
-    fun getStorageInfo(): Flow<MockStorageInfo>
+    fun getStorageInfo(): Flow<StorageInfo>
     fun searchManga(
         query: String = "",
         sourceId: String? = null,

@@ -40,8 +40,11 @@ val appModule = module {
     }
     single { PanelDatabase(get<DatabaseDriverFactory>().createDriver()) }
     single {
-        val manager = DownloadManager(downloadStorage = get(), httpClient = getOrNull())
-        manager
+        DownloadManager(
+            downloadStorage = get(),
+            httpClient = getOrNull(),
+            storageProvider = getOrNull()
+        )
     }
     single { AntiBotChallengeManager(headlessSolver = getOrNull()) }
     single<AntiBotResolver> { get<AntiBotChallengeManager>() }
@@ -59,7 +62,7 @@ val appModule = module {
         repo
     }
     single<ExtensionManager> {
-        ExtensionManager(
+        val manager = ExtensionManager(
             storage = get(),
             panelRepository = get(),
             httpClient = getOrNull(),
@@ -68,6 +71,11 @@ val appModule = module {
             autoSeedDefaults = false,
             deferInit = true
         )
+        (getOrNull<PanelRepository>() as? SqlDelightPanelRepository)?.bindExtensionFlows(
+            installed = manager.installedExtensions,
+            available = manager.availableExtensions
+        )
+        manager
     }
     single<TrackerRepository> {
         ProductionTrackerRepository(
