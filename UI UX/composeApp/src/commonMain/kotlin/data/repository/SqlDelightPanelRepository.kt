@@ -66,7 +66,9 @@ class SqlDelightPanelRepository(
     val dynamicSources: StateFlow<Map<Long, ContentSource>> = _dynamicSources.asStateFlow()
 
     init {
-        purgeFakeStarterDataIfPresent()
+        CoroutineScope(Dispatchers.Default).launch {
+            runCatching { purgeFakeStarterDataIfPresent() }
+        }
     }
 
     private fun purgeFakeStarterDataIfPresent() {
