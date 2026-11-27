@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.luminance
@@ -71,16 +72,29 @@ fun Modifier.adaptiveReaderSheetSurface(
     return if (isLightSurface) {
         this
             .clip(shape)
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.96f), shape)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), shape)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
     } else {
+        val specularBorder = Brush.verticalGradient(
+            colors = listOf(
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.24f),
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+            )
+        )
+        val glassFill = Brush.verticalGradient(
+            colors = listOf(
+                MaterialTheme.colorScheme.surface.copy(alpha = 0.80f),
+                MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)
+            )
+        )
         this
-            .glassDimming(alpha = 0.30f, shape = shape)
             .glassSurface(
                 state = glassState,
                 variant = GlassVariant.Regular,
                 shape = shape
             )
+            .background(glassFill, shape)
+            .border(1.dp, specularBorder, shape)
     }
 }
 
@@ -196,22 +210,33 @@ fun <T> AdaptiveReaderOptionSelector(
                 ) {
                     items.forEachIndexed { index, item ->
                         val isSelected = index == selectedIndex
+                        val pillBackground = when {
+                            isLightSurface && isSelected -> MaterialTheme.colorScheme.primaryContainer
+                            isLightSurface -> MaterialTheme.colorScheme.surfaceVariant
+                            isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
+                            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
+                        }
+                        val pillBorderColor = when {
+                            isLightSurface && isSelected -> MaterialTheme.colorScheme.primary
+                            isLightSurface -> MaterialTheme.colorScheme.outline
+                            isSelected -> MaterialTheme.colorScheme.primary.copy(alpha = 0.75f)
+                            else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f)
+                        }
+                        val pillTextColor = when {
+                            isLightSurface && isSelected -> MaterialTheme.colorScheme.onPrimaryContainer
+                            isLightSurface -> MaterialTheme.colorScheme.onSurfaceVariant
+                            isSelected -> MaterialTheme.colorScheme.onSurface
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        }
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .heightIn(min = 48.dp)
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(
-                                    if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                                    else MaterialTheme.colorScheme.surfaceVariant
-                                )
+                                .background(pillBackground)
                                 .border(
-                                    width = 1.dp,
-                                    color = if (isSelected) {
-                                        MaterialTheme.colorScheme.primary
-                                    } else {
-                                        MaterialTheme.colorScheme.outline
-                                    },
+                                    width = if (isSelected) 1.dp else 0.5.dp,
+                                    color = pillBorderColor,
                                     shape = RoundedCornerShape(14.dp)
                                 )
                                 .clickable(role = Role.RadioButton) { onItemSelected(index) }
@@ -221,11 +246,7 @@ fun <T> AdaptiveReaderOptionSelector(
                         ) {
                             Text(
                                 text = labelProvider(item),
-                                color = if (isSelected) {
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                } else {
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                                },
+                                color = pillTextColor,
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                                 textAlign = TextAlign.Center
@@ -266,15 +287,37 @@ fun SettingLabelWithCustomBadge(
         )
         if (isCustom) {
             Spacer(modifier = Modifier.width(8.dp))
+            val isLightSurface = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+            val badgeBg = if (isLightSurface) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+            }
+            val badgeText = if (isLightSurface) {
+                MaterialTheme.colorScheme.onPrimaryContainer
+            } else {
+                MaterialTheme.colorScheme.primary
+            }
             Box(
                 modifier = Modifier
                     .clip(CapsuleShape)
-                    .background(MaterialTheme.colorScheme.primaryContainer)
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                    .background(badgeBg)
+                    .then(
+                        if (!isLightSurface) {
+                            Modifier.border(
+                                width = 0.5.dp,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f),
+                                shape = CapsuleShape
+                            )
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .padding(horizontal = 7.dp, vertical = 2.dp)
             ) {
                 Text(
                     text = customLabel,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    color = badgeText,
                     style = MaterialTheme.typography.labelSmall,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold
@@ -290,26 +333,48 @@ fun ReaderIncognitoNotice(
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(visible = visible, modifier = modifier) {
+        val isLightSurface = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+        val noticeBg = if (isLightSurface) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
+        }
+        val noticeText = if (isLightSurface) {
+            MaterialTheme.colorScheme.onSecondaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        }
         Column {
             Spacer(modifier = Modifier.height(10.dp))
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.secondaryContainer)
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .background(noticeBg)
+                    .then(
+                        if (!isLightSurface) {
+                            Modifier.border(
+                                width = 0.5.dp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                        } else {
+                            Modifier
+                        }
+                    )
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     imageVector = Icons.Default.VisibilityOff,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    tint = noticeText,
                     modifier = Modifier.size(16.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = stringResource(Res.string.reader_incognito_temp_notice),
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    color = noticeText,
                     style = MaterialTheme.typography.bodySmall,
                     fontSize = 12.sp
                 )

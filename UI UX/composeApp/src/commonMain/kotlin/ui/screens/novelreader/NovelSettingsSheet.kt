@@ -142,7 +142,7 @@ fun NovelSettingsSheetCard(
                     .align(Alignment.CenterHorizontally)
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
                 text = stringResource(Res.string.novel_settings_title),
@@ -153,7 +153,7 @@ fun NovelSettingsSheetCard(
             )
 
             if (titleKey != null) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 ReaderScopeToggle(
                     scope = scope,
                     onScopeSelected = { chosen ->
@@ -165,7 +165,7 @@ fun NovelSettingsSheetCard(
 
             ReaderIncognitoNotice(visible = isIncognito && isTitleScope)
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Novel Theme
             SettingLabelWithCustomBadge(
@@ -173,7 +173,7 @@ fun NovelSettingsSheetCard(
                 isCustom = titleKey != null && resolved.isNovelThemeCustom
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             val themes = NovelReaderTheme.entries
             AdaptiveReaderOptionSelector(
@@ -192,7 +192,7 @@ fun NovelSettingsSheetCard(
                 labelProvider = { it.displayName }
             )
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Novel Font
             SettingLabelWithCustomBadge(
@@ -200,7 +200,7 @@ fun NovelSettingsSheetCard(
                 isCustom = titleKey != null && resolved.isNovelFontCustom
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             val fonts = NovelFont.entries
             AdaptiveReaderOptionSelector(
@@ -226,7 +226,7 @@ fun NovelSettingsSheetCard(
                 }
             )
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Font Size Slider
             Column {
