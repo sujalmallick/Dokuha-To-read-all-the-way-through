@@ -1,5 +1,10 @@
 package ui.screens.updates
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,11 +22,17 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -281,6 +292,7 @@ fun UpdatesScreenContent(
             modifier = Modifier
                 .fillMaxSize()
                 .glassSource(glassState),
+            horizontalAlignment = Alignment.CenterHorizontally,
             contentPadding = PaddingValues(
                 start = 20.dp,
                 end = 20.dp,
@@ -290,7 +302,12 @@ fun UpdatesScreenContent(
         ) {
             // Header Bar & Glass Segmented Control
             item {
-                Column(modifier = Modifier.statusBarsPadding()) {
+                Column(
+                    modifier = Modifier
+                        .widthIn(max = 720.dp)
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -385,32 +402,50 @@ fun UpdatesScreenContent(
                         }
                     }
                 } else {
-                    // Date Grouped Sections ("Today", "Yesterday")
+                    // Date Grouped Sections ("Today", "Yesterday") with per-comic dropdowns when >1 chapter
                     updateGroups.forEachIndexed { groupIndex, group ->
+                        val byComic = group.items.groupBy { it.manga.url }.values.toList()
                         item {
                             Text(
                                 text = group.title,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = TextPrimary
+                                color = TextPrimary,
+                                modifier = Modifier
+                                    .widthIn(max = 720.dp)
+                                    .fillMaxWidth()
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                         }
 
                         itemsIndexed(
-                            items = group.items,
-                            key = { _, item -> "${item.manga.url}_${item.chapter.url}" }
-                        ) { itemIndex, item ->
+                            items = byComic,
+                            key = { _, itemsForManga -> "${group.title}_${itemsForManga.first().manga.url}" }
+                        ) { itemIndex, itemsForManga ->
                             val gradientIdx = (groupIndex * 3) + itemIndex
-                            UpdateItemCard(
-                                title = item.manga.title,
-                                chapter = item.chapter.name,
-                                gradientIndex = gradientIdx,
-                                thumbnailUrl = item.manga.thumbnailUrl,
-                                onResume = { onResumeChapter(item.manga, item.chapter) },
-                                onClick = { onOpenManga(item.manga) },
-                                onDownloadClick = { onDownloadUpdate(item.manga, item.chapter) }
-                            )
+                            if (itemsForManga.size == 1) {
+                                val single = itemsForManga.first()
+                                UpdateItemCard(
+                                    title = single.manga.title,
+                                    chapter = single.chapter.name,
+                                    gradientIndex = gradientIdx,
+                                    thumbnailUrl = single.manga.thumbnailUrl,
+                                    onResume = { onResumeChapter(single.manga, single.chapter) },
+                                    onClick = { onOpenManga(single.manga) },
+                                    onDownloadClick = { onDownloadUpdate(single.manga, single.chapter) },
+                                    modifier = Modifier.widthIn(max = 720.dp)
+                                )
+                            } else {
+                                ExpandableComicUpdatesCard(
+                                    manga = itemsForManga.first().manga,
+                                    chapters = itemsForManga.map { it.chapter },
+                                    gradientIndex = gradientIdx,
+                                    onOpenManga = { onOpenManga(itemsForManga.first().manga) },
+                                    onResumeChapter = { ch -> onResumeChapter(itemsForManga.first().manga, ch) },
+                                    onDownloadChapter = { ch -> onDownloadUpdate(itemsForManga.first().manga, ch) },
+                                    modifier = Modifier.widthIn(max = 720.dp)
+                                )
+                            }
                             Spacer(modifier = Modifier.height(10.dp))
                         }
 
@@ -454,7 +489,10 @@ fun UpdatesScreenContent(
                                 text = group.title,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = TextPrimary
+                                color = TextPrimary,
+                                modifier = Modifier
+                                    .widthIn(max = 720.dp)
+                                    .fillMaxWidth()
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                         }
@@ -473,7 +511,8 @@ fun UpdatesScreenContent(
                                 thumbnailUrl = item.manga.thumbnailUrl,
                                 onResume = { onResumeChapter(item.manga, item.chapter) },
                                 onClick = { onOpenManga(item.manga) },
-                                onDelete = { onDeleteHistoryItem(item.id) }
+                                onDelete = { onDeleteHistoryItem(item.id) },
+                                modifier = Modifier.widthIn(max = 720.dp)
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                         }
@@ -507,6 +546,164 @@ fun UpdatesScreenContent(
                 .navigationBarsPadding()
                 .padding(horizontal = 16.dp, vertical = if (showBottomBar) 88.dp else 16.dp)
         )
+    }
+}
+
+@Composable
+private fun ExpandableComicUpdatesCard(
+    manga: SourceManga,
+    chapters: List<SourceChapter>,
+    gradientIndex: Int,
+    onOpenManga: () -> Unit,
+    onResumeChapter: (SourceChapter) -> Unit,
+    onDownloadChapter: (SourceChapter) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(18.dp)
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.12f),
+                        Color.White.copy(alpha = 0.04f)
+                    )
+                )
+            )
+            .border(
+                width = 0.75.dp,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.35f),
+                        Color.White.copy(alpha = 0.08f)
+                    )
+                ),
+                shape = shape
+            )
+            .padding(horizontal = 14.dp, vertical = 12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 48.dp, height = 62.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .clickable(onClick = onOpenManga),
+                contentAlignment = Alignment.Center
+            ) {
+                val isRemote = !manga.thumbnailUrl.isNullOrBlank() &&
+                    (manga.thumbnailUrl.startsWith("http://", ignoreCase = true) ||
+                        manga.thumbnailUrl.startsWith("https://", ignoreCase = true))
+                if (isRemote) {
+                    coil3.compose.AsyncImage(
+                        model = manga.thumbnailUrl,
+                        contentDescription = manga.title,
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                } else {
+                    Text(
+                        text = manga.title.take(1),
+                        color = TextSecondary,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = manga.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = "${chapters.size} new chapters · ${chapters.first().name}",
+                    fontSize = 12.sp,
+                    color = TextSecondary,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+
+            Icon(
+                imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                contentDescription = if (expanded) "Collapse chapters" else "Expand chapters",
+                tint = TextSecondary,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                chapters.forEach { chapter ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color.White.copy(alpha = 0.05f))
+                            .clickable { onResumeChapter(chapter) }
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = chapter.name,
+                            fontSize = 13.sp,
+                            color = TextPrimary,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = "Download ${chapter.name}",
+                                tint = TextSecondary,
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clickable { onDownloadChapter(chapter) }
+                            )
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = "Read ${chapter.name}",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clickable { onResumeChapter(chapter) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

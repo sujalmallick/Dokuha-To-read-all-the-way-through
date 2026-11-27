@@ -178,14 +178,29 @@ fun LibraryScreenContent(
     val continueReadingPair by repository.getContinueReading().collectAsState(initial = null)
     val recentlyReadItems by repository.getRecentlyReadManga(limit = 10L).collectAsState(initial = emptyList())
 
-    // 1. Filter library items according to active category
-    val categoryFilteredItems = remember(allLibraryItems, selectedCategory, mappings) {
+    // 1. Filter library items according to active category (supports explicit mappings + smart status fallback)
+    val categoryFilteredItems = remember(allLibraryItems, selectedCategory, mappings, libraryStats) {
         if (selectedCategory == DefaultCategories.ALL) {
             allLibraryItems
         } else {
             allLibraryItems.filter { manga ->
-                val assigned = mappings[manga.url] ?: mappings[manga.title.lowercase().replace(" ", "-")] ?: emptySet()
-                selectedCategory in assigned
+                val assigned = mappings[manga.url]
+                    ?: mappings[manga.title.lowercase().replace(" ", "-")]
+                    ?: emptySet()
+                if (selectedCategory in assigned) {
+                    true
+                } else if (assigned.isNotEmpty()) {
+                    false
+                } else {
+                    val stats = libraryStats[manga.url]
+                    when (selectedCategory) {
+                        DefaultCategories.READING -> stats != null && stats.readChapters > 0 && stats.readChapters < stats.totalChapters
+                        DefaultCategories.PLAN_TO_READ -> stats == null || stats.readChapters == 0
+                        DefaultCategories.COMPLETED -> stats != null && stats.totalChapters > 0 && stats.readChapters >= stats.totalChapters
+                        DefaultCategories.ON_HOLD -> manga.status == core.source.MangaStatus.ON_HIATUS
+                        else -> false
+                    }
+                }
             }
         }
     }
@@ -231,7 +246,7 @@ fun LibraryScreenContent(
     ) {
         // Main scrollable content (glass sampling source)
         LazyVerticalGrid(
-            columns = GridCells.Fixed(3),
+            columns = GridCells.Adaptive(minSize = 112.dp),
             modifier = Modifier
                 .fillMaxSize()
                 .glassSource(glassState),
@@ -245,7 +260,7 @@ fun LibraryScreenContent(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Header Bar
-            item(span = { GridItemSpan(3) }) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 Column(modifier = Modifier.statusBarsPadding()) {
                     if (isSelectionMode) {
                         // BATCH SELECTION MODE HEADER
@@ -446,7 +461,7 @@ fun LibraryScreenContent(
             // Continue Reading Section (Only in non-selection mode)
             if (!isSelectionMode) {
                 if (recentlyReadItems.size > 1) {
-                    item(span = { GridItemSpan(3) }) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
                         Column(modifier = Modifier.padding(top = 16.dp, bottom = 4.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -490,7 +505,7 @@ fun LibraryScreenContent(
                     val realProgress = if (mangaStats != null && mangaStats.totalChapters > 0) {
                         (mangaStats.readChapters.toFloat() / mangaStats.totalChapters.toFloat()).coerceIn(0.02f, 1f)
                     } else 0.05f
-                    item(span = { GridItemSpan(3) }) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
                         Column(modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)) {
                             Text(
                                 text = "Continue Reading",
@@ -518,7 +533,7 @@ fun LibraryScreenContent(
                             (mangaStats.readChapters.toFloat() / mangaStats.totalChapters.toFloat()).coerceIn(0.02f, 1f)
                         } else 0f
                         val pctText = "${(realProgress * 100).toInt()}%"
-                        item(span = { GridItemSpan(3) }) {
+                        item(span = { GridItemSpan(maxLineSpan) }) {
                             Column(modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)) {
                                 Text(
                                     text = "Continue Reading",
@@ -543,7 +558,7 @@ fun LibraryScreenContent(
 
             // Empty Library / Filter State
             if (filteredLibraryItems.isEmpty() && (isSelectionMode || recentlyReadItems.isEmpty())) {
-                item(span = { GridItemSpan(3) }) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -602,21 +617,21 @@ fun LibraryScreenContent(
                 }
             }
 
-            // Library Grid Items (3 columns)
+            // Library Grid Items (responsive adaptive columns)
             itemsIndexed(filteredLibraryItems, key = { _, manga -> manga.url }) { index, manga ->
-                val chapterSubtitle = when (manga.title) {
-                    "Solo Leveling" -> "Ch. 179"
-                    "Aurora Blade" -> "Ch. 24"
-                    "Wind Beneath" -> "Ch. 102"
-                    "Shadow Crown" -> "Ch. 86"
-                    "Neon Requiem" -> "Ch. 47"
-                    "Frostbound" -> "Ch. 12"
-                    else -> "Ch. 1"
-                }
-
                 val isSelected = manga.url in selectedMangaUrls
                 val stats = libraryStats[manga.url]
                 val unread = if (stats != null) (stats.totalChapters - stats.readChapters).coerceAtLeast(0) else null
+                val progressFraction = if (stats != null && stats.totalChapters > 0) {
+                    (stats.readChapters.toFloat() / stats.totalChapters.toFloat()).coerceIn(0f, 1f)
+                } else null
+                val chapterSubtitle = when {
+                    stats != null && stats.totalChapters > 0 && stats.readChapters > 0 ->
+                        "${stats.readChapters}/${stats.totalChapters} ch · ${(progressFraction!! * 100).toInt()}%"
+                    stats != null && stats.totalChapters > 0 ->
+                        "${stats.totalChapters} chapters"
+                    else -> "Unread"
+                }
 
                 MangaCoverCard(
                     title = manga.title,
@@ -627,6 +642,7 @@ fun LibraryScreenContent(
                     isSelectionMode = isSelectionMode,
                     unreadCount = unread,
                     showUnreadBadge = showUnreadCount,
+                    progress = progressFraction,
                     onClick = {
                         if (isSelectionMode) {
                             selectedMangaUrls = if (isSelected) {

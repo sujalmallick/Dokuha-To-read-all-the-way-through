@@ -57,6 +57,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -513,6 +514,9 @@ fun GlassSwitch(
         else -> Color.White.copy(alpha = 0.12f)
     }
 
+    val currentChecked by rememberUpdatedState(checked)
+    val currentOnCheckedChange by rememberUpdatedState(onCheckedChange)
+
     Box(
         modifier = modifier
             .size(width = switchWidth, height = switchHeight)
@@ -524,9 +528,11 @@ fun GlassSwitch(
                 detectTapGestures(
                     onPress = {
                         isPressed = true
-                        tryAwaitRelease()
+                        val released = tryAwaitRelease()
                         isPressed = false
-                        onCheckedChange(!checked)
+                        if (released) {
+                            currentOnCheckedChange(!currentChecked)
+                        }
                     }
                 )
             },
