@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import core.source.SourcePage
 import data.reader.DualPageSpread
 import data.reader.ReaderColorFilters
 import data.settings.ReaderColorFilter
@@ -39,6 +40,8 @@ fun DualPageSpreadCanvas(
     isRtl: Boolean = true,
     cropBorders: Boolean = false,
     colorFilter: ReaderColorFilter = ReaderColorFilter.DEFAULT,
+    pages: List<SourcePage> = emptyList(),
+    onZoomStateChanged: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -59,7 +62,9 @@ fun DualPageSpreadCanvas(
                     chapterTitle = chapterTitle,
                     isRtl = isRtl,
                     cropBorders = cropBorders,
+                    page = pages.getOrNull(spread.leftPage),
                     colorFilter = colorFilter,
+                    onZoomStateChanged = onZoomStateChanged,
                     modifier = Modifier.fillMaxSize()
                 )
 
@@ -120,7 +125,9 @@ fun DualPageSpreadCanvas(
                             chapterTitle = chapterTitle,
                             isRtl = isRtl,
                             cropBorders = cropBorders,
+                            page = pages.getOrNull(spread.leftPage),
                             colorFilter = colorFilter,
+                            onZoomStateChanged = onZoomStateChanged,
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {
@@ -173,7 +180,9 @@ fun DualPageSpreadCanvas(
                             chapterTitle = chapterTitle,
                             isRtl = isRtl,
                             cropBorders = cropBorders,
+                            page = pages.getOrNull(spread.rightPage),
                             colorFilter = colorFilter,
+                            onZoomStateChanged = onZoomStateChanged,
                             modifier = Modifier.fillMaxSize()
                         )
                     } else {

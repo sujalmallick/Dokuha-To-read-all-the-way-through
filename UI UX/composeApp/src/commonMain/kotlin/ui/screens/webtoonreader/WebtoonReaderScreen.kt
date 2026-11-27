@@ -136,6 +136,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.PanelCircleIconButton
 import ui.components.PanelSlider
+import ui.components.PanelSlider
 import ui.glass.GlassVariant
 import ui.glass.PanelGlassState
 import ui.glass.glassDimming
@@ -348,32 +349,39 @@ fun WebtoonReaderScreenContent(
     val tapZonesEnabled by repo.readerTapZonesEnabled.collectAsState()
     val cutoutPadding by repo.readerCutoutPadding.collectAsState()
 
-    // Volume key navigation: scroll one page up/down when enabled
-    val volumeKeyState = LocalVolumeKeyState.current
-    val volumeUpCount = volumeKeyState.upPresses.value
-    val volumeDownCount = volumeKeyState.downPresses.value
-    LaunchedEffect(volumeUpCount) {
-        if (volumeKeyNavEnabled && volumeUpCount > 0) {
-            val target = (listState.firstVisibleItemIndex - 1).coerceAtLeast(0)
-            listState.animateScrollToItem(target)
+    // Chapter transition lock prevents double-firing or mid-load jumps (auto-resets if chapterUrl doesn't change)
+    var isChapterTransitioning by remember(chapterUrl) { mutableStateOf(false) }
+    LaunchedEffect(isChapterTransitioning) {
+        if (isChapterTransitioning) {
+            kotlinx.coroutines.delay(500L)
+            isChapterTransitioning = false
         }
     }
-    LaunchedEffect(volumeDownCount) {
-        if (volumeKeyNavEnabled && volumeDownCount > 0) {
-            val target = (listState.firstVisibleItemIndex + 1).coerceAtMost(pages.size - 1)
-            listState.animateScrollToItem(target)
+    val safePreviousChapter: () -> Unit = remember(chapterUrl, onPreviousChapter) {
+        {
+            if (!isChapterTransitioning) {
+                isChapterTransitioning = true
+                onPreviousChapter()
+            }
+        }
+    }
+    val safeNextChapter: () -> Unit = remember(chapterUrl, onNextChapter) {
+        {
+            if (!isChapterTransitioning) {
+                isChapterTransitioning = true
+                onNextChapter()
+            }
         }
     }
 
     var areControlsVisible by remember { mutableStateOf(true) }
-    var isBookmarked by remember { mutableStateOf(false) }
 
     var isAutoscrollActive by remember { mutableStateOf(false) }
     var autoscrollSpeed by remember { mutableFloatStateOf(1f) }
     var isAutoscrollPausedByTouch by remember { mutableStateOf(false) }
 
-    // Clean up autoscroll when leaving screen
-    DisposableEffect(Unit) {
+    // Clean up autoscroll when leaving screen or changing chapter
+    DisposableEffect(chapterUrl) {
         onDispose {
             isAutoscrollActive = false
         }
@@ -387,7 +395,7 @@ fun WebtoonReaderScreenContent(
     }
 
     // Autoscroll continuous frame pump
-    LaunchedEffect(isAutoscrollActive, isAutoscrollPausedByTouch, autoscrollSpeed, hasNextChapter) {
+    LaunchedEffect(isAutoscrollActive, isAutoscrollPausedByTouch, autoscrollSpeed, hasNextChapter, isChapterTransitioning) {
         if (!isAutoscrollActive || isAutoscrollPausedByTouch) return@LaunchedEffect
         val baseSpeedPx = 36f * autoscrollSpeed
         var lastTime = 0L
@@ -398,8 +406,9 @@ fun WebtoonReaderScreenContent(
                     val delta = baseSpeedPx * dt
                     if (listState.canScrollForward) {
                         listState.dispatchRawDelta(delta)
-                    } else if (hasNextChapter) {
-                        onNextChapter()
+                    } else if (hasNextChapter && !isChapterTransitioning) {
+                        isAutoscrollActive = false
+                        safeNextChapter()
                     } else {
                         isAutoscrollActive = false
                     }
@@ -476,9 +485,10 @@ fun WebtoonReaderScreenContent(
             }
         }
 
-        // Guard so downward/upward over-scroll at chapter edges only triggers once per chapter
+        // Guard so downward/upward over-scroll at chapter edges requires deliberate user pull & only triggers once
         var hasTriggeredAutoNext by remember(chapterUrl) { mutableStateOf(false) }
         var hasTriggeredAutoPrev by remember(chapterUrl) { mutableStateOf(false) }
+        var pullDownOverscrollPx by remember(chapterUrl) { mutableFloatStateOf(0f) }
         var pullUpOverscrollPx by remember(chapterUrl) { mutableFloatStateOf(0f) }
         val autoNextNestedScroll = remember(chapterUrl, hasNextChapter, hasPreviousChapter, displayPages.size) {
             object : NestedScrollConnection {
@@ -487,28 +497,33 @@ fun WebtoonReaderScreenContent(
                     available: Offset,
                     source: NestedScrollSource
                 ): Offset {
-                    if (shouldAutoAdvanceOnBottomScroll(
-                            hasNextChapter = hasNextChapter,
-                            alreadyTriggered = hasTriggeredAutoNext,
-                            canScrollForward = listState.canScrollForward,
-                            downwardScrollDeltaY = available.y,
-                            isEmptyPages = displayPages.isEmpty()
-                        )
-                    ) {
-                        hasTriggeredAutoNext = true
-                        onNextChapter()
-                    } else if (
-                        source == NestedScrollSource.UserInput &&
-                        hasPreviousChapter &&
-                        !hasTriggeredAutoPrev &&
-                        displayPages.isNotEmpty() &&
-                        !listState.canScrollBackward &&
-                        available.y > 0f
-                    ) {
+                    if (source != NestedScrollSource.UserInput) {
+                        return Offset.Zero
+                    }
+                    if (!listState.canScrollForward && available.y < 0f && hasNextChapter && !hasTriggeredAutoNext && displayPages.isNotEmpty()) {
+                        pullDownOverscrollPx += available.y
+                        if (shouldAutoAdvanceOnBottomScroll(
+                                hasNextChapter = hasNextChapter,
+                                alreadyTriggered = hasTriggeredAutoNext || isChapterTransitioning,
+                                canScrollForward = listState.canScrollForward,
+                                downwardScrollDeltaY = pullDownOverscrollPx,
+                                isEmptyPages = displayPages.isEmpty()
+                            )
+                        ) {
+                            hasTriggeredAutoNext = true
+                            pullDownOverscrollPx = 0f
+                            safeNextChapter()
+                        }
+                    } else if (listState.canScrollForward || available.y > 0f) {
+                        pullDownOverscrollPx = 0f
+                    }
+
+                    if (!listState.canScrollBackward && available.y > 0f && hasPreviousChapter && !hasTriggeredAutoPrev && !isChapterTransitioning && displayPages.isNotEmpty()) {
                         pullUpOverscrollPx += available.y
                         if (pullUpOverscrollPx > 160f) {
                             hasTriggeredAutoPrev = true
-                            onPreviousChapter()
+                            pullUpOverscrollPx = 0f
+                            safePreviousChapter()
                         }
                     } else if (listState.canScrollBackward || available.y < 0f) {
                         pullUpOverscrollPx = 0f
@@ -517,18 +532,8 @@ fun WebtoonReaderScreenContent(
                 }
 
                 override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+                    pullDownOverscrollPx = 0f
                     pullUpOverscrollPx = 0f
-                    if (shouldAutoAdvanceOnBottomScroll(
-                            hasNextChapter = hasNextChapter,
-                            alreadyTriggered = hasTriggeredAutoNext,
-                            canScrollForward = listState.canScrollForward,
-                            downwardScrollDeltaY = available.y,
-                            isEmptyPages = displayPages.isEmpty()
-                        )
-                    ) {
-                        hasTriggeredAutoNext = true
-                        onNextChapter()
-                    }
                     return Velocity.Zero
                 }
             }
@@ -651,6 +656,40 @@ fun WebtoonReaderScreenContent(
                 isAutoscrollPausedByTouch = !isAutoscrollPausedByTouch
             } else {
                 areControlsVisible = !areControlsVisible
+            }
+        }
+
+        // Sync active page position when switching readingMode or dual-page mode mid-chapter
+        var lastKnownMode by remember { mutableStateOf(readingMode) }
+        var lastKnownDual by remember { mutableStateOf(isDualSpreadActive) }
+        LaunchedEffect(readingMode, isDualSpreadActive, displayPages.size) {
+            if (displayPages.isNotEmpty() && (lastKnownMode != readingMode || lastKnownDual != isDualSpreadActive)) {
+                val targetPage = savedPageIndex.coerceIn(0, displayPages.lastIndex)
+                if (readingMode == DefaultReadingMode.WEBTOON) {
+                    listState.scrollToItem(targetPage)
+                } else if (isDualSpreadActive) {
+                    val spreadIdx = DualPageEngine.findSpreadIndexForPage(spreads, targetPage)
+                    pagerState.scrollToPage(spreadIdx)
+                } else {
+                    pagerState.scrollToPage(targetPage)
+                }
+                lastKnownMode = readingMode
+                lastKnownDual = isDualSpreadActive
+            }
+        }
+
+        // Volume key navigation across ALL reading modes (respects RTL/LTR and dual-page)
+        val volumeKeyState = LocalVolumeKeyState.current
+        val volumeUpCount = volumeKeyState.upPresses.value
+        val volumeDownCount = volumeKeyState.downPresses.value
+        LaunchedEffect(volumeUpCount) {
+            if (volumeKeyNavEnabled && volumeUpCount > 0) {
+                handlePrevious()
+            }
+        }
+        LaunchedEffect(volumeDownCount) {
+            if (volumeKeyNavEnabled && volumeDownCount > 0) {
+                handleNext()
             }
         }
 
@@ -862,6 +901,8 @@ fun WebtoonReaderScreenContent(
                                     isRtl = true,
                                     cropBorders = cropBorders,
                                     colorFilter = readerColorFilter,
+                                    pages = displayPages,
+                                    onZoomStateChanged = { isPageZoomed = it },
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {
@@ -924,6 +965,8 @@ fun WebtoonReaderScreenContent(
                                     isRtl = false,
                                     cropBorders = cropBorders,
                                     colorFilter = readerColorFilter,
+                                    pages = displayPages,
+                                    onZoomStateChanged = { isPageZoomed = it },
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {
@@ -1034,112 +1077,70 @@ fun WebtoonReaderScreenContent(
             }
         }
 
-        // LAYER 2: Top Floating Control Bar - Sibling overlay using Clear Glass with 35% dimming over artwork
+        // LAYER 2: Minimal Glass Top Control Bar (Back, 1-line Title, Settings)
         AnimatedVisibility(
             visible = areControlsVisible,
             enter = fadeIn() + slideInVertically { -it },
             exit = fadeOut() + slideOutVertically { -it },
             modifier = Modifier.align(Alignment.TopCenter)
         ) {
-            Column(
+            val barSurface = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)
+            val barBorder = MaterialTheme.colorScheme.outlineVariant
+            val barContent = MaterialTheme.colorScheme.onSurface
+            Row(
                 modifier = Modifier
+                    .widthIn(max = 640.dp)
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(barSurface)
+                    .border(1.dp, barBorder, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                // Top Row: Back button, Chapter Title, Bookmark & Settings
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Back Button
-                    PanelCircleIconButton(
-                        icon = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        size = 48.dp,
-                        iconSize = 20.dp,
-                        glassState = null,
-                        backgroundColor = Color(0xF50F1219),
-                        borderColor = GlassBorderStrong,
-                        modifier = Modifier.requiredSize(48.dp),
-                        onClick = onBack
-                    )
+                PanelCircleIconButton(
+                    icon = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    size = 48.dp,
+                    iconSize = 22.dp,
+                    tint = barContent,
+                    glassState = null,
+                    backgroundColor = Color.Transparent,
+                    borderColor = Color.Transparent,
+                    modifier = Modifier.requiredSize(48.dp),
+                    onClick = onBack
+                )
 
-                    // Chapter Title Capsule (truncates on narrow widths without squeezing 48dp touch targets)
-                    Box(
-                        modifier = Modifier
-                            .weight(1f, fill = false)
-                            .clip(CapsuleShape)
-                            .background(Color(0xF50F1219))
-                            .border(1.dp, GlassBorderStrong, CapsuleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = chapterTitle,
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 9.dp)
-                        )
-                    }
+                Text(
+                    text = chapterTitle,
+                    color = barContent,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 8.dp)
+                )
 
-                    // Settings, Bookmark & More Buttons
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        PanelCircleIconButton(
-                            icon = Icons.Default.Tune,
-                            contentDescription = "Reader Settings",
-                            size = 48.dp,
-                            iconSize = 20.dp,
-                            glassState = null,
-                            backgroundColor = Color(0xF50F1219),
-                            borderColor = GlassBorderStrong,
-                            modifier = Modifier.requiredSize(48.dp),
-                            onClick = onOpenSettings
-                        )
-                        PanelCircleIconButton(
-                            icon = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                            contentDescription = "Bookmark",
-                            size = 48.dp,
-                            iconSize = 20.dp,
-                            tint = if (isBookmarked) MaterialTheme.colorScheme.primary else Color.White,
-                            glassState = null,
-                            backgroundColor = Color(0xF50F1219),
-                            borderColor = GlassBorderStrong,
-                            modifier = Modifier.requiredSize(48.dp),
-                            onClick = { isBookmarked = !isBookmarked }
-                        )
-                        PanelCircleIconButton(
-                            icon = Icons.Default.MoreVert,
-                            contentDescription = "More options",
-                            size = 48.dp,
-                            iconSize = 20.dp,
-                            glassState = null,
-                            backgroundColor = Color(0xF50F1219),
-                            borderColor = GlassBorderStrong,
-                            modifier = Modifier.requiredSize(48.dp),
-                            onClick = { /* Menu */ }
-                        )
-                    }
-                }
-
-                // In-Reader Liquid Glass Mode Switcher [ RTL Manga | LTR Comic | Webtoon ]
-                ReaderModeSwitcher(
-                    currentMode = readingMode,
-                    isDualSpread = isDualSpreadActive,
-                    onSelectMode = { newMode ->
-                        repo.setDefaultReadingMode(newMode)
-                    },
-                    glassState = glassState
+                PanelCircleIconButton(
+                    icon = Icons.Default.Tune,
+                    contentDescription = "Reader Settings",
+                    size = 48.dp,
+                    iconSize = 20.dp,
+                    tint = barContent,
+                    glassState = null,
+                    backgroundColor = Color.Transparent,
+                    borderColor = Color.Transparent,
+                    modifier = Modifier.requiredSize(48.dp),
+                    onClick = onOpenSettings
                 )
             }
         }
 
-        // LAYER 3: Bottom Floating Scrubber Capsule Bar with Page Indicator & Step Buttons
+        // LAYER 3: Minimal Slim Glass Bottom Bar (Safe-area aware, RTL-aware)
         AnimatedVisibility(
             visible = areControlsVisible,
             enter = fadeIn() + slideInVertically { it },
@@ -1147,87 +1148,103 @@ fun WebtoonReaderScreenContent(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 20.dp)
+                .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
+            val barSurface = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)
+            val barBorder = MaterialTheme.colorScheme.outlineVariant
+            val barContent = MaterialTheme.colorScheme.onSurface
+            val navConfig = resolveReaderBottomNav(
+                isRtl = isRtl,
+                hasPreviousChapter = hasPreviousChapter,
+                hasNextChapter = hasNextChapter
+            )
+            val sliderValue = mapReaderSliderFraction(currentProgress, isRtl = isRtl)
+
             Box(
                 modifier = Modifier
                     .widthIn(max = 520.dp)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(Color(0xEE0F1219))
-                    .border(0.75.dp, GlassBorderStrong, RoundedCornerShape(22.dp))
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(barSurface)
+                    .border(1.dp, barBorder, RoundedCornerShape(18.dp))
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Previous Chapter button
                     PanelCircleIconButton(
                         icon = Icons.AutoMirrored.Filled.NavigateBefore,
-                        contentDescription = stringResource(Res.string.reader_previous_chapter),
-                        size = 44.dp,
+                        contentDescription = if (navConfig.leftIsNext) {
+                            stringResource(Res.string.reader_next_chapter)
+                        } else {
+                            stringResource(Res.string.reader_previous_chapter)
+                        },
+                        size = 48.dp,
                         iconSize = 22.dp,
                         glassState = null,
-                        backgroundColor = Color.White.copy(alpha = 0.08f),
-                        borderColor = Color.White.copy(alpha = 0.12f),
-                        tint = if (hasPreviousChapter) TextPrimary else TextPrimary.copy(alpha = 0.3f),
-                        onClick = { if (hasPreviousChapter) onPreviousChapter() }
+                        backgroundColor = Color.Transparent,
+                        borderColor = Color.Transparent,
+                        tint = if (navConfig.leftEnabled) barContent else barContent.copy(alpha = 0.28f),
+                        modifier = Modifier.requiredSize(48.dp),
+                        onClick = {
+                            if (navConfig.leftEnabled) {
+                                if (navConfig.leftIsNext) safeNextChapter() else safePreviousChapter()
+                            }
+                        }
                     )
 
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 4.dp)
                     ) {
-                        val indicatorText = if (readingMode == DefaultReadingMode.WEBTOON) {
-                            if (displayPages.isNotEmpty()) "${(currentProgress * 100).toInt()}% · ${displayPages.size} panels"
-                            else "0%"
-                        } else if (isDualSpreadActive) {
-                            currentDisplayPageLabel
-                        } else {
-                            val curPage = (pagerState.currentPage + 1).coerceAtMost(displayPages.size)
-                            "$curPage / ${displayPages.size}"
-                        }
-                        Text(
-                            text = indicatorText,
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        if (readingMode == DefaultReadingMode.WEBTOON) {
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = if (isAutoscrollActive) "Auto-scroll ${if (autoscrollSpeed <= 1.2f) "1x" else if (autoscrollSpeed <= 2.2f) "2x" else "3x"} · Tap to pause" else "Tap for auto-scroll",
-                                color = if (isAutoscrollActive) MaterialTheme.colorScheme.primary else TextSecondary,
-                                fontSize = 11.sp,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .clickable {
-                                        if (!isAutoscrollActive) {
-                                            isAutoscrollActive = true
-                                            isAutoscrollPausedByTouch = false
-                                        } else {
-                                            isAutoscrollActive = false
-                                        }
+                        PanelSlider(
+                            value = sliderValue,
+                            onValueChange = { rawFraction ->
+                                val logicalFraction = mapReaderSliderFraction(rawFraction, isRtl = isRtl)
+                                coroutineScope.launch {
+                                    if (readingMode == DefaultReadingMode.WEBTOON) {
+                                        val maxIdx = (displayPages.size - 1).coerceAtLeast(0)
+                                        listState.scrollToItem((logicalFraction * maxIdx).toInt().coerceIn(0, maxIdx))
+                                    } else {
+                                        val maxIdx = if (isDualSpreadActive) (spreads.size - 1).coerceAtLeast(0) else (displayPages.size - 1).coerceAtLeast(0)
+                                        pagerState.scrollToPage((logicalFraction * maxIdx).toInt().coerceIn(0, maxIdx))
                                     }
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            text = currentDisplayPageLabel,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1
+                        )
                     }
 
-                    // Next Chapter button
                     PanelCircleIconButton(
                         icon = Icons.AutoMirrored.Filled.NavigateNext,
-                        contentDescription = stringResource(Res.string.reader_next_chapter),
-                        size = 44.dp,
+                        contentDescription = if (navConfig.rightIsNext) {
+                            stringResource(Res.string.reader_next_chapter)
+                        } else {
+                            stringResource(Res.string.reader_previous_chapter)
+                        },
+                        size = 48.dp,
                         iconSize = 22.dp,
                         glassState = null,
-                        backgroundColor = Color.White.copy(alpha = 0.08f),
-                        borderColor = Color.White.copy(alpha = 0.12f),
-                        tint = if (hasNextChapter) TextPrimary else TextPrimary.copy(alpha = 0.3f),
-                        onClick = { if (hasNextChapter) onNextChapter() }
+                        backgroundColor = Color.Transparent,
+                        borderColor = Color.Transparent,
+                        tint = if (navConfig.rightEnabled) barContent else barContent.copy(alpha = 0.28f),
+                        modifier = Modifier.requiredSize(48.dp),
+                        onClick = {
+                            if (navConfig.rightEnabled) {
+                                if (navConfig.rightIsNext) safeNextChapter() else safePreviousChapter()
+                            }
+                        }
                     )
                 }
             }
@@ -1795,7 +1812,7 @@ fun WebtoonPanelSlice(
                 colorFilter = appliedFilter,
                 modifier = modifier
                     .fillMaxWidth()
-                    .then(if (!isImageLoaded) Modifier.heightIn(min = 260.dp) else Modifier),
+                    .then(if (!isImageLoaded) Modifier.heightIn(min = 460.dp) else Modifier),
                 onState = { state ->
                     when (state) {
                         is coil3.compose.AsyncImagePainter.State.Error -> {
@@ -1914,6 +1931,38 @@ internal fun shouldResetReaderScroll(
     currentChapterUrl: String
 ): Boolean = previousChapterUrl != currentChapterUrl
 
+internal data class ReaderBottomNavConfig(
+    val leftIsNext: Boolean,
+    val leftEnabled: Boolean,
+    val rightIsNext: Boolean,
+    val rightEnabled: Boolean
+)
+
+internal fun resolveReaderBottomNav(
+    isRtl: Boolean,
+    hasPreviousChapter: Boolean,
+    hasNextChapter: Boolean
+): ReaderBottomNavConfig = if (isRtl) {
+    ReaderBottomNavConfig(
+        leftIsNext = true,
+        leftEnabled = hasNextChapter,
+        rightIsNext = false,
+        rightEnabled = hasPreviousChapter
+    )
+} else {
+    ReaderBottomNavConfig(
+        leftIsNext = false,
+        leftEnabled = hasPreviousChapter,
+        rightIsNext = true,
+        rightEnabled = hasNextChapter
+    )
+}
+
+internal fun mapReaderSliderFraction(fraction: Float, isRtl: Boolean): Float {
+    val clamped = fraction.coerceIn(0f, 1f)
+    return if (isRtl) 1f - clamped else clamped
+}
+
 internal fun shouldAutoAdvanceOnBottomScroll(
     hasNextChapter: Boolean,
     alreadyTriggered: Boolean,
@@ -1925,7 +1974,7 @@ internal fun shouldAutoAdvanceOnBottomScroll(
         !alreadyTriggered &&
         !isEmptyPages &&
         !canScrollForward &&
-        downwardScrollDeltaY < -4f
+        downwardScrollDeltaY <= -160f
 }
 
 internal data class WebtoonScrollbarMetrics(
