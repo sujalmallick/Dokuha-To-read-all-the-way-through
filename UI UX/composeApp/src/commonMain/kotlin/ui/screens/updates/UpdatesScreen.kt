@@ -58,6 +58,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import ui.components.rememberCoverImageRequest
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -633,7 +634,7 @@ private fun ExpandableComicUpdatesCard(
                         manga.thumbnailUrl.startsWith("https://", ignoreCase = true))
                 if (isRemote) {
                     coil3.compose.AsyncImage(
-                        model = manga.thumbnailUrl,
+                        model = rememberCoverImageRequest(manga.thumbnailUrl!!, widthPx = 200, heightPx = 260),
                         contentDescription = manga.title,
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
