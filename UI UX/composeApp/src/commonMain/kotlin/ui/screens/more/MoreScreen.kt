@@ -196,7 +196,12 @@ fun MoreScreenContent(
 
             // Profile Header Row (avatar + name + chevron, whole row tappable)
             item {
-                Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
+                Box(
+                    modifier = Modifier
+                        .widthIn(max = 680.dp)
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 6.dp)
+                ) {
                     SettingsGroup {
                         Row(
                             modifier = Modifier
@@ -335,37 +340,43 @@ fun MoreScreenContent(
 
             // Content & Storage Group
             item {
-                SectionHeader(text = "Data & Connectivity")
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    SettingsGroup {
-                        SettingsRow.Navigation(
-                            title = "Downloads",
-                            subtitle = "Queue concurrency & storage rules",
-                            icon = Icons.Default.CloudDownload,
-                            onClick = onNavigateDownloads
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Navigation(
-                            title = "Sources & Extensions",
-                            subtitle = "Repositories, languages & filters",
-                            icon = Icons.Default.Extension,
-                            onClick = onNavigateSources
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Navigation(
-                            title = "Backup & Restore",
-                            subtitle = "Import and export reading archives",
-                            icon = Icons.Default.Save,
-                            onClick = onNavigateBackup
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Navigation(
-                            title = "Storage",
-                            subtitle = "Cache cleanup and database management",
-                            value = cacheSize,
-                            icon = Icons.Default.Storage,
-                            onClick = onNavigateStorage
-                        )
+                Column(
+                    modifier = Modifier
+                        .widthIn(max = 680.dp)
+                        .fillMaxWidth()
+                ) {
+                    SectionHeader(text = "Data & Connectivity")
+                    Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        SettingsGroup {
+                            SettingsRow.Navigation(
+                                title = "Downloads",
+                                subtitle = "Queue concurrency & storage rules",
+                                icon = Icons.Default.CloudDownload,
+                                onClick = onNavigateDownloads
+                            )
+                            SettingsSeparator()
+                            SettingsRow.Navigation(
+                                title = "Sources & Extensions",
+                                subtitle = "Repositories, languages & filters",
+                                icon = Icons.Default.Extension,
+                                onClick = onNavigateSources
+                            )
+                            SettingsSeparator()
+                            SettingsRow.Navigation(
+                                title = "Backup & Restore",
+                                subtitle = "Import and export reading archives",
+                                icon = Icons.Default.Save,
+                                onClick = onNavigateBackup
+                            )
+                            SettingsSeparator()
+                            SettingsRow.Navigation(
+                                title = "Storage",
+                                subtitle = "Cache cleanup and database management",
+                                value = cacheSize,
+                                icon = Icons.Default.Storage,
+                                onClick = onNavigateStorage
+                            )
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(18.dp))
@@ -373,23 +384,29 @@ fun MoreScreenContent(
 
             // Application
             item {
-                SectionHeader(text = "About")
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    SettingsGroup {
-                        SettingsRow.Navigation(
-                            title = "About Dokuha",
-                            value = "v1.0.0",
-                            icon = Icons.Default.Info,
-                            onClick = onNavigateAbout
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Navigation(
-                            title = "Liquid Glass Lab",
-                            subtitle = "iOS 26 optical lens parameter tuner",
-                            value = "Debug",
-                            icon = Icons.Default.Science,
-                            onClick = onNavigateGlassLab
-                        )
+                Column(
+                    modifier = Modifier
+                        .widthIn(max = 680.dp)
+                        .fillMaxWidth()
+                ) {
+                    SectionHeader(text = "About")
+                    Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        SettingsGroup {
+                            SettingsRow.Navigation(
+                                title = "About Dokuha",
+                                value = "v1.0.0",
+                                icon = Icons.Default.Info,
+                                onClick = onNavigateAbout
+                            )
+                            SettingsSeparator()
+                            SettingsRow.Navigation(
+                                title = "Liquid Glass Lab",
+                                subtitle = "iOS 26 optical lens parameter tuner",
+                                value = "Debug",
+                                icon = Icons.Default.Science,
+                                onClick = onNavigateGlassLab
+                            )
+                        }
                     }
                 }
             }
