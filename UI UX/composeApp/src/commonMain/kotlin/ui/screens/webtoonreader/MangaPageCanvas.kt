@@ -60,6 +60,7 @@ import coil3.compose.AsyncImagePainter
 import coil3.compose.LocalPlatformContext
 import coil3.network.NetworkHeaders
 import coil3.network.httpHeaders
+import coil3.request.CachePolicy
 import coil3.request.ImageRequest
 import coil3.size.Precision
 import coil3.size.Size
@@ -235,6 +236,23 @@ internal fun computeReaderDecodeSize(
     maxHeightPx: Int = 4096
 ): Size = Size(maxWidthPx.coerceIn(320, 2048), maxHeightPx.coerceIn(480, 4096))
 
+/**
+ * Returns only the newly-entered page indices `[start .. end)` that have not yet been preloaded
+ * in the current forward pass, avoiding redundant `ImageLoader.enqueue` calls on every scroll step.
+ */
+internal fun computePreloadIndices(
+    currentPageIndex: Int,
+    preloadCount: Int,
+    totalPages: Int,
+    alreadyPreloadedEnd: Int
+): IntRange {
+    if (totalPages <= 0 || preloadCount <= 0) return IntRange.EMPTY
+    val windowStart = currentPageIndex.coerceIn(0, totalPages)
+    val windowEnd = (windowStart + preloadCount).coerceAtMost(totalPages)
+    val effectiveStart = maxOf(windowStart, alreadyPreloadedEnd.coerceAtLeast(0))
+    return if (effectiveStart < windowEnd) effectiveStart until windowEnd else IntRange.EMPTY
+}
+
 internal fun formatImageLoadError(url: String?, throwableMessage: String?): String {
     val msg = throwableMessage.orEmpty()
     val isCleartext = !url.isNullOrBlank() &&
@@ -254,12 +272,14 @@ internal fun buildReaderImageRequest(
     imageUrl: String,
     headers: Map<String, String>?,
     defaultUserAgent: String,
-    decodeSize: Size = computeReaderDecodeSize()
+    decodeSize: Size = computeReaderDecodeSize(),
+    memoryCachePolicy: CachePolicy = CachePolicy.ENABLED
 ): ImageRequest {
     return ImageRequest.Builder(context)
         .data(imageUrl)
         .size(decodeSize)
         .precision(Precision.INEXACT)
+        .memoryCachePolicy(memoryCachePolicy)
         .apply {
             val networkHeaders = NetworkHeaders.Builder().apply {
                 add("User-Agent", defaultUserAgent)

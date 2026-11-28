@@ -162,6 +162,7 @@ fun MoreScreenContent(
 ) {
     val scrollState = rememberLazyListState()
     val glassState = rememberPanelGlassState()
+    ui.glass.BindGlassScrollState(glassState, scrollState)
 
     Box(
         modifier = modifier

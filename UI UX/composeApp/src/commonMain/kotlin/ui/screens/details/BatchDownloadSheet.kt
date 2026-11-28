@@ -318,7 +318,7 @@ fun BatchDownloadSheet(
                                     .border(0.5.dp, GlassBorder, RoundedCornerShape(12.dp))
                                     .padding(vertical = 4.dp)
                             ) {
-                                items(chapters) { ch ->
+                                items(chapters, key = { it.url }) { ch ->
                                     val isSelected = ch.url in customSelectedUrls
                                     val isDownloaded = downloadManager.isChapterDownloaded(manga.url, ch.url)
 

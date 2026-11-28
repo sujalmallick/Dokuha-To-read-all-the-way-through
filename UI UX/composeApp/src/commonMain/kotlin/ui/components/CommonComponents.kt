@@ -292,7 +292,7 @@ fun CategoryPillRow(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(categories) { category ->
+        items(categories, key = { it }) { category ->
             val isSelected = category == selectedCategory
             Box(
                 modifier = Modifier

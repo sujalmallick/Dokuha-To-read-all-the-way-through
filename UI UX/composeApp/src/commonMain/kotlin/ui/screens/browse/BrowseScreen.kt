@@ -434,6 +434,9 @@ fun BrowseScreenContent(
                     }
 
                     if (resultsBySource.size > 1) {
+                        val nonZeroSourceIds = remember(resultsBySource) {
+                            resultsBySource.keys.filter { it != 0L }
+                        }
                         Spacer(modifier = Modifier.height(10.dp))
                         LazyRow(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -459,7 +462,7 @@ fun BrowseScreenContent(
                                 }
                             }
 
-                            items(resultsBySource.keys.filter { it != 0L }.toList()) { sourceId ->
+                            items(nonZeroSourceIds, key = { it }) { sourceId ->
                                 val count = resultsBySource[sourceId]?.size ?: 0
                                 val srcName = sources.find { it.id.toLongOrNull() == sourceId }?.name ?: "Source $sourceId"
                                 val isSelected = selectedSourceFilter == sourceId
@@ -597,7 +600,7 @@ fun BrowseScreenContent(
                         Spacer(modifier = Modifier.height(10.dp))
                     }
                 } else {
-                    items(sources) { source ->
+                    items(sources, key = { it.id }) { source ->
                         val avatarColor = when (source.name) {
                             "MangaDex" -> Color(0xFFFF6740)
                             "Comick" -> Color(0xFF60A5FA)

@@ -131,6 +131,7 @@ fun SourceDetailScreenContent(
     val glassState = rememberPanelGlassState()
     val coroutineScope = rememberCoroutineScope()
     val gridState = rememberLazyGridState()
+    ui.glass.BindGlassScrollState(glassState, gridState)
 
     var searchQuery by remember { mutableStateOf("") }
     var filters by remember { mutableStateOf(BrowseFilters()) }
