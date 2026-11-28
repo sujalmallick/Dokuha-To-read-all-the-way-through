@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import core.platform.PlatformInfo
+import ui.theme.LocalReduceMotion
 import ui.glass.internal.liquefiable
 import ui.glass.internal.liquid
 
@@ -100,7 +101,7 @@ fun Modifier.glassPress(
     enabled: Boolean = true,
     pressedScale: Float = 1.04f
 ): Modifier {
-    if (!enabled) return this
+    if (!enabled || LocalReduceMotion.current) return this
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) pressedScale else 1f,
@@ -126,7 +127,7 @@ fun Modifier.nonGlassPress(
     enabled: Boolean = true,
     pressedScale: Float = 0.97f
 ): Modifier {
-    if (!enabled) return this
+    if (!enabled || LocalReduceMotion.current) return this
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (isPressed) pressedScale else 1f,
