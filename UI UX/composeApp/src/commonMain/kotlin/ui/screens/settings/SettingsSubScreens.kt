@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Storage
 import ui.theme.BadgeRed
+import ui.glass.GlassQualitySetting
 import ui.theme.GlassBorder
 import ui.theme.TextMuted
 import ui.theme.TextPrimary
@@ -118,6 +119,7 @@ class AppearanceSettingsScreen : Screen {
         val themeMode by repo.themeMode.collectAsState()
         val accentIndex by repo.accentColorIndex.collectAsState()
         val reduceGlass by repo.reduceGlass.collectAsState()
+        val glassQuality by repo.glassQuality.collectAsState()
         val reduceMotion by repo.reduceMotion.collectAsState()
         val appLogoStyle by repo.appLogoStyle.collectAsState()
 
@@ -125,6 +127,7 @@ class AppearanceSettingsScreen : Screen {
             themeMode = themeMode,
             accentIndex = accentIndex,
             reduceGlass = reduceGlass,
+            glassQuality = glassQuality,
             reduceMotion = reduceMotion,
             appLogoStyle = appLogoStyle,
             onBack = { navigator.pop() },
@@ -132,6 +135,7 @@ class AppearanceSettingsScreen : Screen {
             onSelectThemeMode = { repo.setThemeMode(it) },
             onSelectAccentIndex = { repo.setAccentColorIndex(it) },
             onToggleReduceGlass = { repo.setReduceGlass(it) },
+            onSelectGlassQuality = { repo.setGlassQuality(it) },
             onToggleReduceMotion = { repo.setReduceMotion(it) }
         )
     }
@@ -148,6 +152,8 @@ fun AppearanceSettingsScreenContent(
     onSelectAccentIndex: (Int) -> Unit,
     onToggleReduceGlass: (Boolean) -> Unit,
     onToggleReduceMotion: (Boolean) -> Unit,
+    glassQuality: GlassQualitySetting = GlassQualitySetting.AUTO,
+    onSelectGlassQuality: (GlassQualitySetting) -> Unit = {},
     appLogoStyle: AppLogoStyle = AppLogoStyle.GLASSMORPHIC,
     onNavigateAppLogo: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -237,6 +243,28 @@ fun AppearanceSettingsScreenContent(
                 SectionHeader(text = "Accessibility & Motion")
                 Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                     SettingsGroup {
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+                            Text(
+                                text = "Glass quality",
+                                color = TextPrimary,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = glassQuality.description,
+                                color = TextSecondary,
+                                fontSize = 12.sp
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            ui.components.glass.GlassSegmentedControl(
+                                options = GlassQualitySetting.entries,
+                                selected = glassQuality,
+                                onSelect = onSelectGlassQuality,
+                                labelOf = { it.label }
+                            )
+                        }
+                        SettingsSeparator()
                         SettingsRow.Toggle(
                             title = "Reduce glass",
                             subtitle = "Replaces lens reflections with subtle opaque fills",

@@ -10,7 +10,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import ui.glass.GlassQualitySetting
+import ui.glass.LocalGlassQualitySetting
+import ui.glass.LocalPlatformGlassEnvironment
 import ui.glass.LocalReduceGlass
+import ui.glass.PlatformGlassEnvironment
+import ui.glass.rememberPlatformGlassEnvironment
 
 enum class ThemeMode {
     SYSTEM,
@@ -84,6 +89,8 @@ fun PanelTheme(
     themeMode: ThemeMode = ThemeMode.DARK,
     accentColor: Color = ElectricBlue,
     reduceGlass: Boolean = false,
+    glassQualitySetting: GlassQualitySetting = GlassQualitySetting.AUTO,
+    platformGlassEnvironment: PlatformGlassEnvironment = rememberPlatformGlassEnvironment(),
     reduceMotion: Boolean = false,
     darkTheme: Boolean? = null,
     content: @Composable () -> Unit
@@ -111,10 +118,18 @@ fun PanelTheme(
         primary = accentColor,
         secondary = accentColor
     )
+    val glassTokens = when {
+        isOled -> OledGlassTokens
+        isDark -> DarkGlassTokens
+        else -> LightGlassTokens
+    }
 
     CompositionLocalProvider(
         LocalPanelSpacing provides PanelSpacing(),
+        LocalGlassTokens provides glassTokens,
         LocalReduceGlass provides reduceGlass,
+        LocalGlassQualitySetting provides glassQualitySetting,
+        LocalPlatformGlassEnvironment provides platformGlassEnvironment,
         LocalReduceMotion provides reduceMotion,
         LocalIndication provides ripple(color = finalScheme.primary.copy(alpha = 0.16f))
     ) {
