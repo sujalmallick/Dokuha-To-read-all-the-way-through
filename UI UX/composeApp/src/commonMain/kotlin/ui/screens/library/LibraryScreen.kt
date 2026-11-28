@@ -125,6 +125,8 @@ class LibraryScreen : Screen {
         LibraryScreenContent(
             repository = repository,
             categoryRepository = categoryRepo,
+            settingsRepository = koinInject(),
+            downloadManager = koinInject(),
             onOpenManga = { manga ->
                 navigator.push(
                     TitleDetailsScreen(
@@ -160,6 +162,7 @@ fun LibraryScreenContent(
     repository: PanelRepository,
     categoryRepository: CategoryRepository? = null,
     settingsRepository: SettingsRepository? = null,
+    downloadManager: core.download.DownloadManager? = null,
     showBottomBar: Boolean = true,
     onOpenManga: (SourceManga) -> Unit,
     onResumeChapter: (SourceManga, SourceChapter) -> Unit,
@@ -220,9 +223,22 @@ fun LibraryScreenContent(
     var isSearchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
+    val completedDownloads by (
+        downloadManager?.completedDownloads
+            ?: remember { kotlinx.coroutines.flow.MutableStateFlow(emptyList()) }
+    ).collectAsState()
+    val downloadedMangaUrls = remember(completedDownloads) {
+        completedDownloads.map { it.manga.url }.toSet()
+    }
+
     // 2. Filter and sort by active LibraryFilter (Status, Format, Progress, Downloaded, Sort) + searchQuery
-    val filteredLibraryItems = remember(categoryFilteredItems, libraryFilter, libraryStats, searchQuery) {
-        val base = filterAndSortLibrary(categoryFilteredItems, libraryFilter, libraryStats)
+    val filteredLibraryItems = remember(categoryFilteredItems, libraryFilter, libraryStats, searchQuery, downloadedMangaUrls) {
+        val base = filterAndSortLibrary(
+            items = categoryFilteredItems,
+            filter = libraryFilter,
+            stats = libraryStats,
+            isDownloaded = { manga -> manga.url in downloadedMangaUrls }
+        )
         val q = searchQuery.trim()
         if (q.isEmpty()) {
             base
@@ -238,6 +254,16 @@ fun LibraryScreenContent(
     // Batch Selection Mode State
     var isSelectionMode by remember { mutableStateOf(initialSelectionMode) }
     var selectedMangaUrls by remember { mutableStateOf(initialSelectedUrls) }
+
+    core.platform.PlatformBackHandler(enabled = isSelectionMode || isSearchActive) {
+        if (isSelectionMode) {
+            isSelectionMode = false
+            selectedMangaUrls = emptySet()
+        } else if (isSearchActive) {
+            isSearchActive = false
+            searchQuery = ""
+        }
+    }
 
     // Modal Sheets & Dialogs State
     var isCategoryEditSheetVisible by remember { mutableStateOf(false) }
@@ -569,7 +595,7 @@ fun LibraryScreenContent(
             }
 
             // Empty Library / Filter State
-            if (filteredLibraryItems.isEmpty() && (isSelectionMode || recentlyReadItems.isEmpty())) {
+            if (filteredLibraryItems.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Box(
                         modifier = Modifier
@@ -581,8 +607,9 @@ fun LibraryScreenContent(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            val hasQuery = searchQuery.isNotBlank()
                             Text(
-                                text = if (libraryFilter.isActive) {
+                                text = if (libraryFilter.isActive || hasQuery) {
                                     "No matching titles"
                                 } else if (selectedCategory != DefaultCategories.ALL) {
                                     "No titles in this category"
@@ -594,8 +621,8 @@ fun LibraryScreenContent(
                                 color = TextPrimary
                             )
                             Text(
-                                text = if (libraryFilter.isActive) {
-                                    "No titles match your active filter criteria."
+                                text = if (libraryFilter.isActive || hasQuery) {
+                                    "No titles match your active filter or search criteria."
                                 } else if (selectedCategory != DefaultCategories.ALL) {
                                     "Add titles to \"$selectedCategory\" to see them here."
                                 } else {
@@ -605,14 +632,17 @@ fun LibraryScreenContent(
                                 color = TextSecondary,
                                 modifier = Modifier.padding(horizontal = 32.dp)
                             )
-                            if (libraryFilter.isActive) {
+                            if (libraryFilter.isActive || hasQuery) {
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Box(
                                     modifier = Modifier
                                         .clip(CapsuleShape)
                                         .background(Color.White.copy(alpha = 0.12f))
                                         .border(1.dp, Color.White.copy(alpha = 0.25f), CapsuleShape)
-                                        .clickable { libraryFilter = LibraryFilter() }
+                                        .clickable {
+                                            libraryFilter = LibraryFilter()
+                                            searchQuery = ""
+                                        }
                                         .padding(horizontal = 14.dp, vertical = 7.dp),
                                     contentAlignment = Alignment.Center
                                 ) {

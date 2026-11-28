@@ -48,7 +48,9 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import ui.components.PanelTab
 import ui.screens.details.TitleDetailsScreenContent
+import ui.screens.library.LibraryFilter
 import ui.screens.library.LibraryScreenContent
+import ui.screens.library.filterAndSortLibrary
 import ui.screens.maintab.MainTabScreen
 import ui.screens.updates.UpdatesScreenContent
 import ui.screens.welcome.WelcomeScreen
@@ -344,5 +346,73 @@ class CheckpointAControlsUiTest {
                 .fetchSemanticsNodes().isNotEmpty()
         }
         assertTrue(firstManga.url in removedUrls)
+    }
+
+    @Test
+    fun bug04_downloadedOnlyFilterLogicAndEmptyStateResetWork(): Unit = runBlocking {
+        val fakeRepo = FakePanelRepository()
+        val library = fakeRepo.getLibrary("All").first()
+        val downloadedManga = library.first()
+        val filtered = filterAndSortLibrary(
+            items = library,
+            filter = LibraryFilter(downloadedOnly = true),
+            stats = emptyMap(),
+            isDownloaded = { it.url == downloadedManga.url }
+        )
+        assertEquals(listOf(downloadedManga), filtered)
+
+        val dm = DownloadManager(MemoryDownloadStorage())
+        composeTestRule.setContent {
+            PanelTheme {
+                LibraryScreenContent(
+                    repository = fakeRepo,
+                    settingsRepository = FakeSettingsRepository(),
+                    downloadManager = dm,
+                    onOpenManga = {},
+                    onResumeChapter = { _, _ -> },
+                    onTabSelected = {}
+                )
+            }
+        }
+
+        // Open Filter sheet, toggle Downloaded Only, Apply -> shows empty state even though recentlyReadItems is non-empty
+        composeTestRule.onNodeWithContentDescription("Filter library").performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Downloaded Only").performClick()
+        composeTestRule.onNodeWithText("Apply Filters", substring = true).performClick()
+        composeTestRule.waitUntil(timeoutMillis = 3_000) {
+            composeTestRule.onAllNodesWithText("No matching titles").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText("Reset Filters").assertExists()
+
+        // Clicking Reset Filters restores library items
+        composeTestRule.onNodeWithText("Reset Filters").performClick()
+        composeTestRule.waitUntil(timeoutMillis = 3_000) {
+            composeTestRule.onAllNodesWithText(downloadedManga.title).fetchSemanticsNodes().isNotEmpty()
+        }
+    }
+
+    @Test
+    fun bug14_emptyState320dpAndScaledFontScreenshots() {
+        val fakeRepo = FakePanelRepository()
+        val dm = DownloadManager(MemoryDownloadStorage())
+        composeTestRule.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(density = 2f, fontScale = 1.3f)) {
+                PanelTheme {
+                    Box(modifier = Modifier.size(width = 320.dp, height = 640.dp)) {
+                        LibraryScreenContent(
+                            repository = fakeRepo,
+                            settingsRepository = FakeSettingsRepository(),
+                            downloadManager = dm,
+                            onOpenManga = {},
+                            onResumeChapter = { _, _ -> },
+                            onTabSelected = {},
+                            initialSelectionMode = true
+                        )
+                    }
+                }
+            }
+        }
+        composeTestRule.onRoot().captureRoboImage("screenshots/checkpoint_a_320dp_1_3x_selection.png")
     }
 }

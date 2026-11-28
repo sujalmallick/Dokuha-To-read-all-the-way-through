@@ -136,6 +136,7 @@ class MainTabScreen(
                             repository = repository,
                             categoryRepository = categoryRepository,
                             settingsRepository = settingsRepository,
+                            downloadManager = koinInject(),
                             onOpenManga = { manga ->
                                 navigator.push(
                                     TitleDetailsScreen(
