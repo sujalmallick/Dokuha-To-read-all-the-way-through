@@ -93,6 +93,9 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.ChapterRowItem
 import ui.components.PanelCircleIconButton
+import ui.components.glass.GlassDialog
+import ui.components.glass.GlassSnackbarHost
+import ui.theme.LocalGlassTokens
 import ui.components.PanelButton
 import ui.glass.glassPress
 import ui.glass.glassSource
@@ -975,59 +978,49 @@ fun TitleDetailsScreenContent(
         }
 
         chapterToDeleteDownload?.let { targetChapter ->
-            AlertDialog(
+            val tokens = LocalGlassTokens.current
+            GlassDialog(
+                title = "Delete downloaded chapter?",
                 onDismissRequest = { chapterToDeleteDownload = null },
-                title = { Text("Delete downloaded chapter?") },
-                text = { Text("Remove \"${targetChapter.name}\" from offline storage?") },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            downloadManager.deleteDownloadedChapter(displayManga.url, targetChapter.url)
-                            downloadMutationTick++
-                            chapterToDeleteDownload = null
-                        }
-                    ) {
-                        Text("Delete", color = MaterialTheme.colorScheme.error)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { chapterToDeleteDownload = null }) {
-                        Text("Cancel")
-                    }
+                confirmText = "Delete",
+                isDestructive = true,
+                onConfirm = {
+                    downloadManager.deleteDownloadedChapter(displayManga.url, targetChapter.url)
+                    downloadMutationTick++
+                    chapterToDeleteDownload = null
                 }
-            )
+            ) {
+                Text(
+                    text = "Remove \"${targetChapter.name}\" from offline storage?",
+                    color = tokens.subtextOnGlass
+                )
+            }
         }
 
         if (showDeleteAllDownloadsDialog) {
             val downloaded = chapters.filter { downloadManager.isChapterDownloaded(displayManga.url, it.url) }
-            AlertDialog(
+            val tokens = LocalGlassTokens.current
+            GlassDialog(
+                title = "Delete all downloaded chapters?",
                 onDismissRequest = { showDeleteAllDownloadsDialog = false },
-                title = { Text("Delete all downloaded chapters?") },
-                text = {
-                    Text("Remove ${downloaded.size} downloaded chapter${if (downloaded.size == 1) "" else "s"} for \"${displayManga.title}\" from offline storage?")
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            downloaded.forEach { ch ->
-                                downloadManager.deleteDownloadedChapter(displayManga.url, ch.url)
-                            }
-                            downloadMutationTick++
-                            showDeleteAllDownloadsDialog = false
-                        }
-                    ) {
-                        Text("Delete", color = MaterialTheme.colorScheme.error)
+                confirmText = "Delete",
+                isDestructive = true,
+                onConfirm = {
+                    downloaded.forEach { ch ->
+                        downloadManager.deleteDownloadedChapter(displayManga.url, ch.url)
                     }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showDeleteAllDownloadsDialog = false }) {
-                        Text("Cancel")
-                    }
+                    downloadMutationTick++
+                    showDeleteAllDownloadsDialog = false
                 }
-            )
+            ) {
+                Text(
+                    text = "Remove ${downloaded.size} downloaded chapter${if (downloaded.size == 1) "" else "s"} for \"${displayManga.title}\" from offline storage?",
+                    color = tokens.subtextOnGlass
+                )
+            }
         }
 
-        SnackbarHost(
+        GlassSnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -1391,11 +1384,13 @@ private fun QuickDownloadChip(
     icon: ImageVector = Icons.Default.FileDownload,
     iconTint: Color = MaterialTheme.colorScheme.primary
 ) {
+    val tokens = LocalGlassTokens.current
+    val chipShape = tokens.shapeSm
     Box(
         modifier = modifier
-            .clip(CapsuleShape)
-            .background(Color.White.copy(alpha = 0.08f))
-            .border(1.dp, GlassBorder, CapsuleShape)
+            .clip(chipShape)
+            .background(tokens.regularTint)
+            .border(tokens.borderWidth, tokens.borderMid, chipShape)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center

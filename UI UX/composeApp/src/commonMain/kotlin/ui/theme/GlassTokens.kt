@@ -63,36 +63,36 @@ data class GlassTokens(
 
 val DarkGlassTokens = GlassTokens(
     isDark = true,
-    regularTint = Color(0xCC101623),      // ~80% deep slate glass (contrast-safe over bright/busy art)
-    clearTint = Color(0x99101623),        // ~60% clear lens
-    sheetTint = Color(0xE6111622),        // ~90% sheet glass
-    reducedTint = Color(0xEB101623),      // ~92% opaque translucent surface
+    regularTint = Color(0x14FFFFFF),      // ~8% crystal-clear iOS Liquid Glass tint
+    clearTint = Color(0x0AFFFFFF),        // ~4% ultra-clear optical lens
+    sheetTint = Color(0xD9111622),        // ~85% sheet glass for readable modal content
+    reducedTint = Color(0xEB101623),      // ~92% opaque translucent surface (REDUCED tier)
     readerOverlayTint = Color(0xD10B0F18),// ~82% high-contrast dark glass for reader overlays
-    borderHighlightTopLeft = Color(0x73FFFFFF), // 45% specular top-left
-    borderMid = Color(0x24FFFFFF),              // 14% side transition
-    borderBottomRight = Color(0x3DFFFFFF),      // 24% ground bounce
-    innerGlowColor = Color(0x33FFFFFF),         // 20% top inner caustic
-    sheenTopColor = Color(0x1FFFFFFF),          // 12% top sheen
+    borderHighlightTopLeft = Color(0x80FFFFFF), // 50% specular top-left
+    borderMid = Color(0x28FFFFFF),              // 16% side transition
+    borderBottomRight = Color(0x45FFFFFF),      // 27% ground bounce
+    innerGlowColor = Color(0x38FFFFFF),         // 22% top inner caustic
+    sheenTopColor = Color(0x22FFFFFF),          // 13% top sheen
     sheenMidColor = Color(0x08FFFFFF),          // 3% mid sheen
-    adaptiveBrightArtScrim = Color(0x6B000000), // 42% scrim over bright covers
+    adaptiveBrightArtScrim = Color(0x94000000), // 58% adaptive scrim when explicitly over bright/white art
     textOnGlass = Color(0xFFF8FAFC),
     subtextOnGlass = Color(0xFFCBD5E1)
 )
 
 val OledGlassTokens = GlassTokens(
     isDark = true,
-    regularTint = Color(0xD6080A0F),      // ~84% OLED dark glass
-    clearTint = Color(0xA6080A0F),        // ~65% clear lens
-    sheetTint = Color(0xEB0A0C12),        // ~92% sheet glass
-    reducedTint = Color(0xF20A0C12),      // ~95% opaque translucent surface
+    regularTint = Color(0x12FFFFFF),      // ~7% crystal-clear OLED Liquid Glass
+    clearTint = Color(0x08FFFFFF),        // ~3% ultra-clear optical lens
+    sheetTint = Color(0xE00A0C12),        // ~88% sheet glass
+    reducedTint = Color(0xF20A0C12),      // ~95% opaque translucent surface (REDUCED tier)
     readerOverlayTint = Color(0xD907090E),// ~85% high-contrast reader glass
-    borderHighlightTopLeft = Color(0x66FFFFFF),
-    borderMid = Color(0x1FFFFFFF),
-    borderBottomRight = Color(0x33FFFFFF),
-    innerGlowColor = Color(0x2BFFFFFF),
-    sheenTopColor = Color(0x1AFFFFFF),
+    borderHighlightTopLeft = Color(0x73FFFFFF),
+    borderMid = Color(0x24FFFFFF),
+    borderBottomRight = Color(0x3DFFFFFF),
+    innerGlowColor = Color(0x30FFFFFF),
+    sheenTopColor = Color(0x1FFFFFFF),
     sheenMidColor = Color(0x06FFFFFF),
-    adaptiveBrightArtScrim = Color(0x75000000),
+    adaptiveBrightArtScrim = Color(0x99000000),
     textOnGlass = Color(0xFFF8FAFC),
     subtextOnGlass = Color(0xFFCBD5E1)
 )

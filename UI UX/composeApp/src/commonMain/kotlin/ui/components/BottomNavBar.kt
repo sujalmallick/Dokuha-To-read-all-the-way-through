@@ -43,17 +43,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.ui.tooling.preview.Preview
-import ui.glass.GlassVariant
+import ui.components.glass.GlassBottomDock
 import ui.glass.PanelGlassState
-import ui.glass.glassDimming
 import ui.glass.glassPress
-import ui.glass.glassSurface
 import ui.motion.rememberTabIndicatorSpring
 import ui.theme.CapsuleShape
-import ui.theme.GlassBorder
-import ui.theme.PanelSurfaceGlassHigh
+import ui.theme.LocalGlassTokens
+import ui.theme.LocalReduceMotion
 import ui.theme.PanelTheme
-import ui.theme.TextSecondary
 
 enum class PanelTab(
     val title: String,
@@ -81,32 +78,13 @@ fun PanelBottomNavBar(
     modifier: Modifier = Modifier,
     glassState: PanelGlassState? = null
 ) {
-    val dockShape = CapsuleShape
+    val tokens = LocalGlassTokens.current
+    val reduceMotion = LocalReduceMotion.current
+    val accent = MaterialTheme.colorScheme.primary
 
-    val surfaceModifier = when {
-        glassState != null -> {
-            Modifier
-                .glassDimming(alpha = 0.24f, shape = dockShape)
-                .glassSurface(
-                    state = glassState,
-                    variant = GlassVariant.Regular,
-                    shape = dockShape
-                )
-        }
-        else -> {
-            Modifier
-                .clip(dockShape)
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.90f))
-                .border(0.75.dp, GlassBorder, dockShape)
-        }
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(64.dp)
-            .then(surfaceModifier),
-        contentAlignment = Alignment.Center
+    GlassBottomDock(
+        modifier = modifier,
+        glassState = glassState
     ) {
         BoxWithConstraints(
             modifier = Modifier
@@ -128,8 +106,8 @@ fun PanelBottomNavBar(
                     .width(tabWidth)
                     .fillMaxHeight()
                     .clip(CapsuleShape)
-                    .background(Color.White.copy(alpha = 0.12f))
-                    .border(0.5.dp, Color.White.copy(alpha = 0.28f), CapsuleShape)
+                    .background(accent.copy(alpha = 0.18f))
+                    .border(tokens.borderWidth, accent.copy(alpha = 0.45f), CapsuleShape)
             )
 
             // Tab items row
@@ -140,14 +118,17 @@ fun PanelBottomNavBar(
             ) {
                 PanelTab.entries.forEach { tab ->
                     val isSelected = tab == selectedTab
-                    val contentColor = if (isSelected) MaterialTheme.colorScheme.primary else TextSecondary
+                    val contentColor = if (isSelected) accent else tokens.subtextOnGlass
                     val interactionSource = remember { MutableInteractionSource() }
 
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .glassPress(interactionSource = interactionSource, pressedScale = 1.04f)
+                            .then(
+                                if (reduceMotion) Modifier
+                                else Modifier.glassPress(interactionSource = interactionSource, pressedScale = tokens.floatingPressScale)
+                            )
                             .clickable(
                                 interactionSource = interactionSource,
                                 indication = null,
@@ -168,7 +149,8 @@ fun PanelBottomNavBar(
                             color = contentColor,
                             fontSize = 11.sp,
                             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                            letterSpacing = (-0.2).sp
+                            letterSpacing = (-0.2).sp,
+                            maxLines = 1
                         )
                     }
                 }
