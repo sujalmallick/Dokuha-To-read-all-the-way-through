@@ -7,7 +7,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Matrix
 import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
@@ -34,9 +33,6 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.util.fastFilter
-import kotlin.math.PI
-import kotlin.math.atan2
-import kotlin.math.sqrt
 
 internal expect fun liquidElement(
   liquidState: LiquidState,
@@ -45,7 +41,13 @@ internal expect fun liquidElement(
 
 internal expect fun LayoutCoordinates.liquidPositionOnScreen(): Offset
 
-internal expect fun LayoutCoordinates.liquidPopulateScreenTransform(matrix: Matrix): Boolean
+internal data class LiquidInverseTransform(
+  val inverseScaleX: Float = 1f,
+  val inverseScaleY: Float = 1f,
+  val inverseRotationZ: Float = 0f,
+)
+
+internal expect fun LayoutCoordinates.liquidInverseTransform(): LiquidInverseTransform
 
 internal abstract class AbstractLiquidElement<N : AbstractLiquidNode>(
   protected val liquidState: LiquidState,
@@ -88,7 +90,6 @@ internal abstract class AbstractLiquidNode(
   ObserverModifierNode {
   @VisibleForTesting(otherwise = VisibleForTesting.PROTECTED)
   internal val reusableScope = LiquidScopeImpl()
-  private val matrix = Matrix()
   private var cachedLayer: GraphicsLayer? = null
   private var cachedRenderEffect: RenderEffect? = null
 
@@ -151,24 +152,12 @@ internal abstract class AbstractLiquidNode(
   override fun onObservedReadsChanged() = invalidateLiquidBlock()
 
   override fun onGloballyPositioned(coordinates: LayoutCoordinates) {
-    if (!isAttached) return
+    if (!isAttached || !coordinates.isAttached) return
 
-    matrix.reset()
-    if (coordinates.liquidPopulateScreenTransform(matrix)) {
-      val scaleX = matrix.values[Matrix.ScaleX]
-      val scaleY = matrix.values[Matrix.ScaleY]
-      val skewX = matrix.values[Matrix.SkewX]
-      val skewY = matrix.values[Matrix.SkewY]
-      val scaleXMagnitude = sqrt(scaleX * scaleX + skewY * skewY)
-      val scaleYMagnitude = sqrt(skewX * skewX + scaleY * scaleY)
-      reusableScope.inverseScaleX = if (scaleXMagnitude > 0f) 1f / scaleXMagnitude else 0f
-      reusableScope.inverseScaleY = if (scaleYMagnitude > 0f) 1f / scaleYMagnitude else 0f
-      reusableScope.inverseRotationZ = -RadiansToDegrees * atan2(skewY, scaleX)
-    } else {
-      reusableScope.inverseScaleX = 1f
-      reusableScope.inverseScaleY = 1f
-      reusableScope.inverseRotationZ = 0f
-    }
+    val transform = coordinates.liquidInverseTransform()
+    reusableScope.inverseScaleX = transform.inverseScaleX
+    reusableScope.inverseScaleY = transform.inverseScaleY
+    reusableScope.inverseRotationZ = transform.inverseRotationZ
     reusableScope.positionOnScreen = coordinates.liquidPositionOnScreen()
     reusableScope.size = coordinates.size.toSize()
     reusableScope.boundsInRoot = coordinates.boundsInRoot()
@@ -232,5 +221,3 @@ internal abstract class AbstractLiquidNode(
     }
   }
 }
-
-private const val RadiansToDegrees = (180.0 / PI).toFloat()
