@@ -74,7 +74,7 @@ class ReaderRecoveryUiTest {
 
         // Controls are visible on open without duplicate floating pill or middle-menu clutter
         composeTestRule.onNodeWithText("Episode 42").assertIsDisplayed()
-        composeTestRule.onNodeWithText("0% • Continuous").assertIsDisplayed()
+        composeTestRule.onNodeWithText("1 / 2").assertIsDisplayed()
         composeTestRule.onNodeWithText("◉ Menu").assertDoesNotExist()
 
         // Exercise primary chapter-advance action via Next Chapter control
@@ -146,7 +146,7 @@ class ReaderRecoveryUiTest {
         for (scale in listOf(1.3f, 2.0f)) {
             fontScale = scale
             composeTestRule.waitForIdle()
-            composeTestRule.onNodeWithContentDescription("More options")
+            composeTestRule.onNodeWithContentDescription("Reader Settings")
                 .assertIsDisplayed()
                 .assertWidthIsAtLeast(48.dp)
                 .assertHeightIsAtLeast(48.dp)

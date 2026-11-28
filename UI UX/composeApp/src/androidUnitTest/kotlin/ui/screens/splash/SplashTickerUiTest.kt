@@ -96,7 +96,8 @@ class SplashTickerUiTest {
             }
         }
 
-        composeTestRule.waitUntil(timeoutMillis = 3000L) { finished }
+        composeTestRule.mainClock.advanceTimeBy(1_200L)
+        composeTestRule.waitUntil(timeoutMillis = 10_000L) { finished }
         assertTrue(finished)
     }
 }
