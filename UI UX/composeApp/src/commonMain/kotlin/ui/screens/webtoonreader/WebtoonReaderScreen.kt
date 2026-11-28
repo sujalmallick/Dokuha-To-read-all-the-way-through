@@ -137,7 +137,10 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.PanelCircleIconButton
 import ui.components.PanelSlider
-import ui.components.PanelSlider
+import ui.components.glass.GlassSlider
+import ui.components.glass.GlassStyle
+import ui.components.glass.GlassSurface
+import ui.glass.GlassSurfaceContext
 import ui.glass.GlassVariant
 import ui.glass.PanelGlassState
 import ui.glass.glassDimming
@@ -148,6 +151,7 @@ import ui.glass.rememberPanelGlassState
 import ui.theme.CapsuleShape
 import ui.theme.GlassBorder
 import ui.theme.GlassBorderStrong
+import ui.theme.LocalGlassTokens
 import ui.theme.PanelBackground
 import ui.theme.PanelTheme
 import ui.theme.TextMuted
@@ -1129,22 +1133,25 @@ fun WebtoonReaderScreenContent(
             exit = fadeOut() + slideOutVertically { -it },
             modifier = Modifier.align(Alignment.TopCenter)
         ) {
-            val barSurface = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)
-            val barBorder = MaterialTheme.colorScheme.outlineVariant
-            val barContent = MaterialTheme.colorScheme.onSurface
-            Row(
+            val tokens = LocalGlassTokens.current
+            val barContent = Color(0xFFF8FAFC)
+            GlassSurface(
                 modifier = Modifier
                     .widthIn(max = 640.dp)
                     .fillMaxWidth()
                     .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(barSurface)
-                    .border(1.dp, barBorder, RoundedCornerShape(16.dp))
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                shape = tokens.shapeMd,
+                style = GlassStyle.READER_HIGH_CONTRAST,
+                context = GlassSurfaceContext.READER_OVERLAY
             ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                 PanelCircleIconButton(
                     icon = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
@@ -1182,6 +1189,7 @@ fun WebtoonReaderScreenContent(
                     modifier = Modifier.requiredSize(48.dp),
                     onClick = onOpenSettings
                 )
+                }
             }
         }
 
@@ -1195,9 +1203,8 @@ fun WebtoonReaderScreenContent(
                 .navigationBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
-            val barSurface = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f)
-            val barBorder = MaterialTheme.colorScheme.outlineVariant
-            val barContent = MaterialTheme.colorScheme.onSurface
+            val tokens = LocalGlassTokens.current
+            val barContent = Color(0xFFF8FAFC)
             val navConfig = resolveReaderBottomNav(
                 isRtl = isRtl,
                 hasPreviousChapter = hasPreviousChapter,
@@ -1205,13 +1212,13 @@ fun WebtoonReaderScreenContent(
             )
             val sliderValue = mapReaderSliderFraction(currentProgress, isRtl = isRtl)
 
-            Box(
+            GlassSurface(
                 modifier = Modifier
                     .widthIn(max = 520.dp)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(barSurface)
-                    .border(1.dp, barBorder, RoundedCornerShape(18.dp))
+                    .fillMaxWidth(),
+                shape = tokens.shapeMd,
+                style = GlassStyle.READER_HIGH_CONTRAST,
+                context = GlassSurfaceContext.READER_OVERLAY
             ) {
                 Row(
                     modifier = Modifier
@@ -1247,7 +1254,7 @@ fun WebtoonReaderScreenContent(
                             .padding(horizontal = 4.dp)
                     ) {
                         if (readingMode != DefaultReadingMode.WEBTOON) {
-                            PanelSlider(
+                            GlassSlider(
                                 value = sliderValue,
                                 onValueChange = { rawFraction ->
                                     val logicalFraction = mapReaderSliderFraction(rawFraction, isRtl = isRtl)
@@ -1261,7 +1268,7 @@ fun WebtoonReaderScreenContent(
                         }
                         Text(
                             text = currentDisplayPageLabel,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = Color(0xFFCBD5E1),
                             fontSize = if (readingMode == DefaultReadingMode.WEBTOON) 13.sp else 11.sp,
                             fontWeight = FontWeight.Medium,
                             maxLines = 1
@@ -1484,13 +1491,14 @@ fun WebtoonAutoscrollPill(
     }
 
     val primaryAccent = MaterialTheme.colorScheme.primary
-    Box(
-        modifier = modifier
-            .clip(CapsuleShape)
-            .background(Color(0xF00A0D14))
-            .border(1.dp, if (isPlaying && !isPausedByTouch) primaryAccent.copy(alpha = 0.6f) else GlassBorderStrong, CapsuleShape)
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+    val tokens = LocalGlassTokens.current
+    GlassSurface(
+        modifier = modifier,
+        shape = tokens.shapeSm,
+        style = GlassStyle.READER_HIGH_CONTRAST,
+        context = GlassSurfaceContext.READER_OVERLAY
     ) {
+        Box(modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -1570,6 +1578,7 @@ fun WebtoonAutoscrollPill(
                 )
             }
         }
+        }
     }
 }
 
@@ -1585,22 +1594,21 @@ fun WebtoonEndOfChapterCard(
     glassState: PanelGlassState,
     modifier: Modifier = Modifier
 ) {
-    val cardShape = RoundedCornerShape(24.dp)
+    val tokens = LocalGlassTokens.current
     val buttonInteraction = remember { MutableInteractionSource() }
 
-    Box(
+    GlassSurface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(24.dp)
-            .glassDimming(alpha = 0.35f, shape = cardShape)
-            .glassSurface(
-                state = glassState,
-                variant = GlassVariant.Regular,
-                shape = cardShape
-            )
-            .padding(28.dp),
-        contentAlignment = Alignment.Center
+            .padding(24.dp),
+        shape = tokens.shapeLg,
+        style = GlassStyle.READER_HIGH_CONTRAST,
+        context = GlassSurfaceContext.READER_OVERLAY
     ) {
+        Box(
+            modifier = Modifier.padding(28.dp),
+            contentAlignment = Alignment.Center
+        ) {
         val primaryAccent = MaterialTheme.colorScheme.primary
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -1672,6 +1680,7 @@ fun WebtoonEndOfChapterCard(
                     }
                 }
             }
+        }
         }
     }
 }

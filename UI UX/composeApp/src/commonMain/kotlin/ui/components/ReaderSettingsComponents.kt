@@ -64,6 +64,7 @@ import ui.glass.GlassVariant
 import ui.glass.glassDimming
 import ui.glass.glassSurface
 import ui.theme.CapsuleShape
+import ui.theme.LocalGlassTokens
 
 /**
  * Applies adaptive sheet container styling: dark liquid-glass scrim in dark/OLED themes
@@ -74,34 +75,18 @@ fun Modifier.adaptiveReaderSheetSurface(
     glassState: PanelGlassState,
     shape: Shape
 ): Modifier {
-    val isLightSurface = MaterialTheme.colorScheme.surface.luminance() > 0.5f
-    return if (isLightSurface) {
-        this
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.94f), shape)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, shape)
-    } else {
-        val specularBorder = Brush.verticalGradient(
-            colors = listOf(
-                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.24f),
-                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
-            )
+    val tokens = LocalGlassTokens.current
+    val specularBorder = Brush.linearGradient(
+        colors = listOf(
+            tokens.borderHighlightTopLeft,
+            tokens.borderMid,
+            tokens.borderBottomRight
         )
-        val glassFill = Brush.verticalGradient(
-            colors = listOf(
-                MaterialTheme.colorScheme.surface.copy(alpha = 0.80f),
-                MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)
-            )
-        )
-        this
-            .glassSurface(
-                state = glassState,
-                variant = GlassVariant.Regular,
-                shape = shape
-            )
-            .background(glassFill, shape)
-            .border(1.dp, specularBorder, shape)
-    }
+    )
+    return this
+        .clip(shape)
+        .background(tokens.sheetTint, shape)
+        .border(tokens.borderWidth, specularBorder, shape)
 }
 
 /**
