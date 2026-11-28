@@ -642,6 +642,7 @@ fun ChapterRowItem(
                         isDownloading -> Icons.Default.Pause
                         else -> Icons.Default.FileDownload
                     },
+                    contentDescription = if (isCompleted) "Delete downloaded chapter" else "Download chapter",
                     size = 36.dp,
                     iconSize = 18.dp,
                     tint = when {

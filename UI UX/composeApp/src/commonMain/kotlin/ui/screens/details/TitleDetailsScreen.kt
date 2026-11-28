@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,11 +36,13 @@ import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -48,6 +51,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import core.logging.AppCoroutineExceptionHandler
 import core.logging.launchSafe
@@ -62,6 +66,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -283,6 +288,9 @@ fun TitleDetailsScreenContent(
     var showBatchDownloadSheet by remember { mutableStateOf(false) }
     var showCatchUpSheet by remember { mutableStateOf(false) }
     var showTrackSheet by remember { mutableStateOf(false) }
+    var chapterToDeleteDownload by remember { mutableStateOf<SourceChapter?>(null) }
+    var showDeleteAllDownloadsDialog by remember { mutableStateOf(false) }
+    var downloadMutationTick by remember { mutableIntStateOf(0) }
     var chapterFilter by remember { mutableStateOf(ChapterFilterMode.ALL) }
     var sortAscending by remember { mutableStateOf(false) }
 
@@ -629,7 +637,7 @@ fun TitleDetailsScreenContent(
 
                     if (chapters.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(8.dp))
-                        val undownloaded = remember(chapters, downloadQueue, completedDownloads) {
+                        val undownloaded = remember(chapters, downloadQueue, completedDownloads, downloadMutationTick) {
                             chapters.filter { ch ->
                                 val isDownloaded = downloadManager.isChapterDownloaded(displayManga.url, ch.url)
                                 val status = downloadManager.getChapterStatus(displayManga.url, ch.url)
@@ -637,32 +645,50 @@ fun TitleDetailsScreenContent(
                             }
                         }
 
-                        if (undownloaded.isNotEmpty()) {
+                        val downloadedChapters = remember(chapters, completedDownloads, downloadMutationTick) {
+                            chapters.filter { ch ->
+                                downloadManager.isChapterDownloaded(displayManga.url, ch.url)
+                            }
+                        }
+
+                        if (undownloaded.isNotEmpty() || downloadedChapters.isNotEmpty()) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                QuickDownloadChip(
-                                    label = "+5 Next",
-                                    onClick = {
-                                        downloadManager.enqueue(displayManga, undownloaded.take(5))
-                                    }
-                                )
-                                if (undownloaded.size > 5) {
+                                if (downloadedChapters.isNotEmpty()) {
                                     QuickDownloadChip(
-                                        label = "+10 Next",
+                                        label = "Delete (${downloadedChapters.size})",
+                                        icon = Icons.Default.Delete,
+                                        iconTint = MaterialTheme.colorScheme.error,
+                                        onClick = { showDeleteAllDownloadsDialog = true }
+                                    )
+                                }
+                                if (undownloaded.isNotEmpty()) {
+                                    QuickDownloadChip(
+                                        label = "+5 Next",
                                         onClick = {
-                                            downloadManager.enqueue(displayManga, undownloaded.take(10))
+                                            downloadManager.enqueue(displayManga, undownloaded.take(5))
+                                        }
+                                    )
+                                    if (undownloaded.size > 5) {
+                                        QuickDownloadChip(
+                                            label = "+10 Next",
+                                            onClick = {
+                                                downloadManager.enqueue(displayManga, undownloaded.take(10))
+                                            }
+                                        )
+                                    }
+                                    QuickDownloadChip(
+                                        label = "All Unread (${undownloaded.size})",
+                                        onClick = {
+                                            downloadManager.enqueue(displayManga, undownloaded)
                                         }
                                     )
                                 }
-                                QuickDownloadChip(
-                                    label = "All Unread (${undownloaded.size})",
-                                    onClick = {
-                                        downloadManager.enqueue(displayManga, undownloaded)
-                                    }
-                                )
                             }
                         }
                     }
@@ -804,10 +830,10 @@ fun TitleDetailsScreenContent(
                 val isRead = chapter.url in readChapterUrls
                 var showChapterMenu by remember(chapter.url) { mutableStateOf(false) }
 
-                val isDownloaded = remember(chapter.url, completedDownloads) {
+                val isDownloaded = remember(chapter.url, completedDownloads, downloadMutationTick) {
                     downloadManager.isChapterDownloaded(displayManga.url, chapter.url)
                 }
-                val chapterStatus = remember(chapter.url, downloadQueue, completedDownloads) {
+                val chapterStatus = remember(chapter.url, downloadQueue, completedDownloads, downloadMutationTick) {
                     downloadManager.getChapterStatus(displayManga.url, chapter.url)
                 }
                 val chapterProgress = remember(chapter.url, downloadQueue) {
@@ -829,7 +855,9 @@ fun TitleDetailsScreenContent(
                         downloadProgress = chapterProgress,
                         onClick = { onReadChapter(chapter) },
                         onDownloadClick = {
-                            if (!isDownloaded && chapterStatus == null) {
+                            if (isDownloaded) {
+                                chapterToDeleteDownload = chapter
+                            } else if (chapterStatus == null) {
                                 downloadManager.enqueue(displayManga, listOf(chapter))
                             } else if (chapterStatus == DownloadStatus.DOWNLOADING || chapterStatus == DownloadStatus.QUEUED) {
                                 downloadManager.pause("${displayManga.url}::${chapter.url}")
@@ -864,6 +892,15 @@ fun TitleDetailsScreenContent(
                                 }
                             }
                         )
+                        if (isDownloaded) {
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text("Delete download", color = MaterialTheme.colorScheme.error) },
+                                onClick = {
+                                    showChapterMenu = false
+                                    chapterToDeleteDownload = chapter
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -934,6 +971,59 @@ fun TitleDetailsScreenContent(
                     .maxOfOrNull { it.chapterNumber.toInt().coerceAtLeast(0) } ?: 0,
                 trackerRepository = trackerRepository,
                 onDismiss = { showTrackSheet = false }
+            )
+        }
+
+        chapterToDeleteDownload?.let { targetChapter ->
+            AlertDialog(
+                onDismissRequest = { chapterToDeleteDownload = null },
+                title = { Text("Delete downloaded chapter?") },
+                text = { Text("Remove \"${targetChapter.name}\" from offline storage?") },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            downloadManager.deleteDownloadedChapter(displayManga.url, targetChapter.url)
+                            downloadMutationTick++
+                            chapterToDeleteDownload = null
+                        }
+                    ) {
+                        Text("Delete", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { chapterToDeleteDownload = null }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (showDeleteAllDownloadsDialog) {
+            val downloaded = chapters.filter { downloadManager.isChapterDownloaded(displayManga.url, it.url) }
+            AlertDialog(
+                onDismissRequest = { showDeleteAllDownloadsDialog = false },
+                title = { Text("Delete all downloaded chapters?") },
+                text = {
+                    Text("Remove ${downloaded.size} downloaded chapter${if (downloaded.size == 1) "" else "s"} for \"${displayManga.title}\" from offline storage?")
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            downloaded.forEach { ch ->
+                                downloadManager.deleteDownloadedChapter(displayManga.url, ch.url)
+                            }
+                            downloadMutationTick++
+                            showDeleteAllDownloadsDialog = false
+                        }
+                    ) {
+                        Text("Delete", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteAllDownloadsDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
             )
         }
 
@@ -1297,7 +1387,9 @@ fun TitleHeroArtwork(
 private fun QuickDownloadChip(
     label: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    icon: ImageVector = Icons.Default.FileDownload,
+    iconTint: Color = MaterialTheme.colorScheme.primary
 ) {
     Box(
         modifier = modifier
@@ -1313,9 +1405,9 @@ private fun QuickDownloadChip(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.FileDownload,
+                imageVector = icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = iconTint,
                 modifier = Modifier.size(13.dp)
             )
             Text(

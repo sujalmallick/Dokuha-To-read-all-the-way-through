@@ -6,6 +6,8 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -13,13 +15,20 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
+import core.download.DownloadManager
+import core.download.MemoryDownloadStorage
 import core.extensions.ExtensionManager
+import core.source.MangaStatus
 import core.source.NovelContent
+import core.source.SourceChapter
 import core.source.SourceManga
 import core.storage.InMemoryKeyValueStorage
 import data.mock.FakePanelRepository
@@ -40,7 +49,9 @@ import org.koin.core.context.stopKoin
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import kotlin.test.assertEquals
 import ui.screens.browse.SourceDetailScreenContent
+import ui.screens.details.TitleDetailsScreenContent
 import ui.screens.novelreader.NovelReaderScreenContent
 import ui.screens.profile.ProfileScreenContent
 import ui.screens.settings.SettingsScreenContent
@@ -257,5 +268,62 @@ class CheckpointBControlsUiTest {
         composeTestRule.onAllNodesWithText("Library Overview").assertCountEquals(0)
         composeTestRule.onAllNodesWithText("Trackers").assertCountEquals(0)
         composeTestRule.onRoot().captureRoboImage("screenshots/checkpoint_b_profile_320dp_2_0x.png")
+    }
+
+    @Test
+    fun titleDetails_tappingDownloadedTickAndBulkChipDeletesDownloadedChapters() {
+        val storage = MemoryDownloadStorage().apply {
+            savePageImage("ch/1", 0, byteArrayOf(1))
+            savePageImage("ch/2", 0, byteArrayOf(2))
+        }
+        val dm = DownloadManager(storage)
+        val manga = SourceManga(
+            url = "manga/test",
+            title = "Test Title",
+            status = MangaStatus.ONGOING
+        )
+        val chapters = listOf(
+            SourceChapter(url = "ch/1", name = "Chapter 1", chapterNumber = 1f),
+            SourceChapter(url = "ch/2", name = "Chapter 2", chapterNumber = 2f)
+        )
+
+        composeTestRule.setContent {
+            PanelTheme {
+                Box(modifier = Modifier.size(width = 411.dp, height = 900.dp)) {
+                    TitleDetailsScreenContent(
+                        manga = manga,
+                        chapters = chapters,
+                        onBack = {},
+                        onReadChapter = {},
+                        downloadManager = dm
+                    )
+                }
+            }
+        }
+
+        // Scroll down to chapter list & quick chips, then tap the first downloaded tick
+        composeTestRule.onAllNodes(hasScrollAction())[0].performScrollToNode(hasText("Chapter 1"))
+        composeTestRule.waitForIdle()
+        composeTestRule.onAllNodesWithContentDescription("Delete downloaded chapter")[0].performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Delete downloaded chapter?").assertExists()
+        composeTestRule.onNodeWithText("Delete").performClick()
+        composeTestRule.waitForIdle()
+
+        assertEquals(false, dm.isChapterDownloaded(manga.url, "ch/1"))
+        assertEquals(true, dm.isChapterDownloaded(manga.url, "ch/2"))
+
+        // Remaining downloaded chapter can be deleted via the bulk "Delete (1)" chip
+        composeTestRule.onAllNodes(hasScrollAction())[0].performScrollToNode(hasText("Delete (1)"))
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Delete (1)").performScrollTo()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Delete (1)").performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Delete all downloaded chapters?").assertExists()
+        composeTestRule.onNodeWithText("Delete").performClick()
+        composeTestRule.waitForIdle()
+
+        assertEquals(false, dm.isChapterDownloaded(manga.url, "ch/2"))
     }
 }
