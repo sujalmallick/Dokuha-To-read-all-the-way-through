@@ -492,10 +492,7 @@ fun TitleDetailsScreenContent(
                         ActionGlassButton(
                             icon = Icons.Default.FileDownload,
                             text = "Download",
-                            onClick = {
-                                showBatchDownloadSheet = true
-                                onDownloadAll()
-                            },
+                            onClick = { showBatchDownloadSheet = true },
                             modifier = Modifier.weight(1f)
                         )
                         ActionGlassButton(
