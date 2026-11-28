@@ -107,59 +107,8 @@ fun ProfileScreenContent(
                 )
             }
 
-            // Numeric Stats Row: Chapters read / Titles / Hours
-            item {
-                ProfileStatsRow(stats = stats)
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-
-            // Weekly Reading Activity Canvas Flat Bar Chart
-            item {
-                ActivityBarChart(weeklyActivity = weeklyActivity)
-                Spacer(modifier = Modifier.height(20.dp))
-            }
-
-            // Library Summary Group (Reading / Completed / Plan to read as Value rows)
-            item {
-                SectionHeader(text = "Library Overview")
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    SettingsGroup {
-                        SettingsRow.Value(
-                            title = "Currently Reading",
-                            value = "${librarySummary.readingCount} titles"
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Value(
-                            title = "Completed",
-                            value = "${librarySummary.completedCount} titles"
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Value(
-                            title = "Plan to Read",
-                            value = "${librarySummary.planToReadCount} titles"
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-
-            // Tracking Services Section (AniList, MyAnimeList, Kitsu)
-            item {
-                SectionHeader(text = "Trackers")
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    SettingsGroup {
-                        trackers.forEachIndexed { index, tracker ->
-                            TrackerRow(
-                                tracker = tracker,
-                                onToggle = { onToggleTracker(tracker.service) }
-                            )
-                            if (index < trackers.size - 1) {
-                                SettingsSeparator()
-                            }
-                        }
-                    }
-                }
-            }
+            // TODO: re-enable ProfileStatsRow, ActivityBarChart, Library Overview, and Trackers
+            // once PersistentProfileRepository reads real SQLDelight stats & ProductionTrackerRepository.
         }
 
         // Collapsing Lens Glass Top Bar with Circular Back Button

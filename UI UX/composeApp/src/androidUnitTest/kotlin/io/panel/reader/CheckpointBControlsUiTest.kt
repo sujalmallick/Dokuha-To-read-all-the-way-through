@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
@@ -12,6 +13,7 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.printToString
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -23,6 +25,9 @@ import core.storage.InMemoryKeyValueStorage
 import data.mock.FakePanelRepository
 import data.mock.MockSourceInfo
 import data.mock.PanelRepository
+import data.profile.LibrarySummary
+import data.profile.ReadingStats
+import data.profile.UserProfile
 import data.settings.FakeSettingsRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -37,6 +42,8 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import ui.screens.browse.SourceDetailScreenContent
 import ui.screens.novelreader.NovelReaderScreenContent
+import ui.screens.profile.ProfileScreenContent
+import ui.screens.settings.SettingsScreenContent
 import ui.theme.PanelTheme
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
@@ -198,5 +205,57 @@ class CheckpointBControlsUiTest {
         val removed = manager.removeRepository(url)
         assertTrue(removed)
         assertFalse(normalized in manager.repoUrls.value)
+    }
+
+    @Test
+    fun noFakeControls_settingsSearchFiltersAndProfileHidesFakeSections() {
+        composeTestRule.setContent {
+            PanelTheme {
+                SettingsScreenContent(
+                    themeModeName = "Dark",
+                    readingModeName = "Webtoon",
+                    cacheSize = "12 MB",
+                    onBack = {},
+                    onNavigateAppearance = {},
+                    onNavigateReader = {},
+                    onNavigateLibrary = {},
+                    onNavigateDownloads = {},
+                    onNavigateSources = {},
+                    onNavigateBackup = {},
+                    onNavigateStorage = {},
+                    onNavigateAbout = {}
+                )
+            }
+        }
+
+        composeTestRule.onNode(androidx.compose.ui.test.hasSetTextAction()).performTextInput("Backup")
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Backup & Restore").assertExists()
+        composeTestRule.onAllNodesWithText("Appearance").assertCountEquals(0)
+    }
+
+    @Test
+    fun noFakeControls_profileHidesFakeStatsAndTrackersAt320dp2xFont() {
+        composeTestRule.setContent {
+            CompositionLocalProvider(LocalDensity provides Density(density = 2f, fontScale = 2.0f)) {
+                PanelTheme {
+                    Box(modifier = Modifier.size(width = 320.dp, height = 640.dp)) {
+                        ProfileScreenContent(
+                            profile = UserProfile(name = "Reader"),
+                            stats = ReadingStats(),
+                            weeklyActivity = emptyList(),
+                            trackers = emptyList(),
+                            librarySummary = LibrarySummary(),
+                            onBack = {},
+                            onUpdateProfile = { _, _ -> },
+                            onToggleTracker = {}
+                        )
+                    }
+                }
+            }
+        }
+        composeTestRule.onAllNodesWithText("Library Overview").assertCountEquals(0)
+        composeTestRule.onAllNodesWithText("Trackers").assertCountEquals(0)
+        composeTestRule.onRoot().captureRoboImage("screenshots/checkpoint_b_profile_320dp_2_0x.png")
     }
 }

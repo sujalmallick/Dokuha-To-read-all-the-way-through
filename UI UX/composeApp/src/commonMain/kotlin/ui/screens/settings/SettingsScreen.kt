@@ -115,87 +115,136 @@ fun SettingsScreenContent(
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
-            // General & Experience Group
-            item {
-                SectionHeader(text = "Experience")
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    SettingsGroup {
-                        SettingsRow.Navigation(
-                            title = "Appearance",
-                            subtitle = "Theme, accent colors, glass & motion",
-                            value = themeModeName,
-                            icon = Icons.Default.Palette,
-                            onClick = onNavigateAppearance
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Navigation(
-                            title = "Reader",
-                            subtitle = "Reading modes, typography, paging & novel",
-                            value = readingModeName,
-                            icon = Icons.AutoMirrored.Filled.MenuBook,
-                            onClick = onNavigateReader
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Navigation(
-                            title = "Library",
-                            subtitle = "Categories, unread counts & auto-update",
-                            icon = Icons.Default.ViewCarousel,
-                            onClick = onNavigateLibrary
-                        )
-                    }
+            val q = searchQuery.trim()
+            val showAppearance = q.isEmpty() || "Appearance Theme accent colors glass motion".contains(q, ignoreCase = true)
+            val showReader = q.isEmpty() || "Reader Reading modes typography paging novel".contains(q, ignoreCase = true)
+            val showLibrary = q.isEmpty() || "Library Categories unread counts auto-update".contains(q, ignoreCase = true)
+            val showDownloads = q.isEmpty() || "Downloads Wi-Fi queue limits disk".contains(q, ignoreCase = true)
+            val showSources = q.isEmpty() || "Sources Extensions Repositories language NSFW".contains(q, ignoreCase = true)
+            val showBackup = q.isEmpty() || "Backup Restore Export Tachiyomi Mihon".contains(q, ignoreCase = true)
+            val showStorage = q.isEmpty() || "Storage Cache cleanup database".contains(q, ignoreCase = true)
+            val showAbout = q.isEmpty() || "About v1.0.0 Dokuha licenses".contains(q, ignoreCase = true)
+            val anyMatch = showAppearance || showReader || showLibrary || showDownloads || showSources || showBackup || showStorage || showAbout
+
+            if (!anyMatch) {
+                item {
+                    androidx.compose.material3.Text(
+                        text = "No matching settings for \"$q\"",
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
+                        color = ui.theme.TextSecondary,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 20.dp)
+                    )
                 }
-                Spacer(modifier = Modifier.height(20.dp))
+            }
+
+            // General & Experience Group
+            if (showAppearance || showReader || showLibrary) {
+                item {
+                    SectionHeader(text = "Experience")
+                    Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        SettingsGroup {
+                            var needsSep = false
+                            if (showAppearance) {
+                                SettingsRow.Navigation(
+                                    title = "Appearance",
+                                    subtitle = "Theme, accent colors, glass & motion",
+                                    value = themeModeName,
+                                    icon = Icons.Default.Palette,
+                                    onClick = onNavigateAppearance
+                                )
+                                needsSep = true
+                            }
+                            if (showReader) {
+                                if (needsSep) SettingsSeparator()
+                                SettingsRow.Navigation(
+                                    title = "Reader",
+                                    subtitle = "Reading modes, typography, paging & novel",
+                                    value = readingModeName,
+                                    icon = Icons.AutoMirrored.Filled.MenuBook,
+                                    onClick = onNavigateReader
+                                )
+                                needsSep = true
+                            }
+                            if (showLibrary) {
+                                if (needsSep) SettingsSeparator()
+                                SettingsRow.Navigation(
+                                    title = "Library",
+                                    subtitle = "Categories, unread counts & auto-update",
+                                    icon = Icons.Default.ViewCarousel,
+                                    onClick = onNavigateLibrary
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(20.dp))
+                }
             }
 
             // Content & Storage Group
-            item {
-                SectionHeader(text = "Content & Storage")
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    SettingsGroup {
-                        SettingsRow.Navigation(
-                            title = "Downloads",
-                            subtitle = "Wi-Fi rules, queue limits & disk destination",
-                            icon = Icons.Default.CloudDownload,
-                            onClick = onNavigateDownloads
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Navigation(
-                            title = "Sources & Extensions",
-                            subtitle = "Repositories, language filters & NSFW",
-                            icon = Icons.Default.Extension,
-                            onClick = onNavigateSources
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Navigation(
-                            title = "Backup & Restore",
-                            subtitle = "Export or restore Tachiyomi/Mihon libraries",
-                            icon = Icons.Default.Save,
-                            onClick = onNavigateBackup
-                        )
-                        SettingsSeparator()
-                        SettingsRow.Navigation(
-                            title = "Storage",
-                            subtitle = "Cache cleanup and database management",
-                            value = cacheSize,
-                            icon = Icons.Default.Storage,
-                            onClick = onNavigateStorage
-                        )
+            if (showDownloads || showSources || showBackup || showStorage) {
+                item {
+                    SectionHeader(text = "Content & Storage")
+                    Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        SettingsGroup {
+                            var needsSep = false
+                            if (showDownloads) {
+                                SettingsRow.Navigation(
+                                    title = "Downloads",
+                                    subtitle = "Wi-Fi rules, queue limits & disk destination",
+                                    icon = Icons.Default.CloudDownload,
+                                    onClick = onNavigateDownloads
+                                )
+                                needsSep = true
+                            }
+                            if (showSources) {
+                                if (needsSep) SettingsSeparator()
+                                SettingsRow.Navigation(
+                                    title = "Sources & Extensions",
+                                    subtitle = "Repositories, language filters & NSFW",
+                                    icon = Icons.Default.Extension,
+                                    onClick = onNavigateSources
+                                )
+                                needsSep = true
+                            }
+                            if (showBackup) {
+                                if (needsSep) SettingsSeparator()
+                                SettingsRow.Navigation(
+                                    title = "Backup & Restore",
+                                    subtitle = "Export or restore Tachiyomi/Mihon libraries",
+                                    icon = Icons.Default.Save,
+                                    onClick = onNavigateBackup
+                                )
+                                needsSep = true
+                            }
+                            if (showStorage) {
+                                if (needsSep) SettingsSeparator()
+                                SettingsRow.Navigation(
+                                    title = "Storage",
+                                    subtitle = "Cache cleanup and database management",
+                                    value = cacheSize,
+                                    icon = Icons.Default.Storage,
+                                    onClick = onNavigateStorage
+                                )
+                            }
+                        }
                     }
+                    Spacer(modifier = Modifier.height(20.dp))
                 }
-                Spacer(modifier = Modifier.height(20.dp))
             }
 
             // Information
-            item {
-                SectionHeader(text = "Application")
-                Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    SettingsGroup {
-                        SettingsRow.Navigation(
-                            title = "About",
-                            subtitle = "v1.0.0 (Dokuha) • Open source licenses",
-                            icon = Icons.Default.Info,
-                            onClick = onNavigateAbout
-                        )
+            if (showAbout) {
+                item {
+                    SectionHeader(text = "Application")
+                    Box(modifier = Modifier.padding(horizontal = 20.dp)) {
+                        SettingsGroup {
+                            SettingsRow.Navigation(
+                                title = "About",
+                                subtitle = "v1.0.0 (Dokuha) • Open source licenses",
+                                icon = Icons.Default.Info,
+                                onClick = onNavigateAbout
+                            )
+                        }
                     }
                 }
             }
