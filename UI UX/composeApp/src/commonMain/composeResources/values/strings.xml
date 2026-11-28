@@ -2,7 +2,13 @@
     <string name="reader_settings_title">Reading Settings</string>
     <string name="reader_scope_this_title">This title</string>
     <string name="reader_scope_all_titles">All titles</string>
+    <string name="reader_scope_this_title_hint">Changes apply only to this title.</string>
+    <string name="reader_scope_all_titles_hint">Updates defaults for titles without custom overrides.</string>
+    <string name="reader_scope_masked_notice_one">1 custom override for this title takes priority.</string>
+    <string name="reader_scope_masked_notice_many">%1$d custom overrides for this title take priority.</string>
+    <string name="reader_scope_switch_to_this_title">Edit this title</string>
     <string name="reader_custom_override_badge">Custom</string>
+    <string name="reader_reset_single_setting">Reset</string>
     <string name="reader_reset_to_defaults">Reset to defaults</string>
     <string name="reader_confirm_reset">Confirm reset</string>
     <string name="reader_cancel">Cancel</string>

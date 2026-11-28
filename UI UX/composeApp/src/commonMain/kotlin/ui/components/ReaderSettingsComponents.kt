@@ -50,9 +50,15 @@ import panelreader.composeapp.generated.resources.reader_confirm_reset
 import panelreader.composeapp.generated.resources.reader_custom_override_badge
 import panelreader.composeapp.generated.resources.reader_custom_setting_a11y
 import panelreader.composeapp.generated.resources.reader_incognito_temp_notice
+import panelreader.composeapp.generated.resources.reader_reset_single_setting
 import panelreader.composeapp.generated.resources.reader_reset_to_defaults
 import panelreader.composeapp.generated.resources.reader_scope_all_titles
+import panelreader.composeapp.generated.resources.reader_scope_all_titles_hint
+import panelreader.composeapp.generated.resources.reader_scope_masked_notice_many
+import panelreader.composeapp.generated.resources.reader_scope_masked_notice_one
+import panelreader.composeapp.generated.resources.reader_scope_switch_to_this_title
 import panelreader.composeapp.generated.resources.reader_scope_this_title
+import panelreader.composeapp.generated.resources.reader_scope_this_title_hint
 import ui.glass.PanelGlassState
 import ui.glass.GlassVariant
 import ui.glass.glassDimming
@@ -106,7 +112,8 @@ fun Modifier.adaptiveReaderSheetSurface(
 fun ReaderScopeToggle(
     scope: ReaderSettingsScope,
     onScopeSelected: (ReaderSettingsScope) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    overrideCount: Int = 0
 ) {
     val scopeOptions = listOf(
         ReaderSettingsScope.THIS_TITLE,
@@ -114,6 +121,10 @@ fun ReaderScopeToggle(
     )
     val thisTitleLabel = stringResource(Res.string.reader_scope_this_title)
     val allTitlesLabel = stringResource(Res.string.reader_scope_all_titles)
+    val hintText = when (scope) {
+        ReaderSettingsScope.THIS_TITLE -> stringResource(Res.string.reader_scope_this_title_hint)
+        ReaderSettingsScope.ALL_TITLES -> stringResource(Res.string.reader_scope_all_titles_hint)
+    }
 
     Column(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -123,7 +134,7 @@ fun ReaderScopeToggle(
             scopeOptions.forEach { item ->
                 val isSelected = item == scope
                 val label = when (item) {
-                    ReaderSettingsScope.THIS_TITLE -> thisTitleLabel
+                    ReaderSettingsScope.THIS_TITLE -> if (overrideCount > 0) "$thisTitleLabel ($overrideCount)" else thisTitleLabel
                     ReaderSettingsScope.ALL_TITLES -> allTitlesLabel
                 }
                 Column(
@@ -173,6 +184,13 @@ fun ReaderScopeToggle(
                 .fillMaxWidth()
                 .height(1.dp)
                 .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f))
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = hintText,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 11.sp
         )
     }
 }
@@ -312,9 +330,11 @@ fun SettingLabelWithCustomBadge(
     label: String,
     isCustom: Boolean,
     labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
-    fontSize: Int = 13
+    fontSize: Int = 13,
+    onReset: (() -> Unit)? = null
 ) {
     val customLabel = stringResource(Res.string.reader_custom_override_badge)
+    val resetLabel = stringResource(Res.string.reader_reset_single_setting)
     val a11yDescription = if (isCustom) {
         stringResource(Res.string.reader_custom_setting_a11y, label)
     } else {
@@ -322,7 +342,7 @@ fun SettingLabelWithCustomBadge(
     }
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.semantics(mergeDescendants = true) {
+        modifier = Modifier.semantics(mergeDescendants = onReset == null) {
             contentDescription = a11yDescription
         }
     ) {
@@ -342,6 +362,85 @@ fun SettingLabelWithCustomBadge(
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold
             )
+            if (onReset != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .heightIn(min = 32.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                        .clickable(role = Role.Button, onClick = onReset)
+                        .semantics { contentDescription = "$resetLabel $label" }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = resetLabel,
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ReaderMaskedOverridesNotice(
+    visible: Boolean,
+    overrideCount: Int,
+    onSwitchToThisTitle: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(visible = visible && overrideCount > 0, modifier = modifier) {
+        val isLightSurface = MaterialTheme.colorScheme.surface.luminance() > 0.5f
+        val noticeBg = if (isLightSurface) {
+            MaterialTheme.colorScheme.secondaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
+        }
+        val noticeText = if (overrideCount == 1) {
+            stringResource(Res.string.reader_scope_masked_notice_one)
+        } else {
+            stringResource(Res.string.reader_scope_masked_notice_many, overrideCount)
+        }
+        val actionLabel = stringResource(Res.string.reader_scope_switch_to_this_title)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 10.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(noticeBg)
+                .border(0.5.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = noticeText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp,
+                modifier = Modifier.weight(1f).padding(end = 8.dp)
+            )
+            Box(
+                modifier = Modifier
+                    .heightIn(min = 36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(role = Role.Button, onClick = onSwitchToThisTitle)
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = actionLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 11.sp
+                )
+            }
         }
     }
 }
