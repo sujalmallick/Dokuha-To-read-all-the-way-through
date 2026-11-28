@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -102,7 +103,7 @@ fun GlassBottomDock(
         GlassSurface(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 64.dp),
+                .height(64.dp),
             shape = CapsuleShape,
             style = GlassStyle.REGULAR,
             context = GlassSurfaceContext.STANDARD,

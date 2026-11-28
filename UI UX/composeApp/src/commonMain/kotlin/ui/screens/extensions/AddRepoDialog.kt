@@ -51,6 +51,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import core.extensions.ExtensionRepoValidator
 import data.extension.ExtensionRepo
+import ui.components.glass.GlassStyle
+import ui.components.glass.GlassSurface
+import ui.glass.GlassSurfaceContext
 import ui.theme.CapsuleShape
 import ui.theme.GlassBorder
 import ui.theme.GlassBorderStrong
@@ -102,7 +105,7 @@ fun AddRepoDialog(
             contentAlignment = Alignment.Center
         ) {
             val dialogShape = RoundedCornerShape(22.dp)
-            Box(
+            GlassSurface(
                 modifier = Modifier
                     .padding(horizontal = 24.dp, vertical = 24.dp)
                     .fillMaxWidth()
@@ -111,15 +114,15 @@ fun AddRepoDialog(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = {}
-                    )
-                    .clip(dialogShape)
-                    .background(Color(0xF012151D))
-                    .border(1.dp, GlassBorderStrong, dialogShape)
-                    .padding(20.dp)
+                    ),
+                shape = dialogShape,
+                style = GlassStyle.SHEET,
+                context = GlassSurfaceContext.STANDARD
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .padding(20.dp)
                         .verticalScroll(rememberScrollState())
                 ) {
                     // Header

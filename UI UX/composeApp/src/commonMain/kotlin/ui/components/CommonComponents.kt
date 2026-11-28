@@ -800,63 +800,13 @@ fun PanelSearchBar(
     modifier: Modifier = Modifier,
     glassState: PanelGlassState? = null
 ) {
-    val shape = CapsuleShape
-    val surfaceModifier = if (glassState != null) {
-        Modifier
-            .glassDimming(alpha = 0.35f, shape = shape)
-            .glassSurface(
-                state = glassState,
-                variant = GlassVariant.Regular,
-                shape = shape
-            )
-    } else {
-        Modifier
-            .clip(shape)
-            .background(Color.White.copy(alpha = 0.08f))
-            .border(1.dp, GlassBorder, shape)
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(48.dp)
-            .then(surfaceModifier)
-            .padding(horizontal = 16.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = "Search",
-                tint = TextSecondary,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            BasicTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                singleLine = true,
-                textStyle = TextStyle(
-                    color = TextPrimary,
-                    fontSize = 14.sp
-                ),
-                decorationBox = { innerTextField ->
-                    if (query.isEmpty()) {
-                        Text(
-                            text = placeholder,
-                            color = TextSecondary,
-                            fontSize = 14.sp
-                        )
-                    }
-                    innerTextField()
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
+    ui.components.glass.GlassSearchField(
+        query = query,
+        onQueryChange = onQueryChange,
+        placeholder = placeholder,
+        modifier = modifier,
+        glassState = glassState
+    )
 }
 
 @Composable

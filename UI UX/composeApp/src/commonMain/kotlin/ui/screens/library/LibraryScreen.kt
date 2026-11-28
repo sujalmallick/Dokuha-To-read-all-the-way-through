@@ -95,9 +95,16 @@ import ui.components.PanelBottomNavBar
 import ui.components.PanelCircleIconButton
 import ui.components.PanelProgressBar
 import ui.components.PanelTab
+import ui.components.glass.GlassChip
+import ui.components.glass.GlassDialog
+import ui.components.glass.GlassSnackbarHost
+import ui.components.glass.GlassStyle
+import ui.components.glass.GlassSurface
+import ui.glass.GlassSurfaceContext
 import ui.glass.glassPress
 import ui.glass.glassSource
 import ui.glass.rememberPanelGlassState
+import ui.theme.LocalGlassTokens
 import ui.screens.browse.BrowseScreen
 import ui.screens.details.TitleDetailsScreen
 import ui.screens.maintab.MainTabScreen
@@ -329,31 +336,20 @@ fun LibraryScreenContent(
                                 )
                             }
 
-                            // Select All / Deselect All Pill
+                            // Select All / Deselect All
                             val allSelected = filteredLibraryItems.isNotEmpty() &&
                                     selectedMangaUrls.size == filteredLibraryItems.size
-                            Box(
-                                modifier = Modifier
-                                    .clip(CapsuleShape)
-                                    .background(Color.White.copy(alpha = 0.12f))
-                                    .border(1.dp, Color.White.copy(alpha = 0.25f), CapsuleShape)
-                                    .clickable {
-                                        selectedMangaUrls = if (allSelected) {
-                                            emptySet()
-                                        } else {
-                                            filteredLibraryItems.map { it.url }.toSet()
-                                        }
+                            GlassChip(
+                                label = if (allSelected) "Deselect All" else "Select All",
+                                selected = allSelected,
+                                onClick = {
+                                    selectedMangaUrls = if (allSelected) {
+                                        emptySet()
+                                    } else {
+                                        filteredLibraryItems.map { it.url }.toSet()
                                     }
-                                    .padding(horizontal = 14.dp, vertical = 7.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (allSelected) "Deselect All" else "Select All",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
+                                }
+                            )
                         }
                     } else {
                         // STANDARD HEADER
@@ -807,44 +803,36 @@ fun LibraryScreenContent(
 
         if (showRemoveConfirmDialog) {
             val count = selectedMangaUrls.size
-            AlertDialog(
+            val tokens = LocalGlassTokens.current
+            GlassDialog(
+                title = "Remove from library?",
                 onDismissRequest = { showRemoveConfirmDialog = false },
-                title = { Text("Remove from library?") },
-                text = {
-                    Text(
-                        "Remove $count selected title${if (count == 1) "" else "s"} from your library?"
-                    )
-                },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            val targetUrls = selectedMangaUrls
-                            val selectedMangas = allLibraryItems.filter { it.url in targetUrls }
-                            showRemoveConfirmDialog = false
-                            selectedMangaUrls = emptySet()
-                            isSelectionMode = false
-                            coroutineScope.launch {
-                                selectedMangas.forEach { manga ->
-                                    repository.toggleFavorite(manga, false)
-                                }
-                                snackbarHostState.showSnackbar(
-                                    "Removed ${selectedMangas.size} title${if (selectedMangas.size == 1) "" else "s"} from library"
-                                )
-                            }
+                confirmText = "Remove",
+                isDestructive = true,
+                onConfirm = {
+                    val targetUrls = selectedMangaUrls
+                    val selectedMangas = allLibraryItems.filter { it.url in targetUrls }
+                    showRemoveConfirmDialog = false
+                    selectedMangaUrls = emptySet()
+                    isSelectionMode = false
+                    coroutineScope.launch {
+                        selectedMangas.forEach { manga ->
+                            repository.toggleFavorite(manga, false)
                         }
-                    ) {
-                        Text("Remove", color = Color(0xFFEF4444))
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { showRemoveConfirmDialog = false }) {
-                        Text("Cancel")
+                        snackbarHostState.showSnackbar(
+                            "Removed ${selectedMangas.size} title${if (selectedMangas.size == 1) "" else "s"} from library"
+                        )
                     }
                 }
-            )
+            ) {
+                Text(
+                    text = "Remove $count selected title${if (count == 1) "" else "s"} from your library?",
+                    color = tokens.subtextOnGlass
+                )
+            }
         }
 
-        SnackbarHost(
+        GlassSnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -863,18 +851,20 @@ private fun BatchActionBar(
     modifier: Modifier = Modifier
 ) {
     val hasSelection = selectedCount > 0
+    val tokens = LocalGlassTokens.current
 
-    Box(
+    GlassSurface(
         modifier = modifier
             .widthIn(max = 560.dp)
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xF5111522))
-            .border(1.dp, GlassBorderStrong, RoundedCornerShape(20.dp))
-            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .fillMaxWidth(),
+        shape = tokens.shapeMd,
+        style = GlassStyle.SHEET,
+        context = GlassSurfaceContext.STANDARD
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {

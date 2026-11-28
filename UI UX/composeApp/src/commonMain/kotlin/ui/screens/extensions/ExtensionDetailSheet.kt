@@ -50,6 +50,10 @@ import data.extension.ExtensionItem
 import data.extension.ExtensionStatus
 import data.extension.ExtensionTrustLevel
 import ui.components.PanelCircleIconButton
+import ui.components.glass.GlassStyle
+import ui.components.glass.GlassSurface
+import ui.glass.GlassSurfaceContext
+import ui.theme.BottomSheetShape
 import ui.theme.CapsuleShape
 import ui.theme.GlassBorder
 import ui.theme.GlassBorderStrong
@@ -97,7 +101,7 @@ fun ExtensionDetailSheet(
                 enter = slideInVertically(initialOffsetY = { it }),
                 exit = slideOutVertically(targetOffsetY = { it })
             ) {
-                Box(
+                GlassSurface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(max = 600.dp)
@@ -105,10 +109,10 @@ fun ExtensionDetailSheet(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = {} // Consume inner click
-                        )
-                        .clip(sheetShape)
-                        .background(Color(0xF50E121A))
-                        .border(1.dp, GlassBorderStrong, sheetShape)
+                        ),
+                    shape = BottomSheetShape,
+                    style = GlassStyle.SHEET,
+                    context = GlassSurfaceContext.STANDARD
                 ) {
                     Column(
                         modifier = Modifier

@@ -144,33 +144,6 @@ fun PanelButton(
     }
 }
 
-@Deprecated(
-    message = "Use PanelButton with standard 12.dp rounded corners instead",
-    replaceWith = ReplaceWith("PanelButton(text, onClick, modifier, variant, glassState, icon, trailingIcon, contentPadding)")
-)
-@Composable
-fun PanelPillButton(
-    text: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    variant: ButtonVariant = ButtonVariant.PRIMARY,
-    glassState: PanelGlassState? = null,
-    icon: ImageVector? = null,
-    trailingIcon: ImageVector? = null,
-    contentPadding: PaddingValues = PaddingValues(horizontal = 24.dp, vertical = 14.dp)
-) {
-    PanelButton(
-        text = text,
-        onClick = onClick,
-        modifier = modifier,
-        variant = variant,
-        glassState = glassState,
-        icon = icon,
-        trailingIcon = trailingIcon,
-        contentPadding = contentPadding
-    )
-}
-
 /**
  * Circular glass icon button with specular rim lighting and gentle swell press feedback.
  */

@@ -56,6 +56,10 @@ import core.source.SourceManga
 import core.download.DownloadManager
 import core.download.DownloadStatus
 import ui.components.PanelCircleIconButton
+import ui.components.glass.GlassStyle
+import ui.components.glass.GlassSurface
+import ui.glass.GlassSurfaceContext
+import ui.theme.BottomSheetShape
 import ui.theme.CapsuleShape
 import ui.theme.GlassBorder
 import ui.theme.GlassBorderStrong
@@ -134,9 +138,7 @@ fun BatchDownloadSheet(
                 exit = slideOutVertically(targetOffsetY = { it }),
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
-                val sheetShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
-
-                Box(
+                GlassSurface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .navigationBarsPadding()
@@ -144,10 +146,10 @@ fun BatchDownloadSheet(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
                             onClick = {} // Intercept clicks so sheet doesn't close
-                        )
-                        .clip(sheetShape)
-                        .background(Color(0xF50F1219))
-                        .border(1.dp, GlassBorderStrong, sheetShape)
+                        ),
+                    shape = BottomSheetShape,
+                    style = GlassStyle.SHEET,
+                    context = GlassSurfaceContext.STANDARD
                 ) {
                     Column(
                         modifier = Modifier

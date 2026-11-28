@@ -83,6 +83,9 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.GlassSegmentedControl
 import ui.components.HistoryItemCard
+import ui.components.glass.GlassDialog
+import ui.components.glass.GlassSnackbarHost
+import ui.theme.LocalGlassTokens
 import ui.components.PanelBottomNavBar
 import ui.components.PanelTab
 import ui.components.UpdateItemCard
@@ -219,50 +222,23 @@ fun UpdatesScreenContent(
     var showClearHistoryDialog by remember { mutableStateOf(false) }
 
     if (showClearHistoryDialog) {
-        AlertDialog(
+        val tokens = LocalGlassTokens.current
+        GlassDialog(
+            title = "Clear Reading History?",
             onDismissRequest = { showClearHistoryDialog = false },
-            title = {
-                Text(
-                    text = "Clear Reading History?",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-            },
-            text = {
-                Text(
-                    text = "This will remove all reading history entries. This action cannot be undone.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showClearHistoryDialog = false
-                        onClearAllHistory()
-                    }
-                ) {
-                    Text(
-                        text = "Clear All",
-                        color = Color(0xFFEF4444),
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { showClearHistoryDialog = false }
-                ) {
-                    Text(
-                        text = "Cancel",
-                        color = TextPrimary
-                    )
-                }
-            },
-            containerColor = Color(0xFF161A26),
-            shape = RoundedCornerShape(20.dp)
-        )
+            confirmText = "Clear All",
+            isDestructive = true,
+            onConfirm = {
+                showClearHistoryDialog = false
+                onClearAllHistory()
+            }
+        ) {
+            Text(
+                text = "This will remove all reading history entries. This action cannot be undone.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = tokens.subtextOnGlass
+            )
+        }
     }
 
     Box(
@@ -567,7 +543,7 @@ fun UpdatesScreenContent(
             )
         }
 
-        SnackbarHost(
+        GlassSnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
