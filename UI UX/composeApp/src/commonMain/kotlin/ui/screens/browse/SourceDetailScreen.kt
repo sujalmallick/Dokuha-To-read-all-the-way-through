@@ -143,9 +143,10 @@ fun SourceDetailScreenContent(
     var isLoadingMore by remember { mutableStateOf(false) }
     var hasMorePages by remember { mutableStateOf(true) }
     var loadError by remember { mutableStateOf<String?>(null) }
+    var refreshTrigger by remember { mutableIntStateOf(0) }
 
-    // Reset and trigger initial load whenever source, search query or filters change
-    LaunchedEffect(sourceInfo.id, searchQuery, filters) {
+    // Reset and trigger initial load whenever source, search query, filters, or retry trigger change
+    LaunchedEffect(sourceInfo.id, searchQuery, filters, refreshTrigger) {
         if (searchQuery.isNotBlank()) {
             delay(350L) // Debounce rapid keyboard typing
         }
@@ -509,6 +510,25 @@ fun SourceDetailScreenContent(
                                 fontSize = 13.sp,
                                 color = TextSecondary
                             )
+                            if (loadError != null) {
+                                Spacer(modifier = Modifier.height(14.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(CapsuleShape)
+                                        .background(Color.White.copy(alpha = 0.12f))
+                                        .border(1.dp, Color.White.copy(alpha = 0.25f), CapsuleShape)
+                                        .clickable { refreshTrigger++ }
+                                        .padding(horizontal = 18.dp, vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "Retry",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TextPrimary
+                                    )
+                                }
+                            }
                         }
                     }
                 }

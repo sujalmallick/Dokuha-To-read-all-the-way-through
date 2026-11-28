@@ -155,6 +155,23 @@ class ExtensionManager(
     }
 
     /**
+     * Removes a persisted repository URL and refreshes the extension catalog.
+     */
+    fun removeRepository(url: String): Boolean {
+        val normalized = ExtensionRepoValidator.validateAndNormalize(url).normalizedUrl ?: url.trim()
+        val current = _repoUrls.value.toMutableList()
+        val removed = current.removeAll { it == normalized || it == url.trim() }
+        if (removed) {
+            _repoUrls.value = current
+            saveRepositories(current)
+            coroutineScope.launch {
+                refreshCatalog()
+            }
+        }
+        return removed
+    }
+
+    /**
      * Refreshes the extension catalog from all configured repository URLs across all ecosystems.
      */
     suspend fun refreshCatalog() = withContext(Dispatchers.Default) {
