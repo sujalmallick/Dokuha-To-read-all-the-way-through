@@ -11,6 +11,7 @@ import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSProcessInfo
 import platform.Foundation.NSProcessInfoPowerStateDidChangeNotification
+import platform.Foundation.isLowPowerModeEnabled
 import platform.UIKit.UIAccessibilityIsReduceTransparencyEnabled
 import platform.UIKit.UIAccessibilityReduceTransparencyStatusDidChangeNotification
 
@@ -20,7 +21,7 @@ actual fun rememberPlatformGlassEnvironment(): PlatformGlassEnvironment {
         mutableStateOf(UIAccessibilityIsReduceTransparencyEnabled())
     }
     var isLowPower by remember {
-        mutableStateOf(NSProcessInfo.processInfo.isLowPowerModeEnabled)
+        mutableStateOf<Boolean>(NSProcessInfo.processInfo.isLowPowerModeEnabled())
     }
 
     DisposableEffect(Unit) {
@@ -37,7 +38,7 @@ actual fun rememberPlatformGlassEnvironment(): PlatformGlassEnvironment {
             `object` = null,
             queue = NSOperationQueue.mainQueue
         ) { _: NSNotification? ->
-            isLowPower = NSProcessInfo.processInfo.isLowPowerModeEnabled
+            isLowPower = NSProcessInfo.processInfo.isLowPowerModeEnabled()
         }
 
         onDispose {
