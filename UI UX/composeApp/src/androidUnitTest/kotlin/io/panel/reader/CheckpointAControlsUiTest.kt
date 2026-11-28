@@ -2,15 +2,20 @@ package io.panel.reader
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import cafe.adriel.voyager.navigator.Navigator
+import com.github.takahirom.roborazzi.captureRoboImage
 import core.download.DownloadManager
 import core.download.MemoryDownloadStorage
 import core.extensions.ExtensionManager
@@ -28,6 +33,8 @@ import data.profile.FakeProfileRepository
 import data.profile.ProfileRepository
 import data.settings.FakeSettingsRepository
 import data.settings.SettingsRepository
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -38,17 +45,21 @@ import org.koin.core.context.stopKoin
 import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import ui.components.PanelTab
 import ui.screens.details.TitleDetailsScreenContent
+import ui.screens.library.LibraryScreenContent
 import ui.screens.maintab.MainTabScreen
 import ui.screens.updates.UpdatesScreenContent
 import ui.screens.welcome.WelcomeScreen
 import ui.theme.PanelTheme
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 @RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w393dp-h852dp-xhdpi")
 class CheckpointAControlsUiTest {
 
@@ -216,5 +227,122 @@ class CheckpointAControlsUiTest {
         }
         composeTestRule.onAllNodesWithText("Download").assertCountEquals(0)
         composeTestRule.onNodeWithText("Sample Manga").assertExists()
+    }
+
+    @Test
+    fun bug03_libraryBatchMarkReadAndRemoveConfirmWorkAndDownloadIsHidden(): Unit = runBlocking {
+        val delegate = FakePanelRepository()
+        val markedReadUrls = mutableListOf<String>()
+        val recordingRepo = object : PanelRepository by delegate {
+            override suspend fun markChaptersRead(chapterUrls: List<String>, isRead: Boolean) {
+                if (isRead) markedReadUrls.addAll(chapterUrls)
+                delegate.markChaptersRead(chapterUrls, isRead)
+            }
+        }
+        val firstManga = delegate.getLibrary("All").first().first()
+        val settingsRepo = FakeSettingsRepository()
+
+        composeTestRule.setContent {
+            PanelTheme {
+                LibraryScreenContent(
+                    repository = recordingRepo,
+                    settingsRepository = settingsRepo,
+                    onOpenManga = {},
+                    onResumeChapter = { _, _ -> },
+                    onTabSelected = {},
+                    initialSelectionMode = true,
+                    initialSelectedUrls = setOf(firstManga.url)
+                )
+            }
+        }
+
+        // Batch Download is hidden
+        composeTestRule.onAllNodesWithText("Download").assertCountEquals(0)
+
+        // Capture screenshot of updated BatchActionBar
+        composeTestRule.onRoot().captureRoboImage("screenshots/checkpoint_a_library_batch_bar.png")
+
+        // Mark Read calls repository.markChaptersRead with the manga's chapter URLs
+        composeTestRule.onNodeWithText("Mark Read").performClick()
+        composeTestRule.waitUntil(timeoutMillis = 3_000) {
+            composeTestRule.onAllNodesWithText("Marked 1 title as read").fetchSemanticsNodes().isNotEmpty()
+        }
+        val chapters = delegate.getChapters(firstManga.url).first()
+        assertTrue(chapters.isNotEmpty() && markedReadUrls.containsAll(chapters.map { it.url }))
+    }
+
+    @Test
+    fun bug03_libraryBatchRemoveRequiresConfirmationAndRespectsIncognitoMarkRead(): Unit = runBlocking {
+        val delegate = FakePanelRepository()
+        val markedReadUrls = mutableListOf<String>()
+        val recordingRepo = object : PanelRepository by delegate {
+            override suspend fun markChaptersRead(chapterUrls: List<String>, isRead: Boolean) {
+                if (isRead) markedReadUrls.addAll(chapterUrls)
+                delegate.markChaptersRead(chapterUrls, isRead)
+            }
+        }
+        val firstManga = delegate.getLibrary("All").first().first()
+        val settingsRepo = FakeSettingsRepository().apply { setIncognitoMode(true) }
+
+        composeTestRule.setContent {
+            PanelTheme {
+                LibraryScreenContent(
+                    repository = recordingRepo,
+                    settingsRepository = settingsRepo,
+                    onOpenManga = {},
+                    onResumeChapter = { _, _ -> },
+                    onTabSelected = {},
+                    initialSelectionMode = true,
+                    initialSelectedUrls = setOf(firstManga.url)
+                )
+            }
+        }
+
+        // Incognito Mark Read shows notice and does not call markChaptersRead
+        composeTestRule.onNodeWithText("Mark Read").performClick()
+        composeTestRule.waitUntil(timeoutMillis = 3_000) {
+            composeTestRule.onAllNodesWithText("Incognito mode: reading state not saved")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        assertTrue(markedReadUrls.isEmpty())
+    }
+
+    @Test
+    fun bug03_libraryBatchRemoveConfirmRemovesTitle(): Unit = runBlocking {
+        val delegate = FakePanelRepository()
+        val removedUrls = mutableListOf<String>()
+        val recordingRepo = object : PanelRepository by delegate {
+            override suspend fun toggleFavorite(manga: SourceManga, isFavorite: Boolean) {
+                if (!isFavorite) removedUrls.add(manga.url)
+                delegate.toggleFavorite(manga, isFavorite)
+            }
+        }
+        val firstManga = delegate.getLibrary("All").first().first()
+
+        composeTestRule.setContent {
+            PanelTheme {
+                LibraryScreenContent(
+                    repository = recordingRepo,
+                    settingsRepository = FakeSettingsRepository(),
+                    onOpenManga = {},
+                    onResumeChapter = { _, _ -> },
+                    onTabSelected = {},
+                    initialSelectionMode = true,
+                    initialSelectedUrls = setOf(firstManga.url)
+                )
+            }
+        }
+
+        composeTestRule.onNodeWithText("Remove").performClick()
+        composeTestRule.waitForIdle()
+        composeTestRule.onNodeWithText("Remove from library?").assertExists()
+
+        // Confirm remove inside AlertDialog
+        composeTestRule.onAllNodesWithText("Remove")[1].performClick()
+        composeTestRule.waitUntil(timeoutMillis = 3_000) {
+            composeTestRule.onAllNodesWithText("Removed 1 title from library")
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        assertTrue(firstManga.url in removedUrls)
     }
 }

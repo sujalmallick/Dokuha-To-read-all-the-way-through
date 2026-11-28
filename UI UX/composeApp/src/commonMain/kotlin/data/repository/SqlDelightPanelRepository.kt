@@ -907,6 +907,7 @@ class SqlDelightPanelRepository(
 
     override suspend fun markChaptersRead(chapterUrls: List<String>, isRead: Boolean) {
         if (chapterUrls.isEmpty()) return
+        if (settingsRepository?.incognitoMode?.value == true) return
         withContext(Dispatchers.Default) {
             val now = currentTimeMillis()
             val readFlag = if (isRead) 1L else 0L
