@@ -6,6 +6,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import platform.Foundation.NSNotification
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
 import platform.Foundation.NSProcessInfo
@@ -19,7 +20,7 @@ actual fun rememberPlatformGlassEnvironment(): PlatformGlassEnvironment {
         mutableStateOf(UIAccessibilityIsReduceTransparencyEnabled())
     }
     var isLowPower by remember {
-        mutableStateOf(NSProcessInfo.processInfo.isLowPowerModeEnabled())
+        mutableStateOf(NSProcessInfo.processInfo.lowPowerModeEnabled)
     }
 
     DisposableEffect(Unit) {
@@ -28,15 +29,15 @@ actual fun rememberPlatformGlassEnvironment(): PlatformGlassEnvironment {
             name = UIAccessibilityReduceTransparencyStatusDidChangeNotification,
             `object` = null,
             queue = NSOperationQueue.mainQueue
-        ) { _ ->
+        ) { _: NSNotification? ->
             reduceTransparency = UIAccessibilityIsReduceTransparencyEnabled()
         }
         val powerObserver = center.addObserverForName(
             name = NSProcessInfoPowerStateDidChangeNotification,
             `object` = null,
             queue = NSOperationQueue.mainQueue
-        ) { _ ->
-            isLowPower = NSProcessInfo.processInfo.isLowPowerModeEnabled()
+        ) { _: NSNotification? ->
+            isLowPower = NSProcessInfo.processInfo.lowPowerModeEnabled
         }
 
         onDispose {
