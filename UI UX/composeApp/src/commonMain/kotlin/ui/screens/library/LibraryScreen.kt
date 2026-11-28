@@ -43,9 +43,13 @@ import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -54,7 +58,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -118,6 +125,8 @@ class LibraryScreen : Screen {
         LibraryScreenContent(
             repository = repository,
             categoryRepository = categoryRepo,
+            settingsRepository = koinInject(),
+            downloadManager = koinInject(),
             onOpenManga = { manga ->
                 navigator.push(
                     TitleDetailsScreen(
@@ -153,6 +162,7 @@ fun LibraryScreenContent(
     repository: PanelRepository,
     categoryRepository: CategoryRepository? = null,
     settingsRepository: SettingsRepository? = null,
+    downloadManager: core.download.DownloadManager? = null,
     showBottomBar: Boolean = true,
     onOpenManga: (SourceManga) -> Unit,
     onResumeChapter: (SourceManga, SourceChapter) -> Unit,
@@ -213,9 +223,22 @@ fun LibraryScreenContent(
     var isSearchActive by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
+    val completedDownloads by (
+        downloadManager?.completedDownloads
+            ?: remember { kotlinx.coroutines.flow.MutableStateFlow(emptyList()) }
+    ).collectAsState()
+    val downloadedMangaUrls = remember(completedDownloads) {
+        completedDownloads.map { it.manga.url }.toSet()
+    }
+
     // 2. Filter and sort by active LibraryFilter (Status, Format, Progress, Downloaded, Sort) + searchQuery
-    val filteredLibraryItems = remember(categoryFilteredItems, libraryFilter, libraryStats, searchQuery) {
-        val base = filterAndSortLibrary(categoryFilteredItems, libraryFilter, libraryStats)
+    val filteredLibraryItems = remember(categoryFilteredItems, libraryFilter, libraryStats, searchQuery, downloadedMangaUrls) {
+        val base = filterAndSortLibrary(
+            items = categoryFilteredItems,
+            filter = libraryFilter,
+            stats = libraryStats,
+            isDownloaded = { manga -> manga.url in downloadedMangaUrls }
+        )
         val q = searchQuery.trim()
         if (q.isEmpty()) {
             base
@@ -232,9 +255,22 @@ fun LibraryScreenContent(
     var isSelectionMode by remember { mutableStateOf(initialSelectionMode) }
     var selectedMangaUrls by remember { mutableStateOf(initialSelectedUrls) }
 
-    // Modal Sheets State
+    core.platform.PlatformBackHandler(enabled = isSelectionMode || isSearchActive) {
+        if (isSelectionMode) {
+            isSelectionMode = false
+            selectedMangaUrls = emptySet()
+        } else if (isSearchActive) {
+            isSearchActive = false
+            searchQuery = ""
+        }
+    }
+
+    // Modal Sheets & Dialogs State
     var isCategoryEditSheetVisible by remember { mutableStateOf(false) }
     var isBatchMoveSheetVisible by remember { mutableStateOf(false) }
+    var showRemoveConfirmDialog by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val isAnyModalSheetOpen = isFilterSheetVisible || isCategoryEditSheetVisible || isBatchMoveSheetVisible
     LaunchedEffect(isAnyModalSheetOpen, isSelectionMode) {
@@ -559,7 +595,7 @@ fun LibraryScreenContent(
             }
 
             // Empty Library / Filter State
-            if (filteredLibraryItems.isEmpty() && (isSelectionMode || recentlyReadItems.isEmpty())) {
+            if (filteredLibraryItems.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Box(
                         modifier = Modifier
@@ -571,8 +607,9 @@ fun LibraryScreenContent(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            val hasQuery = searchQuery.isNotBlank()
                             Text(
-                                text = if (libraryFilter.isActive) {
+                                text = if (libraryFilter.isActive || hasQuery) {
                                     "No matching titles"
                                 } else if (selectedCategory != DefaultCategories.ALL) {
                                     "No titles in this category"
@@ -584,8 +621,8 @@ fun LibraryScreenContent(
                                 color = TextPrimary
                             )
                             Text(
-                                text = if (libraryFilter.isActive) {
-                                    "No titles match your active filter criteria."
+                                text = if (libraryFilter.isActive || hasQuery) {
+                                    "No titles match your active filter or search criteria."
                                 } else if (selectedCategory != DefaultCategories.ALL) {
                                     "Add titles to \"$selectedCategory\" to see them here."
                                 } else {
@@ -595,14 +632,17 @@ fun LibraryScreenContent(
                                 color = TextSecondary,
                                 modifier = Modifier.padding(horizontal = 32.dp)
                             )
-                            if (libraryFilter.isActive) {
+                            if (libraryFilter.isActive || hasQuery) {
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Box(
                                     modifier = Modifier
                                         .clip(CapsuleShape)
                                         .background(Color.White.copy(alpha = 0.12f))
                                         .border(1.dp, Color.White.copy(alpha = 0.25f), CapsuleShape)
-                                        .clickable { libraryFilter = LibraryFilter() }
+                                        .clickable {
+                                            libraryFilter = LibraryFilter()
+                                            searchQuery = ""
+                                        }
                                         .padding(horizontal = 14.dp, vertical = 7.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -679,19 +719,31 @@ fun LibraryScreenContent(
                 selectedCount = selectedMangaUrls.size,
                 onMove = { isBatchMoveSheetVisible = true },
                 onMarkRead = {
-                    // Mark as read action
+                    val targetUrls = selectedMangaUrls
+                    val selectedMangas = allLibraryItems.filter { it.url in targetUrls }
                     selectedMangaUrls = emptySet()
                     isSelectionMode = false
-                },
-                onDownload = {
-                    // Batch download action
-                    selectedMangaUrls = emptySet()
-                    isSelectionMode = false
+                    coroutineScope.launch {
+                        if (settingsRepository?.incognitoMode?.value == true) {
+                            snackbarHostState.showSnackbar("Incognito mode: reading state not saved")
+                            return@launch
+                        }
+                        selectedMangas.forEach { manga ->
+                            val sid = if (manga.sourceId != 0L) manga.sourceId.toString() else null
+                            val chapters = repository.getChapters(manga.url, sid).first()
+                            if (chapters.isNotEmpty()) {
+                                repository.markChaptersRead(chapters.map { it.url }, isRead = true)
+                            }
+                        }
+                        snackbarHostState.showSnackbar(
+                            "Marked ${selectedMangas.size} title${if (selectedMangas.size == 1) "" else "s"} as read"
+                        )
+                    }
                 },
                 onRemove = {
-                    // Remove from library action
-                    selectedMangaUrls = emptySet()
-                    isSelectionMode = false
+                    if (selectedMangaUrls.isNotEmpty()) {
+                        showRemoveConfirmDialog = true
+                    }
                 },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -752,6 +804,53 @@ fun LibraryScreenContent(
             onDismiss = { isFilterSheetVisible = false },
             onApply = { libraryFilter = it }
         )
+
+        if (showRemoveConfirmDialog) {
+            val count = selectedMangaUrls.size
+            AlertDialog(
+                onDismissRequest = { showRemoveConfirmDialog = false },
+                title = { Text("Remove from library?") },
+                text = {
+                    Text(
+                        "Remove $count selected title${if (count == 1) "" else "s"} from your library?"
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            val targetUrls = selectedMangaUrls
+                            val selectedMangas = allLibraryItems.filter { it.url in targetUrls }
+                            showRemoveConfirmDialog = false
+                            selectedMangaUrls = emptySet()
+                            isSelectionMode = false
+                            coroutineScope.launch {
+                                selectedMangas.forEach { manga ->
+                                    repository.toggleFavorite(manga, false)
+                                }
+                                snackbarHostState.showSnackbar(
+                                    "Removed ${selectedMangas.size} title${if (selectedMangas.size == 1) "" else "s"} from library"
+                                )
+                            }
+                        }
+                    ) {
+                        Text("Remove", color = Color(0xFFEF4444))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRemoveConfirmDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 88.dp)
+        )
     }
 }
 
@@ -760,7 +859,6 @@ private fun BatchActionBar(
     selectedCount: Int,
     onMove: () -> Unit,
     onMarkRead: () -> Unit,
-    onDownload: () -> Unit,
     onRemove: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -794,13 +892,7 @@ private fun BatchActionBar(
                 onClick = onMarkRead,
                 modifier = Modifier.weight(1f)
             )
-            BatchActionButton(
-                icon = Icons.Default.Download,
-                label = "Download",
-                enabled = hasSelection,
-                onClick = onDownload,
-                modifier = Modifier.weight(1f)
-            )
+            // TODO: re-enable batch Download once the blank-page download-integrity bug is fixed
             BatchActionButton(
                 icon = Icons.Default.Delete,
                 label = "Remove",

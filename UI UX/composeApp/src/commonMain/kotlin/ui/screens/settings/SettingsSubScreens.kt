@@ -845,11 +845,7 @@ class LibrarySettingsScreen : Screen {
                     SectionHeader(text = "Shelves & Badges")
                     Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                         SettingsGroup {
-                            SettingsRow.Value(
-                                title = "Default Category",
-                                value = defaultCategory
-                            )
-                            SettingsSeparator()
+                            // TODO: restore Default Category picker after #20 CategoryRepository persistence
                             SettingsRow.Toggle(
                                 title = "Show unread count",
                                 subtitle = "Displays numeric unread chapter count on covers",
@@ -868,7 +864,9 @@ class LibrarySettingsScreen : Screen {
                             SettingsRow.Toggle(
                                 title = "Update on app launch",
                                 checked = updateOnAppLaunch,
-                                onCheckedChange = { repo.setUpdateOnAppLaunch(it) }
+                                onCheckedChange = { repo.setUpdateOnAppLaunch(it) },
+                                enabled = false,
+                                disabledNotice = "Not available yet"
                             )
                             SettingsSeparator()
                             SettingsRow.Navigation(
@@ -972,35 +970,22 @@ class DownloadsSettingsScreen : Screen {
                             SettingsRow.Toggle(
                                 title = "Download only on Wi-Fi",
                                 checked = downloadOnlyOnWifi,
-                                onCheckedChange = { repo.setDownloadOnlyOnWifi(it) }
+                                onCheckedChange = { repo.setDownloadOnlyOnWifi(it) },
+                                enabled = false,
+                                disabledNotice = "Not available yet"
                             )
                             SettingsSeparator()
                             SettingsRow.Toggle(
                                 title = "Delete after reading",
                                 subtitle = "Automatically removes chapter files upon finishing",
                                 checked = deleteAfterReading,
-                                onCheckedChange = { repo.setDeleteAfterReading(it) }
-                            )
-                            SettingsSeparator()
-                            SettingsRow.Value(
-                                title = "Download location",
-                                value = downloadLocation
+                                onCheckedChange = { repo.setDeleteAfterReading(it) },
+                                enabled = false,
+                                disabledNotice = "Not available yet"
                             )
                         }
                     }
-                    Spacer(modifier = Modifier.height(20.dp))
-                }
-
-                item {
-                    SectionHeader(text = "Concurrency Limit")
-                    Box(modifier = Modifier.padding(horizontal = 20.dp)) {
-                        GlassSegmentedControl(
-                            items = listOf(1, 2, 3),
-                            selectedIndex = concurrentDownloads - 1,
-                            onItemSelected = { repo.setConcurrentDownloads(it + 1) },
-                            labelProvider = { "$it concurrent" }
-                        )
-                    }
+                    // TODO: restore Download location & Concurrency Limit once DownloadManager enforces them
                 }
             }
 
@@ -1140,12 +1125,14 @@ class SourcesSettingsScreen : Screen {
                     SectionHeader(text = "Filters & Content")
                     Box(modifier = Modifier.padding(horizontal = 20.dp)) {
                         SettingsGroup {
-                            listOf("en" to "English", "ja" to "Japanese", "ko" to "Korean", "zh" to "Chinese").forEachIndexed { index, lang ->
+                            listOf("en" to "English", "ja" to "Japanese", "ko" to "Korean", "zh" to "Chinese").forEachIndexed { _, lang ->
                                 val isChecked = languageFilters.contains(lang.first)
                                 SettingsRow.Toggle(
                                     title = lang.second,
                                     checked = isChecked,
-                                    onCheckedChange = { repo.toggleLanguageFilter(lang.first) }
+                                    onCheckedChange = { repo.toggleLanguageFilter(lang.first) },
+                                    enabled = false,
+                                    disabledNotice = "Not available yet"
                                 )
                                 SettingsSeparator()
                             }
@@ -1153,7 +1140,9 @@ class SourcesSettingsScreen : Screen {
                                 title = "Show NSFW sources",
                                 subtitle = "Off by default • 18+ content filters",
                                 checked = showNsfw,
-                                onCheckedChange = { repo.setShowNsfw(it) }
+                                onCheckedChange = { repo.setShowNsfw(it) },
+                                enabled = false,
+                                disabledNotice = "Not available yet"
                             )
                         }
                     }
@@ -1468,6 +1457,8 @@ class StorageSettingsScreen : Screen {
         val freeGb = (storageStats.totalGb - storageStats.usedGb).coerceAtLeast(0f)
         val freeGbText = "${freeGb.toInt()} GB free of ${storageStats.totalGb.toInt()} GB"
 
+        val panelRepository: data.mock.PanelRepository = koinInject()
+        val coroutineScope = rememberCoroutineScope()
         var isClearCacheDialogVisible by remember { mutableStateOf(false) }
         var isClearHistoryDialogVisible by remember { mutableStateOf(false) }
 
@@ -1561,8 +1552,7 @@ class StorageSettingsScreen : Screen {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     StorageLegendItem(color = primaryColor, label = "Cache", value = cacheSize)
-                                    StorageLegendItem(color = Color(0xFF10B981), label = "Extensions", value = "~4.8 MB")
-                                    StorageLegendItem(color = Color(0xFF60A5FA), label = "Database", value = "~1.2 MB")
+                                    StorageLegendItem(color = Color(0xFF10B981), label = "Downloads", value = formattedDownloads)
                                 }
                             }
                         }
@@ -1589,20 +1579,11 @@ class StorageSettingsScreen : Screen {
                             StorageActionRow(
                                 title = "Reading History & Progress",
                                 subtitle = "Chronological reading events and completion timestamps",
-                                sizeLabel = "~1.2 MB",
+                                sizeLabel = "Timeline",
                                 actionLabel = "Clear",
                                 onAction = { isClearHistoryDialogVisible = true }
                             )
-                            SettingsSeparator()
-
-                            // Row 3: Extensions
-                            StorageActionRow(
-                                title = "Installed Extensions",
-                                subtitle = "Compiled JavaScript sources and local repository caches",
-                                sizeLabel = "~4.8 MB",
-                                actionLabel = null,
-                                onAction = null
-                            )
+                            // TODO: restore Installed Extensions size row once real JS storage size is measured
                         }
                     }
                     Spacer(modifier = Modifier.height(20.dp))
@@ -1663,7 +1644,11 @@ class StorageSettingsScreen : Screen {
                     message = "Are you sure you want to clear your entire reading timeline? This action cannot be undone.",
                     confirmText = "Clear History",
                     isDestructive = true,
-                    onConfirm = { repo.clearReadingHistory() },
+                    onConfirm = {
+                        coroutineScope.launch {
+                            panelRepository.clearAllHistory()
+                        }
+                    },
                     onDismiss = { isClearHistoryDialogVisible = false }
                 )
             }

@@ -43,7 +43,7 @@ import ui.glass.glassPress
 import ui.glass.glassSource
 import ui.glass.glassSurface
 import ui.glass.rememberPanelGlassState
-import ui.screens.library.LibraryScreen
+import ui.screens.maintab.MainTabScreen
 import ui.theme.CapsuleShape
 import ui.theme.PanelBackground
 import ui.theme.PanelTheme
@@ -62,7 +62,7 @@ class WelcomeScreen : Screen {
         WelcomeScreenContent(
             onGetStarted = {
                 settingsRepository.setOnboardingCompleted(true)
-                navigator.replaceAll(LibraryScreen())
+                navigator.replaceAll(MainTabScreen())
             }
         )
     }

@@ -290,6 +290,10 @@ class ExtensionsScreen : Screen {
                 result.isValid
             },
             onRemoveRepo = { repoId ->
+                val repoUrl = repository.repositories.value.find { it.id == repoId }?.url
+                if (repoUrl != null) {
+                    extensionManager.removeRepository(repoUrl)
+                }
                 repository.removeRepository(repoId)
             },
             onUpdateAll = {

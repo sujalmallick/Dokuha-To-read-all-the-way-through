@@ -44,6 +44,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -214,6 +215,7 @@ data class NovelReaderScreen(
             currentChapterIndex > 0
         } else false
 
+        val coroutineScope = rememberCoroutineScope()
         LaunchedEffect(currentChapterUrl) {
             repository.recordHistory(currentChapterUrl)
         }
@@ -245,6 +247,11 @@ data class NovelReaderScreen(
             hasPreviousChapter = hasPrevious,
             hasNextChapter = hasNext,
             isLoading = isLoading && !loadingTimedOut,
+            onProgressChange = { paragraphIndex, isCompleted ->
+                coroutineScope.launch {
+                    repository.updateChapterProgress(currentChapterUrl, paragraphIndex, isCompleted)
+                }
+            },
             onRetry = {
                 loadingTimedOut = false
                 isLoading = true
@@ -269,6 +276,7 @@ fun NovelReaderScreenContent(
     hasPreviousChapter: Boolean = true,
     hasNextChapter: Boolean = true,
     isLoading: Boolean = false,
+    onProgressChange: (Int, Boolean) -> Unit = { _, _ -> },
     onRetry: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -310,10 +318,13 @@ fun NovelReaderScreenContent(
     val lineHeight = (fontSize * lineHeightMultiplier).sp
 
     val tts = rememberPlatformTts()
+    DisposableEffect(tts) {
+        onDispose { tts.stop() }
+    }
+    var isAudioPlayerVisible by remember { mutableStateOf(false) }
     var isListening by remember { mutableStateOf(false) }
     var currentSpeakingIndex by remember { mutableIntStateOf(-1) }
     var ttsSpeed by remember { mutableFloatStateOf(1.0f) }
-    var isBookmarked by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     var savedScrollIndex by rememberSaveable(chapterTitle) { mutableIntStateOf(0) }
     var savedScrollOffset by rememberSaveable(chapterTitle) { mutableIntStateOf(0) }
@@ -342,10 +353,13 @@ fun NovelReaderScreenContent(
     LaunchedEffect(listState, parsedParagraphs.isNotEmpty()) {
         if (parsedParagraphs.isNotEmpty()) {
             snapshotFlow {
-                listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
-            }.collect { (index, offset) ->
+                val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                Triple(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset, lastVisible)
+            }.collect { (index, offset, lastVisible) ->
                 savedScrollIndex = index
                 savedScrollOffset = offset
+                val isCompleted = lastVisible >= parsedParagraphs.lastIndex
+                onProgressChange(index, isCompleted)
             }
         }
     }
@@ -595,15 +609,7 @@ fun NovelReaderScreenContent(
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                PanelCircleIconButton(
-                    icon = if (isBookmarked) Icons.Default.Bookmark else Icons.Default.BookmarkBorder,
-                    size = 40.dp,
-                    iconSize = 20.dp,
-                    tint = if (isBookmarked) MaterialTheme.colorScheme.primary else themeColors.textColor,
-                    glassState = glassState,
-                    hasDimming = true,
-                    onClick = { isBookmarked = !isBookmarked }
-                )
+                // TODO: wire chapter bookmark persistence to PanelRepository before re-enabling
                 PanelCircleIconButton(
                     icon = Icons.Default.MoreVert,
                     size = 40.dp,
@@ -743,7 +749,11 @@ fun NovelReaderScreenContent(
                                 if (isListening) {
                                     isListening = false
                                     tts.pause()
+                                } else if (isAudioPlayerVisible) {
+                                    isListening = true
+                                    tts.resume()
                                 } else if (parsedParagraphs.isNotEmpty()) {
+                                    isAudioPlayerVisible = true
                                     isListening = true
                                     val startIdx = if (currentSpeakingIndex >= 0) currentSpeakingIndex else 0
                                     tts.speak(
@@ -755,6 +765,7 @@ fun NovelReaderScreenContent(
                                             }
                                             override fun onComplete() {
                                                 isListening = false
+                                                isAudioPlayerVisible = false
                                                 currentSpeakingIndex = -1
                                             }
                                             override fun onError(message: String) {
@@ -799,7 +810,7 @@ fun NovelReaderScreenContent(
 
         // Floating Audio Player Glass Bar for TTS
         AnimatedVisibility(
-            visible = isListening,
+            visible = isAudioPlayerVisible,
             enter = fadeIn() + slideInVertically { it },
             exit = fadeOut() + slideOutVertically { it },
             modifier = Modifier
@@ -808,9 +819,10 @@ fun NovelReaderScreenContent(
                 .padding(bottom = 80.dp, start = 20.dp, end = 20.dp)
         ) {
             NovelAudioPlayerBar(
-                currentParagraph = currentSpeakingIndex + 1,
+                currentParagraph = (currentSpeakingIndex + 1).coerceAtLeast(1),
                 totalParagraphs = parsedParagraphs.size,
                 speed = ttsSpeed,
+                isPlaying = isListening,
                 onTogglePlay = {
                     if (isListening) {
                         isListening = false
@@ -823,9 +835,14 @@ fun NovelReaderScreenContent(
                 onPreviousParagraph = {
                     if (currentSpeakingIndex > 0) {
                         currentSpeakingIndex--
+                        isListening = true
                         tts.speak(parsedParagraphs, currentSpeakingIndex, object : TtsListener {
                             override fun onParagraphStart(index: Int) { currentSpeakingIndex = index }
-                            override fun onComplete() { isListening = false }
+                            override fun onComplete() {
+                                isListening = false
+                                isAudioPlayerVisible = false
+                                currentSpeakingIndex = -1
+                            }
                             override fun onError(message: String) { isListening = false }
                         })
                     }
@@ -833,9 +850,14 @@ fun NovelReaderScreenContent(
                 onNextParagraph = {
                     if (currentSpeakingIndex < parsedParagraphs.lastIndex) {
                         currentSpeakingIndex++
+                        isListening = true
                         tts.speak(parsedParagraphs, currentSpeakingIndex, object : TtsListener {
                             override fun onParagraphStart(index: Int) { currentSpeakingIndex = index }
-                            override fun onComplete() { isListening = false }
+                            override fun onComplete() {
+                                isListening = false
+                                isAudioPlayerVisible = false
+                                currentSpeakingIndex = -1
+                            }
                             override fun onError(message: String) { isListening = false }
                         })
                     }
@@ -852,6 +874,7 @@ fun NovelReaderScreenContent(
                 },
                 onClose = {
                     isListening = false
+                    isAudioPlayerVisible = false
                     tts.stop()
                     currentSpeakingIndex = -1
                 }
@@ -887,6 +910,7 @@ fun NovelAudioPlayerBar(
     onNextParagraph: () -> Unit,
     onCycleSpeed: () -> Unit,
     onClose: () -> Unit,
+    isPlaying: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val barShape = RoundedCornerShape(20.dp)
@@ -958,8 +982,8 @@ fun NovelAudioPlayerBar(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Pause,
-                        contentDescription = "Pause",
+                        imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = if (isPlaying) "Pause" else "Resume",
                         tint = Color.Black,
                         modifier = Modifier.size(18.dp)
                     )
