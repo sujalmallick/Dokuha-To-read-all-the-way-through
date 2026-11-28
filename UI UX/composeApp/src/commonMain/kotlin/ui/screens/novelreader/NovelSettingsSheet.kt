@@ -54,6 +54,7 @@ import panelreader.composeapp.generated.resources.novel_settings_title
 import ui.components.AdaptiveReaderOptionSelector
 import ui.components.PanelSlider
 import ui.components.ReaderIncognitoNotice
+import ui.components.ReaderMaskedOverridesNotice
 import ui.components.ReaderResetOverridesControl
 import ui.components.ReaderScopeToggle
 import ui.components.SettingLabelWithCustomBadge
@@ -98,7 +99,7 @@ fun NovelSettingsSheetCard(
     settingsRepository: SettingsRepository? = null,
     titleKey: String? = null,
     readerPrefsRepository: ReaderPrefsRepository? = null,
-    scope: ReaderSettingsScope = if (titleKey != null) ReaderSettingsScope.THIS_TITLE else ReaderSettingsScope.ALL_TITLES,
+    scope: ReaderSettingsScope = ReaderSettingsScope.ALL_TITLES,
     onScopeChanged: (ReaderSettingsScope) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -156,9 +157,18 @@ fun NovelSettingsSheetCard(
                 Spacer(modifier = Modifier.height(10.dp))
                 ReaderScopeToggle(
                     scope = scope,
+                    overrideCount = resolved.novelOverrideCount,
                     onScopeSelected = { chosen ->
                         pendingResetConfirm = false
                         onScopeChanged(chosen)
+                    }
+                )
+                ReaderMaskedOverridesNotice(
+                    visible = !isTitleScope && resolved.novelOverrideCount > 0,
+                    overrideCount = resolved.novelOverrideCount,
+                    onSwitchToThisTitle = {
+                        pendingResetConfirm = false
+                        onScopeChanged(ReaderSettingsScope.THIS_TITLE)
                     }
                 )
             }
@@ -170,7 +180,14 @@ fun NovelSettingsSheetCard(
             // Novel Theme
             SettingLabelWithCustomBadge(
                 label = "Theme",
-                isCustom = titleKey != null && resolved.isNovelThemeCustom
+                isCustom = titleKey != null && resolved.isNovelThemeCustom,
+                onReset = if (titleKey != null) {
+                    {
+                        coroutineScope.launch {
+                            prefsRepo.updatePrefs(titleKey) { it.copy(novelTheme = null) }
+                        }
+                    }
+                } else null
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -197,7 +214,14 @@ fun NovelSettingsSheetCard(
             // Novel Font
             SettingLabelWithCustomBadge(
                 label = "Font",
-                isCustom = titleKey != null && resolved.isNovelFontCustom
+                isCustom = titleKey != null && resolved.isNovelFontCustom,
+                onReset = if (titleKey != null) {
+                    {
+                        coroutineScope.launch {
+                            prefsRepo.updatePrefs(titleKey) { it.copy(novelFont = null) }
+                        }
+                    }
+                } else null
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -237,7 +261,14 @@ fun NovelSettingsSheetCard(
                 ) {
                     SettingLabelWithCustomBadge(
                         label = "Font Size",
-                        isCustom = titleKey != null && resolved.isNovelFontSizeCustom
+                        isCustom = titleKey != null && resolved.isNovelFontSizeCustom,
+                        onReset = if (titleKey != null) {
+                            {
+                                coroutineScope.launch {
+                                    prefsRepo.updatePrefs(titleKey) { it.copy(novelFontSize = null) }
+                                }
+                            }
+                        } else null
                     )
                     Text(
                         text = "${resolved.novelFontSize.roundToInt()} pt",
@@ -273,7 +304,14 @@ fun NovelSettingsSheetCard(
                 ) {
                     SettingLabelWithCustomBadge(
                         label = "Line Height",
-                        isCustom = titleKey != null && resolved.isNovelLineHeightCustom
+                        isCustom = titleKey != null && resolved.isNovelLineHeightCustom,
+                        onReset = if (titleKey != null) {
+                            {
+                                coroutineScope.launch {
+                                    prefsRepo.updatePrefs(titleKey) { it.copy(novelLineHeight = null) }
+                                }
+                            }
+                        } else null
                     )
                     val roundedLineHeight = ((resolved.novelLineHeight * 10f).roundToInt() / 10f)
                     Text(
@@ -325,7 +363,7 @@ fun NovelSettingsSheetContent(
     settingsRepository: SettingsRepository? = null,
     titleKey: String? = null,
     readerPrefsRepository: ReaderPrefsRepository? = null,
-    scope: ReaderSettingsScope = if (titleKey != null) ReaderSettingsScope.THIS_TITLE else ReaderSettingsScope.ALL_TITLES,
+    scope: ReaderSettingsScope = ReaderSettingsScope.ALL_TITLES,
     modifier: Modifier = Modifier
 ) {
     Box(

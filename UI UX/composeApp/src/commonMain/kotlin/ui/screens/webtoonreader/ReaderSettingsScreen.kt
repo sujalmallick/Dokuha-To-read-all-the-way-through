@@ -68,6 +68,7 @@ import ui.components.PanelSlider
 import ui.components.PanelSwitch
 import ui.components.PanelTab
 import ui.components.ReaderIncognitoNotice
+import ui.components.ReaderMaskedOverridesNotice
 import ui.components.ReaderResetOverridesControl
 import ui.components.ReaderScopeToggle
 import ui.components.SettingLabelWithCustomBadge
@@ -209,8 +210,18 @@ fun ReaderSettingsSheetCard(
                 Spacer(modifier = Modifier.height(12.dp))
                 ReaderScopeToggle(
                     scope = scope,
+                    overrideCount = resolved.mangaOverrideCount,
                     onScopeSelected = { chosen ->
                         scope = chosen
+                        hasInitializedScope = true
+                        pendingResetConfirm = false
+                    }
+                )
+                ReaderMaskedOverridesNotice(
+                    visible = !isTitleScope && resolved.mangaOverrideCount > 0,
+                    overrideCount = resolved.mangaOverrideCount,
+                    onSwitchToThisTitle = {
+                        scope = ReaderSettingsScope.THIS_TITLE
                         hasInitializedScope = true
                         pendingResetConfirm = false
                     }
@@ -225,7 +236,14 @@ fun ReaderSettingsSheetCard(
             // Reading Mode Section
             SettingLabelWithCustomBadge(
                 label = "Reading Mode",
-                isCustom = titleKey != null && resolved.isReadingModeCustom
+                isCustom = titleKey != null && resolved.isReadingModeCustom,
+                onReset = if (titleKey != null) {
+                    {
+                        coroutineScope.launch {
+                            prefsRepo.updatePrefs(titleKey) { it.copy(readingMode = null) }
+                        }
+                    }
+                } else null
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -258,7 +276,14 @@ fun ReaderSettingsSheetCard(
             // Color Filter Section (OLED, Sepia, High Contrast)
             SettingLabelWithCustomBadge(
                 label = "Color Filter",
-                isCustom = titleKey != null && resolved.isColorFilterCustom
+                isCustom = titleKey != null && resolved.isColorFilterCustom,
+                onReset = if (titleKey != null) {
+                    {
+                        coroutineScope.launch {
+                            prefsRepo.updatePrefs(titleKey) { it.copy(colorFilter = null) }
+                        }
+                    }
+                } else null
             )
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -298,7 +323,14 @@ fun ReaderSettingsSheetCard(
                 ) {
                     SettingLabelWithCustomBadge(
                         label = "Side Padding",
-                        isCustom = titleKey != null && resolved.isSidePaddingCustom
+                        isCustom = titleKey != null && resolved.isSidePaddingCustom,
+                        onReset = if (titleKey != null) {
+                            {
+                                coroutineScope.launch {
+                                    prefsRepo.updatePrefs(titleKey) { it.copy(sidePadding = null) }
+                                }
+                            }
+                        } else null
                     )
                     Text(
                         text = "${(sidePadding * 100).toInt()}%",
@@ -337,7 +369,14 @@ fun ReaderSettingsSheetCard(
                         label = "Dual-page spread",
                         isCustom = titleKey != null && resolved.isSplitDoubleSpreadCustom,
                         labelColor = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 14
+                        fontSize = 14,
+                        onReset = if (titleKey != null) {
+                            {
+                                coroutineScope.launch {
+                                    prefsRepo.updatePrefs(titleKey) { it.copy(splitDoubleSpread = null) }
+                                }
+                            }
+                        } else null
                     )
                     Text(
                         text = "Facing pages on tablets & landscape",
@@ -375,7 +414,14 @@ fun ReaderSettingsSheetCard(
                             label = "Offset cover page",
                             isCustom = titleKey != null && resolved.isDualPageOffsetCustom,
                             labelColor = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 14
+                            fontSize = 14,
+                            onReset = if (titleKey != null) {
+                                {
+                                    coroutineScope.launch {
+                                        prefsRepo.updatePrefs(titleKey) { it.copy(dualPageOffset = null) }
+                                    }
+                                }
+                            } else null
                         )
                         Text(
                             text = "First page as standalone cover",

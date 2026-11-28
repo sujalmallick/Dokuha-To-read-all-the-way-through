@@ -84,6 +84,23 @@ data class ResolvedReaderSettings(
             isNovelFontCustom ||
             isNovelFontSizeCustom ||
             isNovelLineHeightCustom
+
+    val mangaOverrideCount: Int
+        get() = listOf(
+            isReadingModeCustom,
+            isColorFilterCustom,
+            isSidePaddingCustom,
+            isSplitDoubleSpreadCustom,
+            isDualPageOffsetCustom
+        ).count { it }
+
+    val novelOverrideCount: Int
+        get() = listOf(
+            isNovelThemeCustom,
+            isNovelFontCustom,
+            isNovelFontSizeCustom,
+            isNovelLineHeightCustom
+        ).count { it }
 }
 
 /**
