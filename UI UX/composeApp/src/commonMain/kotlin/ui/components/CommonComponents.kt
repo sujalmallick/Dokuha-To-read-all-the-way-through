@@ -1252,7 +1252,7 @@ fun UpdateItemCard(
     gradientIndex: Int,
     onResume: () -> Unit,
     onClick: () -> Unit,
-    onDownloadClick: () -> Unit = {},
+    onDownloadClick: (() -> Unit)? = null,
     thumbnailUrl: String? = null,
     modifier: Modifier = Modifier
 ) {
@@ -1362,14 +1362,17 @@ fun UpdateItemCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                PanelCircleIconButton(
-                    icon = Icons.Default.FileDownload,
-                    size = 36.dp,
-                    iconSize = 18.dp,
-                    backgroundColor = Color.White.copy(alpha = 0.08f),
-                    borderColor = Color.White.copy(alpha = 0.18f),
-                    onClick = onDownloadClick
-                )
+                // TODO: re-enable update download once the blank-page download-integrity bug is fixed
+                if (onDownloadClick != null) {
+                    PanelCircleIconButton(
+                        icon = Icons.Default.FileDownload,
+                        size = 36.dp,
+                        iconSize = 18.dp,
+                        backgroundColor = Color.White.copy(alpha = 0.08f),
+                        borderColor = Color.White.copy(alpha = 0.18f),
+                        onClick = onDownloadClick
+                    )
+                }
 
                 val resumeInteraction = remember { MutableInteractionSource() }
                 Box(

@@ -162,9 +162,36 @@ class MainTabScreen(
                     PanelTab.UPDATES -> {
                         val updateGroups by repository.getUpdates().collectAsState(initial = emptyList())
                         val historyGroups by repository.getHistory().collectAsState(initial = emptyList())
+                        var isRefreshingUpdates by remember { mutableStateOf(false) }
+                        val updatesSnackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
                         UpdatesScreenContent(
                             updateGroups = updateGroups,
                             historyGroups = historyGroups,
+                            isRefreshingUpdates = isRefreshingUpdates,
+                            onRefreshUpdates = {
+                                if (!isRefreshingUpdates) {
+                                    isRefreshingUpdates = true
+                                    coroutineScope.launch {
+                                        try {
+                                            val newChapters = repository.refreshLibraryUpdates()
+                                            val msg = if (newChapters > 0) {
+                                                "Found $newChapters new chapter${if (newChapters == 1) "" else "s"}"
+                                            } else {
+                                                "All caught up — no new updates"
+                                            }
+                                            updatesSnackbarHostState.showSnackbar(msg)
+                                        } catch (e: kotlinx.coroutines.CancellationException) {
+                                            throw e
+                                        } catch (_: Throwable) {
+                                            updatesSnackbarHostState.showSnackbar("Failed to refresh updates")
+                                        } finally {
+                                            isRefreshingUpdates = false
+                                        }
+                                    }
+                                }
+                            },
+                            // TODO: re-enable onDownloadUpdate once the blank-page download-integrity bug is fixed
+                            onDownloadUpdate = null,
                             onOpenManga = { manga ->
                                 navigator.push(
                                     TitleDetailsScreen(
@@ -194,7 +221,8 @@ class MainTabScreen(
                                 }
                             },
                             onTabSelected = { currentTabName = it.name },
-                            showBottomBar = false
+                            showBottomBar = false,
+                            snackbarHostState = updatesSnackbarHostState
                         )
                     }
                     PanelTab.BROWSE -> {

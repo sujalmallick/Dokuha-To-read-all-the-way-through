@@ -139,9 +139,8 @@ class UpdatesScreen : Screen {
                     }
                 }
             },
-            onDownloadUpdate = { manga, chapter ->
-                repository.enqueueDownload(manga, chapter)
-            },
+            // TODO: re-enable onDownloadUpdate once the blank-page download-integrity bug is fixed
+            onDownloadUpdate = null,
             onOpenManga = { manga ->
                 navigator.push(
                     TitleDetailsScreen(
@@ -204,7 +203,7 @@ fun UpdatesScreenContent(
     historyGroups: List<HistoryGroup> = emptyList(),
     isRefreshingUpdates: Boolean = false,
     onRefreshUpdates: () -> Unit = {},
-    onDownloadUpdate: (SourceManga, SourceChapter) -> Unit = { _, _ -> },
+    onDownloadUpdate: ((SourceManga, SourceChapter) -> Unit)? = null,
     onOpenManga: (SourceManga) -> Unit,
     onResumeChapter: (SourceManga, SourceChapter) -> Unit,
     onDeleteHistoryItem: (Long) -> Unit = {},
@@ -461,7 +460,7 @@ fun UpdatesScreenContent(
                                     thumbnailUrl = single.manga.thumbnailUrl,
                                     onResume = { onResumeChapter(single.manga, single.chapter) },
                                     onClick = { onOpenManga(single.manga) },
-                                    onDownloadClick = { onDownloadUpdate(single.manga, single.chapter) },
+                                    onDownloadClick = onDownloadUpdate?.let { cb -> { cb(single.manga, single.chapter) } },
                                     modifier = Modifier.widthIn(max = 720.dp)
                                 )
                             } else {
@@ -471,7 +470,7 @@ fun UpdatesScreenContent(
                                     gradientIndex = gradientIdx,
                                     onOpenManga = { onOpenManga(itemsForManga.first().manga) },
                                     onResumeChapter = { ch -> onResumeChapter(itemsForManga.first().manga, ch) },
-                                    onDownloadChapter = { ch -> onDownloadUpdate(itemsForManga.first().manga, ch) },
+                                    onDownloadChapter = onDownloadUpdate?.let { cb -> { ch -> cb(itemsForManga.first().manga, ch) } },
                                     modifier = Modifier.widthIn(max = 720.dp)
                                 )
                             }
@@ -585,7 +584,7 @@ private fun ExpandableComicUpdatesCard(
     gradientIndex: Int,
     onOpenManga: () -> Unit,
     onResumeChapter: (SourceChapter) -> Unit,
-    onDownloadChapter: (SourceChapter) -> Unit,
+    onDownloadChapter: ((SourceChapter) -> Unit)?,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -712,14 +711,17 @@ private fun ExpandableComicUpdatesCard(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Download,
-                                contentDescription = "Download ${chapter.name}",
-                                tint = TextSecondary,
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .clickable { onDownloadChapter(chapter) }
-                            )
+                            // TODO: re-enable update chapter download once the blank-page download-integrity bug is fixed
+                            if (onDownloadChapter != null) {
+                                Icon(
+                                    imageVector = Icons.Default.Download,
+                                    contentDescription = "Download ${chapter.name}",
+                                    tint = TextSecondary,
+                                    modifier = Modifier
+                                        .size(20.dp)
+                                        .clickable { onDownloadChapter(chapter) }
+                                )
+                            }
                             Icon(
                                 imageVector = Icons.Default.PlayArrow,
                                 contentDescription = "Read ${chapter.name}",

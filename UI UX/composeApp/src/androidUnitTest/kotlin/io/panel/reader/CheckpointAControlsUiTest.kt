@@ -6,6 +6,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.unit.dp
@@ -20,6 +21,8 @@ import core.storage.InMemoryKeyValueStorage
 import data.library.CategoryRepository
 import data.library.DefaultCategoryRepository
 import data.mock.FakePanelRepository
+import data.mock.MockUpdateGroup
+import data.mock.MockUpdateItem
 import data.mock.PanelRepository
 import data.profile.FakeProfileRepository
 import data.profile.ProfileRepository
@@ -35,8 +38,10 @@ import org.koin.core.context.stopKoin
 import org.koin.dsl.module
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import ui.components.PanelTab
 import ui.screens.details.TitleDetailsScreenContent
 import ui.screens.maintab.MainTabScreen
+import ui.screens.updates.UpdatesScreenContent
 import ui.screens.welcome.WelcomeScreen
 import ui.theme.PanelTheme
 import kotlin.test.assertEquals
@@ -144,5 +149,72 @@ class CheckpointAControlsUiTest {
         assertEquals(0, downloadAllCount, "Header Download button must not call onDownloadAll()")
         assertEquals(0, dm.queue.value.size, "No chapters should be auto-queued before selecting preset")
         composeTestRule.onNodeWithText("Batch Download").assertExists()
+    }
+
+    @Test
+    fun bug02_updatesTabRefreshShowsSnackbarAndHidesDownloadButtons() {
+        val settingsRepo = FakeSettingsRepository()
+        val panelRepo = FakePanelRepository()
+
+        composeTestRule.setContent {
+            KoinApplication(application = {
+                modules(
+                    module {
+                        single<SettingsRepository> { settingsRepo }
+                        single<PanelRepository> { panelRepo }
+                        single<CategoryRepository> { DefaultCategoryRepository() }
+                        single<ProfileRepository> { FakeProfileRepository() }
+                        single { DownloadManager(MemoryDownloadStorage()) }
+                        single {
+                            ExtensionManager(
+                                storage = InMemoryKeyValueStorage(),
+                                panelRepository = panelRepo,
+                                autoSeedDefaults = false,
+                                deferInit = true
+                            )
+                        }
+                    }
+                )
+            }) {
+                PanelTheme {
+                    Navigator(MainTabScreen(initialTab = PanelTab.UPDATES)) { navigator ->
+                        navigator.lastItem.Content()
+                    }
+                }
+            }
+        }
+
+        composeTestRule.onNodeWithContentDescription("Refresh updates").performClick()
+        composeTestRule.waitUntil(timeoutMillis = 3_000) {
+            composeTestRule.onAllNodesWithText("All caught up", substring = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        composeTestRule.onNodeWithText("All caught up", substring = true).assertExists()
+    }
+
+    @Test
+    fun bug02_updatesScreenHidesDownloadButtonsWhenNull() {
+        val sampleGroup = MockUpdateGroup(
+            title = "Today",
+            items = listOf(
+                MockUpdateItem(
+                    manga = SourceManga(url = "m/1", title = "Sample Manga"),
+                    chapter = SourceChapter(url = "c/1", name = "Chapter 1", chapterNumber = 1f)
+                )
+            )
+        )
+        composeTestRule.setContent {
+            PanelTheme {
+                UpdatesScreenContent(
+                    updateGroups = listOf(sampleGroup),
+                    onDownloadUpdate = null,
+                    onOpenManga = {},
+                    onResumeChapter = { _, _ -> },
+                    onTabSelected = {}
+                )
+            }
+        }
+        composeTestRule.onAllNodesWithText("Download").assertCountEquals(0)
+        composeTestRule.onNodeWithText("Sample Manga").assertExists()
     }
 }
