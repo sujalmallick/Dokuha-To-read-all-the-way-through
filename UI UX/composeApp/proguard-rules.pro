@@ -18,23 +18,19 @@
     kotlinx.serialization.KSerializer serializer(...);
 }
 
-# Ktor Client & OkHttp
--keep class io.ktor.** { *; }
+# Ktor Client & OkHttp (consumer rules handle reflection; keep only warnings suppressed)
 -dontwarn io.ktor.**
 -dontwarn kotlinx.atomicfu.**
 -dontwarn org.slf4j.**
 
-# SQLDelight
--keep class app.cash.sqldelight.** { *; }
--keep class io.panel.reader.db.** { *; }
+# SQLDelight (generated database/queries)
+-keep class io.panel.reader.db.PanelDatabase { *; }
 -dontwarn app.cash.sqldelight.**
 
-# Coil 3
--keep class coil3.** { *; }
+# Coil 3 (consumer rules handle components)
 -dontwarn coil3.**
 
-# Voyager Navigation (Screen implementations & Java Serializable/Parcelable if any)
--keep class cafe.adriel.voyager.** { *; }
+# Voyager Navigation (Screen implementations)
 -keep class * implements cafe.adriel.voyager.core.screen.Screen { *; }
 -dontwarn cafe.adriel.voyager.**
 
@@ -42,9 +38,9 @@
 -keep class com.dokar.quickjs.** { *; }
 -dontwarn com.dokar.quickjs.**
 
-# Keep AndroidManifest components & Koin
--keep class io.panel.reader.** { *; }
+# Keep AndroidManifest entry points & Compose resources provider
+-keep class io.panel.reader.MainActivity { *; }
+-keep class io.panel.reader.DokuhaApp { *; }
 -keep class core.updates.LibraryUpdateJobService { *; }
 -keep class org.jetbrains.compose.resources.AndroidContextProvider { *; }
--keep class org.koin.** { *; }
 -dontwarn org.koin.**
