@@ -91,6 +91,7 @@ import panelreader.composeapp.generated.resources.logo_classic
 import panelreader.composeapp.generated.resources.logo_glassmorphic
 import ui.components.LiquidGlassEnding
 import ui.components.LiquidGlassLogo
+import ui.components.LiquidGlassLogoColor
 import ui.screens.maintab.MainTabScreen
 import ui.screens.welcome.WelcomeScreen
 import ui.theme.GlassBorder
@@ -841,10 +842,13 @@ fun SplashScreenContent(
 
             if (activeMotion == SplashMotionStyle.LIQUID_GLASS) {
                 LiquidGlassLogo(
-                    logo = masterLogoRes,
+                    logo = painterResource(masterLogoRes),
+                    modifier = Modifier
+                        .height(if (isCompact) 92.dp else 220.dp)
+                        .fillMaxWidth(),
                     ending = LiquidGlassEnding.LOGO,
-                    height = if (isCompact) 92.dp else 220.dp,
-                    backgroundColor = Color.Transparent
+                    logoColor = LiquidGlassLogoColor.ORIGINAL,
+                    reduceMotion = reduceMotion
                 )
             } else {
                 Box(
