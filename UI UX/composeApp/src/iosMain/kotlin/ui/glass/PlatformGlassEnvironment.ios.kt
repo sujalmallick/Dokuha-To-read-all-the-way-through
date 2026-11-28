@@ -19,7 +19,7 @@ actual fun rememberPlatformGlassEnvironment(): PlatformGlassEnvironment {
         mutableStateOf(UIAccessibilityIsReduceTransparencyEnabled())
     }
     var isLowPower by remember {
-        mutableStateOf(NSProcessInfo.processInfo.isLowPowerModeEnabled())
+        mutableStateOf(NSProcessInfo.processInfo.lowPowerModeEnabled)
     }
 
     DisposableEffect(Unit) {
@@ -36,7 +36,7 @@ actual fun rememberPlatformGlassEnvironment(): PlatformGlassEnvironment {
             `object` = null,
             queue = NSOperationQueue.mainQueue
         ) { _ ->
-            isLowPower = NSProcessInfo.processInfo.isLowPowerModeEnabled()
+            isLowPower = NSProcessInfo.processInfo.lowPowerModeEnabled
         }
 
         onDispose {
