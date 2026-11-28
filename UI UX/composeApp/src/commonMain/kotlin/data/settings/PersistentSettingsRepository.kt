@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import ui.glass.GlassQualitySetting
 import ui.theme.ThemeMode
 
 /**
@@ -26,6 +27,7 @@ class PersistentSettingsRepository(
         private const val KEY_THEME_MODE = "setting_theme_mode"
         private const val KEY_ACCENT_COLOR_INDEX = "setting_accent_color_index"
         private const val KEY_REDUCE_GLASS = "setting_reduce_glass"
+        private const val KEY_GLASS_QUALITY = "setting_glass_quality"
         private const val KEY_REDUCE_MOTION = "setting_reduce_motion"
         private const val KEY_APP_LOGO_STYLE = "setting_app_logo_style"
         private const val KEY_SPLASH_MOTION_STYLE = "setting_splash_motion_style"
@@ -107,6 +109,13 @@ class PersistentSettingsRepository(
     )
     override val reduceGlass: StateFlow<Boolean> = _reduceGlass.asStateFlow()
 
+    private val _glassQuality = MutableStateFlow(
+        runCatching {
+            GlassQualitySetting.valueOf(storage.getString(KEY_GLASS_QUALITY, GlassQualitySetting.AUTO.name))
+        }.getOrDefault(GlassQualitySetting.AUTO)
+    )
+    override val glassQuality: StateFlow<GlassQualitySetting> = _glassQuality.asStateFlow()
+
     private val _reduceMotion = MutableStateFlow(
         storage.getBoolean(KEY_REDUCE_MOTION, false)
     )
@@ -140,6 +149,11 @@ class PersistentSettingsRepository(
     override fun setReduceGlass(enabled: Boolean) {
         _reduceGlass.value = enabled
         storage.putBoolean(KEY_REDUCE_GLASS, enabled)
+    }
+
+    override fun setGlassQuality(quality: GlassQualitySetting) {
+        _glassQuality.value = quality
+        storage.putString(KEY_GLASS_QUALITY, quality.name)
     }
 
     override fun setReduceMotion(enabled: Boolean) {

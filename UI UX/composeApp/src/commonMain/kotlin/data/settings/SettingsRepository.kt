@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.Serializable
+import ui.glass.GlassQualitySetting
 import ui.theme.ThemeMode
 
 enum class DefaultReadingMode(val label: String) {
@@ -81,6 +82,7 @@ interface SettingsRepository {
     val themeMode: StateFlow<ThemeMode>
     val accentColorIndex: StateFlow<Int>
     val reduceGlass: StateFlow<Boolean>
+    val glassQuality: StateFlow<GlassQualitySetting>
     val reduceMotion: StateFlow<Boolean>
     val appLogoStyle: StateFlow<AppLogoStyle>
     val splashMotionStyle: StateFlow<SplashMotionStyle>
@@ -88,6 +90,7 @@ interface SettingsRepository {
     fun setThemeMode(mode: ThemeMode)
     fun setAccentColorIndex(index: Int)
     fun setReduceGlass(enabled: Boolean)
+    fun setGlassQuality(quality: GlassQualitySetting)
     fun setReduceMotion(enabled: Boolean)
     fun setAppLogoStyle(style: AppLogoStyle)
     fun setSplashMotionStyle(style: SplashMotionStyle)
@@ -198,6 +201,9 @@ class FakeSettingsRepository : SettingsRepository {
     private val _reduceGlass = MutableStateFlow(false)
     override val reduceGlass: StateFlow<Boolean> = _reduceGlass.asStateFlow()
 
+    private val _glassQuality = MutableStateFlow(GlassQualitySetting.AUTO)
+    override val glassQuality: StateFlow<GlassQualitySetting> = _glassQuality.asStateFlow()
+
     private val _reduceMotion = MutableStateFlow(false)
     override val reduceMotion: StateFlow<Boolean> = _reduceMotion.asStateFlow()
 
@@ -217,6 +223,10 @@ class FakeSettingsRepository : SettingsRepository {
 
     override fun setReduceGlass(enabled: Boolean) {
         _reduceGlass.value = enabled
+    }
+
+    override fun setGlassQuality(quality: GlassQualitySetting) {
+        _glassQuality.value = quality
     }
 
     override fun setReduceMotion(enabled: Boolean) {

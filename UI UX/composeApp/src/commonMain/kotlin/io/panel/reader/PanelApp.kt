@@ -76,6 +76,7 @@ private fun PanelAppRoot() {
     val themeMode by settingsRepository.themeMode.collectAsState()
     val accentIndex by settingsRepository.accentColorIndex.collectAsState()
     val reduceGlass by settingsRepository.reduceGlass.collectAsState()
+    val glassQuality by settingsRepository.glassQuality.collectAsState()
     val reduceMotion by settingsRepository.reduceMotion.collectAsState()
     val isOnboarded by settingsRepository.isOnboardingCompleted.collectAsState()
 
@@ -99,6 +100,7 @@ private fun PanelAppRoot() {
         themeMode = themeMode,
         accentColor = accentColor,
         reduceGlass = reduceGlass,
+        glassQualitySetting = glassQuality,
         reduceMotion = reduceMotion
     ) {
         Surface(
