@@ -6,7 +6,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -142,52 +142,72 @@ fun GlassSurface(
             .then(liveBlurModifier)
             .background(if (quality == GlassQuality.FULL && glassState != null) Color.Transparent else baseTint)
             .background(scrimColor)
-            .drawWithContent {
-                drawContent()
+            .drawWithCache {
+                if (size.minDimension <= 0f) {
+                    return@drawWithCache onDrawWithContent { drawContent() }
+                }
                 val outline = shape.createOutline(size, layoutDirection, this)
                 val path = outline.asGlassPath()
-                if (size.minDimension > 0f) {
-                    if (quality != GlassQuality.REDUCED) {
+                val sheenHeight = size.height * 0.42f
+                val sheenBrush = if (quality != GlassQuality.REDUCED) {
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            tokens.sheenTopColor,
+                            tokens.sheenMidColor,
+                            Color.Transparent
+                        ),
+                        startY = 0f,
+                        endY = sheenHeight
+                    )
+                } else {
+                    null
+                }
+                val innerGlowBrush = if (quality != GlassQuality.REDUCED) {
+                    Brush.verticalGradient(
+                        colors = listOf(tokens.innerGlowColor, Color.Transparent),
+                        startY = 0f,
+                        endY = size.height * 0.5f
+                    )
+                } else {
+                    null
+                }
+                val innerGlowStroke = if (quality != GlassQuality.REDUCED) {
+                    Stroke(width = tokens.innerGlowWidth.toPx())
+                } else {
+                    null
+                }
+                val topLeft = tokens.borderHighlightTopLeft.copy(
+                    alpha = (tokens.borderHighlightTopLeft.alpha + borderBoost).coerceIn(0f, 1f)
+                )
+                val borderBrush = Brush.linearGradient(
+                    colors = listOf(topLeft, tokens.borderMid, tokens.borderBottomRight),
+                    start = Offset.Zero,
+                    end = Offset(size.width, size.height)
+                )
+                val borderStroke = Stroke(width = tokens.borderWidth.toPx())
+
+                onDrawWithContent {
+                    drawContent()
+                    if (sheenBrush != null && innerGlowBrush != null && innerGlowStroke != null) {
                         clipPath(path) {
-                            val sheenHeight = size.height * 0.42f
                             drawRect(
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(
-                                        tokens.sheenTopColor,
-                                        tokens.sheenMidColor,
-                                        Color.Transparent
-                                    ),
-                                    startY = 0f,
-                                    endY = sheenHeight
-                                ),
+                                brush = sheenBrush,
                                 size = Size(size.width, sheenHeight)
                             )
                         }
                         clipPath(path) {
                             drawPath(
                                 path = path,
-                                brush = Brush.verticalGradient(
-                                    colors = listOf(tokens.innerGlowColor, Color.Transparent),
-                                    startY = 0f,
-                                    endY = size.height * 0.5f
-                                ),
-                                style = Stroke(width = tokens.innerGlowWidth.toPx())
+                                brush = innerGlowBrush,
+                                style = innerGlowStroke
                             )
                         }
                     }
-                    val topLeft = tokens.borderHighlightTopLeft.copy(
-                        alpha = (tokens.borderHighlightTopLeft.alpha + borderBoost).coerceIn(0f, 1f)
-                    )
-                    val borderBrush = Brush.linearGradient(
-                        colors = listOf(topLeft, tokens.borderMid, tokens.borderBottomRight),
-                        start = Offset.Zero,
-                        end = Offset(size.width, size.height)
-                    )
                     clipPath(path) {
                         drawPath(
                             path = path,
                             brush = borderBrush,
-                            style = Stroke(width = tokens.borderWidth.toPx())
+                            style = borderStroke
                         )
                     }
                 }

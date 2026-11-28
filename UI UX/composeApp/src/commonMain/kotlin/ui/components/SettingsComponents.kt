@@ -145,10 +145,10 @@ fun SectionHeader(
     modifier: Modifier = Modifier
 ) {
     Text(
-        text = text.uppercase(),
+        text = text,
         fontSize = 12.sp,
         fontWeight = FontWeight.SemiBold,
-        letterSpacing = 0.8.sp,
+        letterSpacing = 0.2.sp,
         color = TextSecondary,
         modifier = modifier.padding(horizontal = 20.dp, vertical = 8.dp)
     )
