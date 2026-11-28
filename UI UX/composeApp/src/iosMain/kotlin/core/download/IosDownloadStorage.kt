@@ -53,9 +53,11 @@ class IosDownloadStorage : DownloadStorage {
     }
 
     override fun savePageImage(chapterUrl: String, pageIndex: Int, data: ByteArray): String {
+        require(data.isNotEmpty()) { "Cannot save empty page image for $chapterUrl page $pageIndex" }
         val dir = getChapterDir(chapterUrl)
         fileSystem.createDirectories(dir)
-        val fileName = "$pageIndex.jpg"
+        val ext = detectImageExtension(data)
+        val fileName = "$pageIndex.$ext"
         val filePath = dir / fileName
         fileSystem.write(filePath) {
             write(data)
@@ -100,14 +102,20 @@ class IosDownloadStorage : DownloadStorage {
         return runCatching {
             val raw = fileSystem.read(manifestPath) { readUtf8() }
             val manifest = json.decodeFromString<IosDownloadManifest>(raw)
-            manifest.fileNames.mapIndexed { index, fileName ->
-                val uri = "file://${dir / fileName}"
+            val validPages = manifest.fileNames.mapNotNull { fileName ->
+                val filePath = dir / fileName
+                val size = fileSystem.metadataOrNull(filePath)?.size ?: 0L
+                if (!fileSystem.exists(filePath) || size <= 0L) return@mapNotNull null
+                val uri = "file://$filePath"
                 SourcePage(
-                    index = index + 1,
+                    index = 0,
                     url = uri,
                     imageUrl = uri
                 )
+            }.mapIndexed { index, page ->
+                page.copy(index = index + 1)
             }
+            validPages.takeIf { it.isNotEmpty() }
         }.getOrNull()
     }
 
