@@ -87,7 +87,12 @@ import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.koinInject
 import ui.components.PanelCircleIconButton
+import ui.components.glass.GlassIconButton
+import ui.components.glass.GlassStyle
+import ui.components.glass.GlassSurface
+import ui.glass.GlassSurfaceContext
 import ui.glass.GlassVariant
+import ui.theme.LocalGlassTokens
 import ui.glass.glassDimming
 import ui.glass.glassPress
 import ui.glass.glassSource
@@ -588,7 +593,7 @@ fun NovelReaderScreenContent(
             }
         }
 
-        // LAYER 2: Floating Top Bar (Sibling Glass Overlay)
+        // LAYER 2: Floating Top Bar (BALANCED High-Contrast Reader Glass)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -598,287 +603,290 @@ fun NovelReaderScreenContent(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            PanelCircleIconButton(
+            GlassIconButton(
                 icon = Icons.AutoMirrored.Filled.ArrowBack,
-                size = 40.dp,
-                iconSize = 20.dp,
-                tint = themeColors.textColor,
-                glassState = glassState,
-                hasDimming = true,
+                contentDescription = "Back",
+                tint = Color(0xFFF8FAFC),
+                style = GlassStyle.READER_HIGH_CONTRAST,
+                context = GlassSurfaceContext.READER_OVERLAY,
                 onClick = onBack
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 // TODO: wire chapter bookmark persistence to PanelRepository before re-enabling
-                PanelCircleIconButton(
+                GlassIconButton(
                     icon = Icons.Default.MoreVert,
-                    size = 40.dp,
-                    iconSize = 20.dp,
-                    tint = themeColors.textColor,
-                    glassState = glassState,
-                    hasDimming = true,
+                    contentDescription = "Novel settings",
+                    tint = Color(0xFFF8FAFC),
+                    style = GlassStyle.READER_HIGH_CONTRAST,
+                    context = GlassSurfaceContext.READER_OVERLAY,
                     onClick = { isSettingsOpen = true }
                 )
             }
         }
 
-        // LAYER 3: Floating Bottom Control Capsule Bar (Liquid Glass Dock)
-        Box(
+        // LAYER 3: Floating Bottom Control Bar (BALANCED High-Contrast Reader Glass)
+        val tokens = LocalGlassTokens.current
+        // Bottom floating bars stacked in a Column so TTS audio bar never overlaps the control bar
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 20.dp)
-                .glassDimming(alpha = 0.35f, shape = CapsuleShape)
-                .glassSurface(
-                    state = glassState,
-                    variant = GlassVariant.Clear,
-                    shape = CapsuleShape
-                )
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            // Floating Audio Player Glass Bar for TTS
+            AnimatedVisibility(
+                visible = isAudioPlayerVisible,
+                enter = fadeIn() + slideInVertically { it },
+                exit = fadeOut() + slideOutVertically { it }
             ) {
-                // Previous chapter button
-                PanelCircleIconButton(
-                    icon = Icons.AutoMirrored.Filled.NavigateBefore,
-                    size = 34.dp,
-                    iconSize = 18.dp,
-                    tint = if (hasPreviousChapter) themeColors.textColor else themeColors.textColor.copy(alpha = 0.3f),
-                    glassState = null,
-                    backgroundColor = Color.White.copy(alpha = 0.08f),
-                    borderColor = Color.White.copy(alpha = 0.12f),
-                    onClick = { if (hasPreviousChapter) onPreviousChapter() }
+                NovelAudioPlayerBar(
+                    currentParagraph = (currentSpeakingIndex + 1).coerceAtLeast(1),
+                    totalParagraphs = parsedParagraphs.size,
+                    speed = ttsSpeed,
+                    isPlaying = isListening,
+                    onTogglePlay = {
+                        if (isListening) {
+                            isListening = false
+                            tts.pause()
+                        } else {
+                            isListening = true
+                            tts.resume()
+                        }
+                    },
+                    onPreviousParagraph = {
+                        if (currentSpeakingIndex > 0) {
+                            currentSpeakingIndex--
+                            isListening = true
+                            tts.speak(parsedParagraphs, currentSpeakingIndex, object : TtsListener {
+                                override fun onParagraphStart(index: Int) { currentSpeakingIndex = index }
+                                override fun onComplete() {
+                                    isListening = false
+                                    isAudioPlayerVisible = false
+                                    currentSpeakingIndex = -1
+                                }
+                                override fun onError(message: String) { isListening = false }
+                            })
+                        }
+                    },
+                    onNextParagraph = {
+                        if (currentSpeakingIndex < parsedParagraphs.lastIndex) {
+                            currentSpeakingIndex++
+                            isListening = true
+                            tts.speak(parsedParagraphs, currentSpeakingIndex, object : TtsListener {
+                                override fun onParagraphStart(index: Int) { currentSpeakingIndex = index }
+                                override fun onComplete() {
+                                    isListening = false
+                                    isAudioPlayerVisible = false
+                                    currentSpeakingIndex = -1
+                                }
+                                override fun onError(message: String) { isListening = false }
+                            })
+                        }
+                    },
+                    onCycleSpeed = {
+                        ttsSpeed = when {
+                            ttsSpeed <= 0.9f -> 1.0f
+                            ttsSpeed <= 1.1f -> 1.25f
+                            ttsSpeed <= 1.35f -> 1.5f
+                            ttsSpeed <= 1.7f -> 2.0f
+                            else -> 0.8f
+                        }
+                        tts.setSpeed(ttsSpeed)
+                    },
+                    onClose = {
+                        isListening = false
+                        isAudioPlayerVisible = false
+                        tts.stop()
+                        currentSpeakingIndex = -1
+                    }
                 )
+            }
 
-                // "Aa" Typography toggle: cycles font sizes
-                val aaInteraction = remember { MutableInteractionSource() }
-                Box(
-                    modifier = Modifier
-                        .clip(CapsuleShape)
-                        .nonGlassPress(aaInteraction)
-                        .clickable(
-                            interactionSource = aaInteraction,
-                            indication = null,
-                            onClick = {
-                                val nextSize = when {
-                                    fontSize < 15f -> 16f
-                                    fontSize < 17f -> 18f
-                                    fontSize < 19f -> 20f
-                                    fontSize < 21f -> 22f
-                                    else -> 14f
-                                }
-                                if (isTitleScope) {
-                                    uiScope.launch {
-                                        prefsRepo.updatePrefs(titleKey) { it.copy(novelFontSize = nextSize) }
-                                    }
-                                } else {
-                                    repo.setNovelFontSize(nextSize)
-                                }
-                            }
-                        )
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Aa",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = themeColors.textColor
-                    )
-                }
-
-                // 4 Color Theme Dots
+            // Bottom Floating Glass Control Bar
+            GlassSurface(
+                shape = tokens.shapeMd,
+                style = GlassStyle.READER_HIGH_CONTRAST,
+                context = GlassSurfaceContext.READER_OVERLAY
+            ) {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    NovelReaderTheme.entries.forEach { theme ->
-                        val colors = theme.toColors()
-                        val isSelected = theme == selectedTheme
-                        val dotInteraction = remember { MutableInteractionSource() }
-                        val primaryAccent = MaterialTheme.colorScheme.primary
-                        Box(
-                            modifier = Modifier
-                                .size(20.dp)
-                                .clip(CircleShape)
-                                .nonGlassPress(dotInteraction)
-                                .background(colors.dotColor)
-                                .border(
-                                    width = if (isSelected) 2.dp else 1.dp,
-                                    color = if (isSelected) primaryAccent else Color.White.copy(alpha = 0.25f),
-                                    shape = CircleShape
-                                )
-                                .clickable(
-                                    interactionSource = dotInteraction,
-                                    indication = null,
-                                    onClick = {
-                                        if (isTitleScope) {
-                                            uiScope.launch {
-                                                prefsRepo.updatePrefs(titleKey) { it.copy(novelTheme = theme) }
-                                            }
-                                        } else {
-                                            repo.setNovelTheme(theme)
-                                        }
+                    // Previous chapter button
+                    PanelCircleIconButton(
+                        icon = Icons.AutoMirrored.Filled.NavigateBefore,
+                        size = 30.dp,
+                        iconSize = 17.dp,
+                        tint = if (hasPreviousChapter) themeColors.textColor else themeColors.textColor.copy(alpha = 0.3f),
+                        glassState = null,
+                        backgroundColor = Color.White.copy(alpha = 0.08f),
+                        borderColor = Color.White.copy(alpha = 0.12f),
+                        onClick = { if (hasPreviousChapter) onPreviousChapter() }
+                    )
+
+                    // "Aa" Typography toggle: cycles font sizes
+                    val aaInteraction = remember { MutableInteractionSource() }
+                    Box(
+                        modifier = Modifier
+                            .clip(CapsuleShape)
+                            .nonGlassPress(aaInteraction)
+                            .clickable(
+                                interactionSource = aaInteraction,
+                                indication = null,
+                                onClick = {
+                                    val nextSize = when {
+                                        fontSize < 15f -> 16f
+                                        fontSize < 17f -> 18f
+                                        fontSize < 19f -> 20f
+                                        fontSize < 21f -> 22f
+                                        else -> 14f
                                     }
-                                )
+                                    if (isTitleScope) {
+                                        uiScope.launch {
+                                            prefsRepo.updatePrefs(titleKey) { it.copy(novelFontSize = nextSize) }
+                                        }
+                                    } else {
+                                        repo.setNovelFontSize(nextSize)
+                                    }
+                                }
+                            )
+                            .padding(horizontal = 4.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Aa",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = themeColors.textColor,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
-                }
 
-                // TTS "Listen" Audio Button
-                val ttsInteraction = remember { MutableInteractionSource() }
-                val primaryAccent = MaterialTheme.colorScheme.primary
-                Row(
-                    modifier = Modifier
-                        .clip(CapsuleShape)
-                        .background(if (isListening) primaryAccent.copy(alpha = 0.20f) else Color.Transparent)
-                        .border(
-                            width = if (isListening) 1.dp else 0.dp,
-                            color = if (isListening) primaryAccent.copy(alpha = 0.40f) else Color.Transparent,
-                            shape = CapsuleShape
-                        )
-                        .nonGlassPress(ttsInteraction)
-                        .clickable(
-                            interactionSource = ttsInteraction,
-                            indication = null,
-                            onClick = {
-                                if (isListening) {
-                                    isListening = false
-                                    tts.pause()
-                                } else if (isAudioPlayerVisible) {
-                                    isListening = true
-                                    tts.resume()
-                                } else if (parsedParagraphs.isNotEmpty()) {
-                                    isAudioPlayerVisible = true
-                                    isListening = true
-                                    val startIdx = if (currentSpeakingIndex >= 0) currentSpeakingIndex else 0
-                                    tts.speak(
-                                        paragraphs = parsedParagraphs,
-                                        startIndex = startIdx,
-                                        listener = object : TtsListener {
-                                            override fun onParagraphStart(index: Int) {
-                                                currentSpeakingIndex = index
-                                            }
-                                            override fun onComplete() {
-                                                isListening = false
-                                                isAudioPlayerVisible = false
-                                                currentSpeakingIndex = -1
-                                            }
-                                            override fun onError(message: String) {
-                                                isListening = false
+                    // 4 Color Theme Dots
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        NovelReaderTheme.entries.forEach { theme ->
+                            val colors = theme.toColors()
+                            val isSelected = theme == selectedTheme
+                            val dotInteraction = remember { MutableInteractionSource() }
+                            val primaryAccent = MaterialTheme.colorScheme.primary
+                            Box(
+                                modifier = Modifier
+                                    .size(16.dp)
+                                    .clip(CircleShape)
+                                    .nonGlassPress(dotInteraction)
+                                    .background(colors.dotColor)
+                                    .border(
+                                        width = if (isSelected) 2.dp else 1.dp,
+                                        color = if (isSelected) primaryAccent else Color.White.copy(alpha = 0.25f),
+                                        shape = CircleShape
+                                    )
+                                    .clickable(
+                                        interactionSource = dotInteraction,
+                                        indication = null,
+                                        onClick = {
+                                            if (isTitleScope) {
+                                                uiScope.launch {
+                                                    prefsRepo.updatePrefs(titleKey) { it.copy(novelTheme = theme) }
+                                                }
+                                            } else {
+                                                repo.setNovelTheme(theme)
                                             }
                                         }
                                     )
+                            )
+                        }
+                    }
+
+                    // TTS "Listen" Audio Button
+                    val ttsInteraction = remember { MutableInteractionSource() }
+                    val primaryAccent = MaterialTheme.colorScheme.primary
+                    Row(
+                        modifier = Modifier
+                            .clip(CapsuleShape)
+                            .background(if (isListening) primaryAccent.copy(alpha = 0.20f) else Color.Transparent)
+                            .border(
+                                width = if (isListening) 1.dp else 0.dp,
+                                color = if (isListening) primaryAccent.copy(alpha = 0.40f) else Color.Transparent,
+                                shape = CapsuleShape
+                            )
+                            .nonGlassPress(ttsInteraction)
+                            .clickable(
+                                interactionSource = ttsInteraction,
+                                indication = null,
+                                onClick = {
+                                    if (isListening) {
+                                        isListening = false
+                                        tts.pause()
+                                    } else if (isAudioPlayerVisible) {
+                                        isListening = true
+                                        tts.resume()
+                                    } else if (parsedParagraphs.isNotEmpty()) {
+                                        isAudioPlayerVisible = true
+                                        isListening = true
+                                        val startIdx = if (currentSpeakingIndex >= 0) currentSpeakingIndex else 0
+                                        tts.speak(
+                                            paragraphs = parsedParagraphs,
+                                            startIndex = startIdx,
+                                            listener = object : TtsListener {
+                                                override fun onParagraphStart(index: Int) {
+                                                    currentSpeakingIndex = index
+                                                }
+                                                override fun onComplete() {
+                                                    isListening = false
+                                                    isAudioPlayerVisible = false
+                                                    currentSpeakingIndex = -1
+                                                }
+                                                override fun onError(message: String) {
+                                                    isListening = false
+                                                }
+                                            }
+                                        )
+                                    }
                                 }
-                            }
+                            )
+                            .padding(horizontal = 6.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isListening) Icons.Default.Pause else Icons.Default.Headphones,
+                            contentDescription = "Listen",
+                            tint = if (isListening) primaryAccent else themeColors.textColor,
+                            modifier = Modifier.size(14.dp)
                         )
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = if (isListening) Icons.Default.Pause else Icons.Default.Headphones,
-                        contentDescription = "Listen",
-                        tint = if (isListening) primaryAccent else themeColors.textColor,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = if (isListening) "Playing" else "Listen",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isListening) primaryAccent else themeColors.textColor
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = if (isListening) "Playing" else "Listen",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isListening) primaryAccent else themeColors.textColor,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+
+                    // Next chapter button
+                    PanelCircleIconButton(
+                        icon = Icons.AutoMirrored.Filled.NavigateNext,
+                        size = 30.dp,
+                        iconSize = 17.dp,
+                        tint = if (hasNextChapter) themeColors.textColor else themeColors.textColor.copy(alpha = 0.3f),
+                        glassState = null,
+                        backgroundColor = Color.White.copy(alpha = 0.08f),
+                        borderColor = Color.White.copy(alpha = 0.12f),
+                        onClick = { if (hasNextChapter) onNextChapter() }
                     )
                 }
-
-                // Next chapter button
-                PanelCircleIconButton(
-                    icon = Icons.AutoMirrored.Filled.NavigateNext,
-                    size = 34.dp,
-                    iconSize = 18.dp,
-                    tint = if (hasNextChapter) themeColors.textColor else themeColors.textColor.copy(alpha = 0.3f),
-                    glassState = null,
-                    backgroundColor = Color.White.copy(alpha = 0.08f),
-                    borderColor = Color.White.copy(alpha = 0.12f),
-                    onClick = { if (hasNextChapter) onNextChapter() }
-                )
             }
-        }
-
-        // Floating Audio Player Glass Bar for TTS
-        AnimatedVisibility(
-            visible = isAudioPlayerVisible,
-            enter = fadeIn() + slideInVertically { it },
-            exit = fadeOut() + slideOutVertically { it },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 80.dp, start = 20.dp, end = 20.dp)
-        ) {
-            NovelAudioPlayerBar(
-                currentParagraph = (currentSpeakingIndex + 1).coerceAtLeast(1),
-                totalParagraphs = parsedParagraphs.size,
-                speed = ttsSpeed,
-                isPlaying = isListening,
-                onTogglePlay = {
-                    if (isListening) {
-                        isListening = false
-                        tts.pause()
-                    } else {
-                        isListening = true
-                        tts.resume()
-                    }
-                },
-                onPreviousParagraph = {
-                    if (currentSpeakingIndex > 0) {
-                        currentSpeakingIndex--
-                        isListening = true
-                        tts.speak(parsedParagraphs, currentSpeakingIndex, object : TtsListener {
-                            override fun onParagraphStart(index: Int) { currentSpeakingIndex = index }
-                            override fun onComplete() {
-                                isListening = false
-                                isAudioPlayerVisible = false
-                                currentSpeakingIndex = -1
-                            }
-                            override fun onError(message: String) { isListening = false }
-                        })
-                    }
-                },
-                onNextParagraph = {
-                    if (currentSpeakingIndex < parsedParagraphs.lastIndex) {
-                        currentSpeakingIndex++
-                        isListening = true
-                        tts.speak(parsedParagraphs, currentSpeakingIndex, object : TtsListener {
-                            override fun onParagraphStart(index: Int) { currentSpeakingIndex = index }
-                            override fun onComplete() {
-                                isListening = false
-                                isAudioPlayerVisible = false
-                                currentSpeakingIndex = -1
-                            }
-                            override fun onError(message: String) { isListening = false }
-                        })
-                    }
-                },
-                onCycleSpeed = {
-                    ttsSpeed = when {
-                        ttsSpeed <= 0.9f -> 1.0f
-                        ttsSpeed <= 1.1f -> 1.25f
-                        ttsSpeed <= 1.35f -> 1.5f
-                        ttsSpeed <= 1.7f -> 2.0f
-                        else -> 0.8f
-                    }
-                    tts.setSpeed(ttsSpeed)
-                },
-                onClose = {
-                    isListening = false
-                    isAudioPlayerVisible = false
-                    tts.stop()
-                    currentSpeakingIndex = -1
-                }
-            )
         }
 
         if (isSettingsOpen) {
@@ -913,48 +921,51 @@ fun NovelAudioPlayerBar(
     isPlaying: Boolean = true,
     modifier: Modifier = Modifier
 ) {
-    val barShape = RoundedCornerShape(20.dp)
+    val tokens = LocalGlassTokens.current
     val playInteraction = remember { MutableInteractionSource() }
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(barShape)
-            .background(Color(0xF20B0E17))
-            .border(1.dp, GlassBorderStrong, barShape)
-            .padding(horizontal = 14.dp, vertical = 8.dp)
+    GlassSurface(
+        modifier = modifier.fillMaxWidth(),
+        shape = tokens.shapeMd,
+        style = GlassStyle.READER_HIGH_CONTRAST,
+        context = GlassSurfaceContext.READER_OVERLAY
     ) {
+        Box(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Left: Paragraph indicator
-            Column {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "AUDIO READER",
-                    fontSize = 9.sp,
+                    fontSize = 8.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
-                    letterSpacing = 1.sp
+                    letterSpacing = 0.3.sp,
+                    maxLines = 1,
+                    softWrap = false
                 )
                 Text(
                     text = "Para $currentParagraph / $totalParagraphs",
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color.White
+                    color = Color.White,
+                    maxLines = 1,
+                    softWrap = false
                 )
             }
 
             // Center: Playback Controls (Prev, Play/Pause, Next)
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 // Prev paragraph
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(28.dp)
                         .clip(CircleShape)
                         .background(Color.White.copy(alpha = 0.08f))
                         .clickable(onClick = onPreviousParagraph),
@@ -964,14 +975,14 @@ fun NovelAudioPlayerBar(
                         imageVector = Icons.AutoMirrored.Filled.NavigateBefore,
                         contentDescription = "Previous Paragraph",
                         tint = Color.White,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
 
                 // Play / Pause main button
                 Box(
                     modifier = Modifier
-                        .size(38.dp)
+                        .size(32.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.primary)
                         .clickable(
@@ -985,14 +996,14 @@ fun NovelAudioPlayerBar(
                         imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                         contentDescription = if (isPlaying) "Pause" else "Resume",
                         tint = Color.Black,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
 
                 // Next paragraph
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(28.dp)
                         .clip(CircleShape)
                         .background(Color.White.copy(alpha = 0.08f))
                         .clickable(onClick = onNextParagraph),
@@ -1002,7 +1013,7 @@ fun NovelAudioPlayerBar(
                         imageVector = Icons.AutoMirrored.Filled.NavigateNext,
                         contentDescription = "Next Paragraph",
                         tint = Color.White,
-                        modifier = Modifier.size(18.dp)
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
@@ -1010,7 +1021,7 @@ fun NovelAudioPlayerBar(
             // Right: Speed Stepper & Close
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 // Speed pill
                 Box(
@@ -1019,21 +1030,23 @@ fun NovelAudioPlayerBar(
                         .background(Color.White.copy(alpha = 0.08f))
                         .border(0.5.dp, GlassBorder, CapsuleShape)
                         .clickable(onClick = onCycleSpeed)
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = "${speed}x",
-                        fontSize = 11.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        softWrap = false
                     )
                 }
 
                 // Close button
                 Box(
                     modifier = Modifier
-                        .size(28.dp)
+                        .size(24.dp)
                         .clip(CircleShape)
                         .background(Color.White.copy(alpha = 0.06f))
                         .clickable(onClick = onClose),
@@ -1043,10 +1056,11 @@ fun NovelAudioPlayerBar(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close Audio Reader",
                         tint = Color.White.copy(alpha = 0.7f),
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(13.dp)
                     )
                 }
             }
+        }
         }
     }
 }
@@ -1063,21 +1077,19 @@ fun NovelEndOfChapterCard(
     textColor: Color,
     modifier: Modifier = Modifier
 ) {
-    val cardShape = RoundedCornerShape(24.dp)
+    val tokens = LocalGlassTokens.current
     val buttonInteraction = remember { MutableInteractionSource() }
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .glassDimming(alpha = 0.35f, shape = cardShape)
-            .glassSurface(
-                state = glassState,
-                variant = GlassVariant.Regular,
-                shape = cardShape
-            )
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
+    GlassSurface(
+        modifier = modifier.fillMaxWidth(),
+        shape = tokens.shapeLg,
+        style = GlassStyle.READER_HIGH_CONTRAST,
+        context = GlassSurfaceContext.READER_OVERLAY
     ) {
+        Box(
+            modifier = Modifier.padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
@@ -1139,6 +1151,7 @@ fun NovelEndOfChapterCard(
                     color = textColor.copy(alpha = 0.7f)
                 )
             }
+        }
         }
     }
 }

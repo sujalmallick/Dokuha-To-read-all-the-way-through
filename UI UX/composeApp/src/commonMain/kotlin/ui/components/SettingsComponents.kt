@@ -75,8 +75,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import ui.components.glass.GlassDialog
+import ui.components.glass.GlassStyle
+import ui.components.glass.GlassSurface
+import ui.glass.GlassSurfaceContext
 import ui.glass.GlassVariant
 import ui.glass.glassSurface
+import ui.theme.LocalGlassTokens
 import ui.motion.rememberControlThumbSpring
 import ui.motion.rememberSegmentedIndicatorSpring
 import ui.theme.BadgeRed
@@ -732,15 +737,15 @@ fun GlassCollapsingTopBar(
             .statusBarsPadding()
     ) {
         // Collapsed Glass Background surface (fades in via graphicsLayer)
-        Box(
+        GlassSurface(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .graphicsLayer { alpha = collapseProgress }
-                .glassSurface(
-                    shape = RoundedCornerShape(0.dp)
-                )
-        )
+                .graphicsLayer { alpha = collapseProgress },
+            shape = RoundedCornerShape(0.dp),
+            style = GlassStyle.REGULAR,
+            context = GlassSurfaceContext.SCROLLING_LIST
+        ) {}
 
         Row(
             modifier = Modifier
@@ -787,64 +792,17 @@ fun GlassSearchField(
     modifier: Modifier = Modifier,
     placeholder: String = "Search settings..."
 ) {
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(44.dp)
-            .glassSurface(
-                shape = CapsuleShape
-            )
-            .padding(horizontal = 14.dp),
-        contentAlignment = Alignment.CenterStart
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(
-                imageVector = Icons.Default.Search,
-                contentDescription = null,
-                tint = TextSecondary,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Box(modifier = Modifier.weight(1f)) {
-                if (query.isEmpty()) {
-                    Text(
-                        text = placeholder,
-                        color = TextMuted,
-                        fontSize = 14.sp
-                    )
-                }
-                androidx.compose.foundation.text.BasicTextField(
-                    value = query,
-                    onValueChange = onQueryChange,
-                    singleLine = true,
-                    textStyle = androidx.compose.ui.text.TextStyle(
-                        color = TextPrimary,
-                        fontSize = 14.sp
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            if (query.isNotEmpty()) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Clear",
-                    tint = TextSecondary,
-                    modifier = Modifier
-                        .size(18.dp)
-                        .clickable { onQueryChange("") }
-                )
-            }
-        }
-    }
+    ui.components.glass.GlassSearchField(
+        query = query,
+        onQueryChange = onQueryChange,
+        modifier = modifier,
+        placeholder = placeholder
+    )
 }
 
 /**
  * Regular lens glass confirmation dialog (springs in, scrim fades).
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GlassConfirmDialog(
     title: String,
@@ -854,65 +812,23 @@ fun GlassConfirmDialog(
     onDismiss: () -> Unit,
     isDestructive: Boolean = false
 ) {
-    BasicAlertDialog(
-        onDismissRequest = onDismiss
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp)
-                .glassSurface(
-                    shape = RoundedCornerShape(24.dp)
-                )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp)
-            ) {
-                Text(
-                    text = title,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextPrimary
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = message,
-                    fontSize = 14.sp,
-                    color = TextSecondary,
-                    lineHeight = 20.sp
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Text(
-                        text = "Cancel",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = TextSecondary,
-                        modifier = Modifier
-                            .clickable(onClick = onDismiss)
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = confirmText,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isDestructive) BadgeRed else MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .clickable {
-                                onConfirm()
-                                onDismiss()
-                            }
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                    )
-                }
-            }
+    val tokens = LocalGlassTokens.current
+    GlassDialog(
+        title = title,
+        onDismissRequest = onDismiss,
+        confirmText = confirmText,
+        isDestructive = isDestructive,
+        onConfirm = {
+            onConfirm()
+            onDismiss()
         }
+    ) {
+        Text(
+            text = message,
+            fontSize = 14.sp,
+            color = tokens.subtextOnGlass,
+            lineHeight = 20.sp
+        )
     }
 }
 
