@@ -14,6 +14,9 @@ import androidx.compose.ui.graphics.RenderEffect
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.positionOnScreen
+import kotlin.math.PI
+import kotlin.math.atan2
+import kotlin.math.sqrt
 
 private val isRuntimeShaderSupported: Boolean by lazy {
   if (Build.VERSION.SDK_INT < 33) return@lazy false
@@ -37,9 +40,20 @@ internal actual fun liquidElement(
 
 internal actual fun LayoutCoordinates.liquidPositionOnScreen(): Offset = positionOnScreen()
 
-internal actual fun LayoutCoordinates.liquidPopulateScreenTransform(matrix: Matrix): Boolean {
+internal actual fun LayoutCoordinates.liquidInverseTransform(): LiquidInverseTransform {
+  val matrix = Matrix()
   transformToScreen(matrix)
-  return true
+  val scaleX = matrix.values[Matrix.ScaleX]
+  val scaleY = matrix.values[Matrix.ScaleY]
+  val skewX = matrix.values[Matrix.SkewX]
+  val skewY = matrix.values[Matrix.SkewY]
+  val scaleXMagnitude = sqrt(scaleX * scaleX + skewY * skewY)
+  val scaleYMagnitude = sqrt(skewX * skewX + scaleY * scaleY)
+  return LiquidInverseTransform(
+    inverseScaleX = if (scaleXMagnitude > 0f) 1f / scaleXMagnitude else 0f,
+    inverseScaleY = if (scaleYMagnitude > 0f) 1f / scaleYMagnitude else 0f,
+    inverseRotationZ = -(180.0 / PI).toFloat() * atan2(skewY, scaleX),
+  )
 }
 
 @RequiresApi(33)
