@@ -31,6 +31,9 @@ import ui.screens.splash.SplashScreenContent
 import ui.screens.welcome.WelcomeScreen
 import coil3.compose.setSingletonImageLoaderFactory
 import core.image.newPanelImageLoader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.withContext
 import ui.theme.PanelAccentColors
 import ui.theme.PanelTheme
 
@@ -52,13 +55,18 @@ fun PanelApp(
     }
 }
 
+@Composable
+private fun InitSingletonImageLoader(httpClient: io.ktor.client.HttpClient) {
+    setSingletonImageLoaderFactory { context ->
+        newPanelImageLoader(context, httpClient)
+    }
+}
+
 @OptIn(cafe.adriel.voyager.core.annotation.ExperimentalVoyagerApi::class)
 @Composable
 private fun PanelAppRoot() {
     val httpClient: io.ktor.client.HttpClient = koinInject()
-    setSingletonImageLoaderFactory { context ->
-        newPanelImageLoader(context, httpClient)
-    }
+    InitSingletonImageLoader(httpClient)
 
     val settingsRepository: SettingsRepository = koinInject()
     val antiBotManager = koinInject<AntiBotChallengeManager>()
@@ -72,6 +80,12 @@ private fun PanelAppRoot() {
     val isOnboarded by settingsRepository.isOnboardingCompleted.collectAsState()
 
     var showSplash by rememberSaveable { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            koin.get<io.panel.reader.db.PanelDatabase>()
+        }
+    }
 
     LaunchedEffect(showSplash) {
         if (!showSplash) {
