@@ -24,6 +24,7 @@ CREATE TABLE mangas (
 CREATE INDEX mangas_source_id_url_idx ON mangas(source_id, url);
 CREATE INDEX mangas_url_idx ON mangas(url);
 CREATE INDEX mangas_favorite_idx ON mangas(favorite);
+CREATE INDEX mangas_favorite_title_idx ON mangas(favorite, title ASC);
 
 getLibrary:
 SELECT *

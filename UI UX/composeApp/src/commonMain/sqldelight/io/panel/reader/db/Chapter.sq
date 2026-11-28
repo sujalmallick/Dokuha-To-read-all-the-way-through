@@ -19,6 +19,8 @@ CREATE TABLE chapters (
 CREATE INDEX chapters_manga_id_idx ON chapters(manga_id);
 CREATE INDEX chapters_manga_id_url_idx ON chapters(manga_id, url);
 CREATE INDEX chapters_url_idx ON chapters(url);
+CREATE INDEX chapters_manga_id_order_idx ON chapters(manga_id, chapter_number DESC, source_order DESC);
+CREATE INDEX chapters_date_fetch_idx ON chapters(date_fetch DESC, chapter_number DESC);
 
 getChaptersByMangaId:
 SELECT *
