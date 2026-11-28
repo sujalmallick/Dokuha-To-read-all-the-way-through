@@ -202,6 +202,9 @@ data class WebtoonReaderScreen(
             currentChapterIndex > 0
         } else false
 
+        val previousTitle = if (chapters.isNotEmpty() && currentChapterIndex in 0 until chapters.lastIndex) {
+            chapters[currentChapterIndex + 1].name
+        } else ""
         val nextTitle = if (chapters.isNotEmpty() && currentChapterIndex > 0) {
             chapters[currentChapterIndex - 1].name
         } else ""
@@ -335,6 +338,7 @@ data class WebtoonReaderScreen(
                 startAtEndOnLoad = startAtEndOnLoad,
                 hasPreviousChapter = hasPrevious,
                 hasNextChapter = hasNext,
+                previousChapterTitle = previousTitle,
                 nextChapterTitle = nextTitle
             )
 
@@ -374,6 +378,7 @@ fun WebtoonReaderScreenContent(
     onNextChapter: () -> Unit = {},
     hasPreviousChapter: Boolean = true,
     hasNextChapter: Boolean = true,
+    previousChapterTitle: String = "",
     nextChapterTitle: String = "",
     startAtEndOnLoad: Boolean = false,
     modifier: Modifier = Modifier
@@ -509,7 +514,8 @@ fun WebtoonReaderScreenContent(
                     savedPageIndex = targetIdx
                     savedScrollOffset = 0
                     hasRestoredSavedPosition = true
-                    listState.scrollToItem(targetIdx)
+                    // Index 0 in WEBTOON LazyColumn is WebtoonPreviousChapterHeader; pages start at 1.
+                    listState.scrollToItem(targetIdx + 1)
                     pagerState.scrollToPage(
                         if (isDualSpreadActive && startAtEndOnLoad) (spreads.size - 1).coerceAtLeast(0) else targetIdx
                     )
@@ -517,8 +523,10 @@ fun WebtoonReaderScreenContent(
             } else if (!hasRestoredSavedPosition && displayPages.isNotEmpty()) {
                 val targetIndex = savedPageIndex.coerceIn(0, displayPages.lastIndex)
                 if (targetIndex > 0 || savedScrollOffset > 0) {
-                    listState.scrollToItem(targetIndex, savedScrollOffset.coerceAtLeast(0))
+                    listState.scrollToItem(targetIndex + 1, savedScrollOffset.coerceAtLeast(0))
                     pagerState.scrollToPage(targetIndex)
+                } else {
+                    listState.scrollToItem(1)
                 }
                 hasRestoredSavedPosition = true
             }
@@ -534,7 +542,7 @@ fun WebtoonReaderScreenContent(
         ) {
             if (hasRestoredSavedPosition && displayPages.isNotEmpty()) {
                 if (readingMode == DefaultReadingMode.WEBTOON) {
-                    savedPageIndex = listState.firstVisibleItemIndex.coerceIn(0, displayPages.lastIndex)
+                    savedPageIndex = (listState.firstVisibleItemIndex - 1).coerceIn(0, displayPages.lastIndex)
                     savedScrollOffset = listState.firstVisibleItemScrollOffset.coerceAtLeast(0)
                 } else {
                     savedPageIndex = pagerState.currentPage.coerceIn(0, displayPages.lastIndex)
@@ -550,6 +558,31 @@ fun WebtoonReaderScreenContent(
         var pullUpOverscrollPx by remember(chapterUrl) { mutableFloatStateOf(0f) }
         val autoNextNestedScroll = remember(chapterUrl, hasNextChapter, hasPreviousChapter, displayPages.size) {
             object : NestedScrollConnection {
+                override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                    if (source != NestedScrollSource.UserInput) {
+                        return Offset.Zero
+                    }
+                    // Check upward overscroll in onPreScroll so platform bouncy overscroll (iOS) does not consume it first.
+                    if (!listState.canScrollBackward && available.y > 0f && hasPreviousChapter && !hasTriggeredAutoPrev && !isChapterTransitioning && displayPages.isNotEmpty()) {
+                        pullUpOverscrollPx += available.y
+                        if (shouldAutoReturnOnTopScroll(
+                                hasPreviousChapter = hasPreviousChapter,
+                                alreadyTriggered = hasTriggeredAutoPrev || isChapterTransitioning,
+                                canScrollBackward = listState.canScrollBackward,
+                                upwardScrollDeltaY = pullUpOverscrollPx,
+                                isEmptyPages = displayPages.isEmpty()
+                            )
+                        ) {
+                            hasTriggeredAutoPrev = true
+                            pullUpOverscrollPx = 0f
+                            safePreviousChapter()
+                        }
+                    } else if (listState.canScrollBackward || available.y < 0f) {
+                        pullUpOverscrollPx = 0f
+                    }
+                    return Offset.Zero
+                }
+
                 override fun onPostScroll(
                     consumed: Offset,
                     available: Offset,
@@ -575,17 +608,6 @@ fun WebtoonReaderScreenContent(
                     } else if (listState.canScrollForward || available.y > 0f) {
                         pullDownOverscrollPx = 0f
                     }
-
-                    if (!listState.canScrollBackward && available.y > 0f && hasPreviousChapter && !hasTriggeredAutoPrev && !isChapterTransitioning && displayPages.isNotEmpty()) {
-                        pullUpOverscrollPx += available.y
-                        if (pullUpOverscrollPx > 60f) {
-                            hasTriggeredAutoPrev = true
-                            pullUpOverscrollPx = 0f
-                            safePreviousChapter()
-                        }
-                    } else if (listState.canScrollBackward || available.y < 0f) {
-                        pullUpOverscrollPx = 0f
-                    }
                     return Offset.Zero
                 }
 
@@ -604,7 +626,7 @@ fun WebtoonReaderScreenContent(
                     val total = displayPages.size
                     if (total <= 1) 0f
                     else {
-                        val index = listState.firstVisibleItemIndex.toFloat()
+                        val index = (listState.firstVisibleItemIndex - 1).coerceAtLeast(0).toFloat()
                         val offset = listState.firstVisibleItemScrollOffset.toFloat() / 1000f
                         ((index + offset) / total.toFloat()).coerceIn(0f, 1f)
                     }
@@ -626,7 +648,7 @@ fun WebtoonReaderScreenContent(
         val currentPageIndex by remember(readingMode, displayPages.size) {
             derivedStateOf {
                 if (readingMode == DefaultReadingMode.WEBTOON) {
-                    (listState.firstVisibleItemIndex + 1).coerceAtMost(displayPages.size)
+                    listState.firstVisibleItemIndex.coerceIn(1, displayPages.size)
                 } else {
                     (pagerState.currentPage + 1).coerceAtMost(displayPages.size)
                 }
@@ -646,7 +668,7 @@ fun WebtoonReaderScreenContent(
         val isAtEndOfChapter by remember(readingMode, displayPages.size, isDualSpreadActive, spreads.size) {
             derivedStateOf {
                 if (readingMode == DefaultReadingMode.WEBTOON) {
-                    listState.firstVisibleItemIndex >= displayPages.size
+                    listState.firstVisibleItemIndex > displayPages.size
                 } else if (isDualSpreadActive) {
                     pagerState.currentPage >= spreads.size
                 } else {
@@ -884,6 +906,14 @@ fun WebtoonReaderScreenContent(
                                     onNext = handleToggleControls
                                 )
                         ) {
+                            item(key = "prev_chapter_header_${chapterTitle}") {
+                                WebtoonPreviousChapterHeader(
+                                    currentChapterTitle = chapterTitle,
+                                    previousChapterTitle = previousChapterTitle,
+                                    hasPreviousChapter = hasPreviousChapter,
+                                    onPreviousChapter = safePreviousChapter
+                                )
+                            }
                             itemsIndexed(
                                 items = displayPages,
                                 key = { index, page -> "${index}_${page.url}" }
@@ -1376,6 +1406,48 @@ private fun ReaderModeSwitcher(
                 }
             }
         }
+    }
+}
+
+/**
+ * Inline header above page 1 in continuous webtoon reading showing the current chapter
+ * and previous chapter (with tap-to-return when a previous chapter exists).
+ */
+@Composable
+fun WebtoonPreviousChapterHeader(
+    currentChapterTitle: String,
+    previousChapterTitle: String,
+    hasPreviousChapter: Boolean,
+    onPreviousChapter: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (hasPreviousChapter) Modifier.clickable(onClick = onPreviousChapter) else Modifier)
+            .statusBarsPadding()
+            .padding(vertical = 20.dp, horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "Current: $currentChapterTitle",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = TextPrimary
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = if (hasPreviousChapter) {
+                val prevLabel = previousChapterTitle.ifBlank { "Previous chapter" }
+                "Previous: $prevLabel · Pull or tap to go back"
+            } else {
+                "First chapter"
+            },
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = TextSecondary
+        )
     }
 }
 
@@ -1901,6 +1973,20 @@ internal fun shouldAutoAdvanceOnBottomScroll(
         !isEmptyPages &&
         !canScrollForward &&
         downwardScrollDeltaY <= -60f
+}
+
+internal fun shouldAutoReturnOnTopScroll(
+    hasPreviousChapter: Boolean,
+    alreadyTriggered: Boolean,
+    canScrollBackward: Boolean,
+    upwardScrollDeltaY: Float,
+    isEmptyPages: Boolean
+): Boolean {
+    return hasPreviousChapter &&
+        !alreadyTriggered &&
+        !isEmptyPages &&
+        !canScrollBackward &&
+        upwardScrollDeltaY >= 60f
 }
 
 internal data class WebtoonScrollbarMetrics(
